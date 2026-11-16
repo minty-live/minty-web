@@ -109,6 +109,85 @@ describe("ChangeDialog", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it("a paid cancellation asks why - required - and Confirm passes the words on", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <ChangeDialog
+        modal={buildChangeModal(SUMMARY_FIXTURES.M44, ["PETTY_CASH"])!}
+        entityName="Nexora Health Limited"
+        busy={false}
+        askReason
+        onConfirm={onConfirm}
+        onBack={vi.fn()}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    const field = within(dialog).getByRole("textbox", {
+      name: "Tell us why you're leaving (required)",
+    });
+    expect(field).toHaveAttribute("aria-required", "true");
+    expect(field).toHaveAttribute("maxlength", "500");
+    // Nothing is red on open.
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(within(dialog).queryByText(/still empty/)).toBeNull();
+    await userEvent.type(field, "Too expensive{Enter}for now");
+    // Enter is a new line in the box, never the confirmation.
+    expect(onConfirm).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm Change" }));
+    expect(onConfirm).toHaveBeenCalledWith("Too expensive\nfor now");
+  });
+
+  it("a blank reason is refused: the sentence under the box, focus on it, nothing confirmed", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <ChangeDialog
+        modal={buildChangeModal(SUMMARY_FIXTURES.M44, ["PETTY_CASH"])!}
+        entityName="Nexora Health Limited"
+        busy={false}
+        askReason
+        onConfirm={onConfirm}
+        onBack={vi.fn()}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    const field = within(dialog).getByRole("textbox");
+    await userEvent.type(field, "   ");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm Change" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    const said = "The reason is still empty. Tell us why you're leaving to continue.";
+    expect(within(dialog).getByText(said)).toBeInTheDocument();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(said);
+    expect(field).toHaveFocus();
+    // Typing clears it at once.
+    await userEvent.type(field, "Moving to another tool");
+    expect(within(dialog).queryByText(said)).toBeNull();
+    expect(field).not.toHaveAttribute("aria-invalid");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm Change" }));
+    expect(onConfirm).toHaveBeenCalledWith("   Moving to another tool");
+  });
+
+  it("without askReason there is no box, and Confirm passes nothing", async () => {
+    const { dialog, onConfirm } = show(["PETTY_CASH", "PAYMENT_REQUEST"], SUMMARY_FIXTURES.M22);
+    expect(within(dialog).queryByRole("textbox")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    expect(onConfirm).toHaveBeenCalledWith(undefined);
+  });
+
+  it("the box is shut while the change is being applied", () => {
+    render(
+      <ChangeDialog
+        modal={buildChangeModal(SUMMARY_FIXTURES.M44, ["PETTY_CASH"])!}
+        entityName="Nexora Health Limited"
+        busy
+        askReason
+        onConfirm={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("textbox")).toBeDisabled();
+  });
+
   it("while the change is being applied nothing closes it", async () => {
     const { dialog, onBack, onConfirm } = show(["PETTY_CASH"], SUMMARY_FIXTURES.M44, true);
     expect(within(dialog).getByRole("button", { name: "Confirm Change" })).toBeDisabled();

@@ -116,12 +116,13 @@ export async function applyChange(
    * `cardChosen`: the company was just put on a billing account that has a card (Manage
    * Subscriptions' account picker), so `before`'s "no card at all" is out of date - a trial is
    * confirmed on that card instead of asking for an account again.
+   * `reason`: why they are leaving, typed in the cancellation dialog - sent with each cancel.
    */
-  { cardChosen = false }: { cardChosen?: boolean } = {},
+  { cardChosen = false, reason }: { cardChosen?: boolean; reason?: string } = {},
 ): Promise<AppliedChange> {
   const by = seamsOf(before, codes);
 
-  for (const card of by.cancel ?? []) await cancelModule(entityId, card.code);
+  for (const card of by.cancel ?? []) await cancelModule(entityId, card.code, reason);
   for (const card of by.resume ?? []) {
     try {
       await renewModule(entityId, card.code);

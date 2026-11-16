@@ -133,7 +133,13 @@ export function ManageSubscriptionsScreen(args: UseSubscriptionsListArgs) {
           modal={m.changePrompt.modal}
           entityName={m.changePrompt.entity.entity_name}
           busy={m.changeBusy}
-          onConfirm={() => void m.applyChangePrompt()}
+          // A paid cancellation asks why, optionally (owner, 2026-11-13: free text); a trial
+          // stopping is not a cancellation and is not asked.
+          askReason={
+            m.changePrompt.modal.kind === "remove" ||
+            m.changePrompt.modal.kind === "cancel_subscription"
+          }
+          onConfirm={(reason) => void m.applyChangePrompt(reason)}
           onBack={m.dismissChangePrompt}
         />
       )}

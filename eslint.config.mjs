@@ -189,6 +189,19 @@ const eslintConfig = defineConfig([
     // pdf.js's worker, copied in from node_modules by next.config.ts (gitignored): not our code.
     "public/pdfjs/**",
   ]),
+  {
+    // No native browser dialog anywhere - alert/confirm/prompt or "Leave site?" (owner, 2026-11-16)
+    rules: {
+      "no-alert": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value='beforeunload']",
+          message: "No native browser dialogs (owner, 2026-11-16): ask in the page instead.",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

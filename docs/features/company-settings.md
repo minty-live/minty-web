@@ -100,9 +100,9 @@ goes on, _Go Back_, Escape and the backdrop stay.
 
 What it holds: the tab row, the header's Back and the sidebar's
 links - all anchors, caught on `window` in the capture phase, so before their own handlers run -
-and Back / Forward, which are soft navigations no `beforeunload` could catch (the guard keeps a
-history sentinel for them). A reload, a typed address and a closed tab get the browser's own
-prompt. Logout is a button rather than a link, so `components/ui/SideMenu.tsx` asks through
+and Back / Forward, which are soft navigations (the guard keeps a history sentinel for them). A
+reload, a typed address and a closed tab leave WITHOUT asking: the only prompt a browser allows
+there is its own "Leave site?", and Minty shows no native browser dialog (owner, 2026-11-16). Logout is a button rather than a link, so `components/ui/SideMenu.tsx` asks through
 `guardLeave` instead; it has to, because `logOut` clears the token before it navigates.
 
 A SUCCESSFUL save leaves the page clean, so nothing is asked after it. A refused one

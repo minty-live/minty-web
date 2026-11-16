@@ -95,7 +95,7 @@ describe("TransferSubscriptionScreen", () => {
     expect(within(done).getByText(/You are still responsible for/)).toBeInTheDocument();
     expect(done.querySelector("img")).toHaveAttribute("src", "/portal/lemon-approved.png");
     await userEvent.click(
-      within(done).getByRole("button", { name: "Back to Manage Subscription" }),
+      within(done).getByRole("button", { name: "Back to Manage Subscriptions" }),
     );
     expect(push).toHaveBeenCalledWith("/subscription/subscriptions?entity=e-company-b");
   });
@@ -146,7 +146,7 @@ describe("SubscriptionRequestsScreen", () => {
     ).toBeInTheDocument();
     expect(empty.querySelector("img")).toHaveAttribute("src", "/portal/minty-dont.png");
     await userEvent.click(
-      within(empty).getByRole("button", { name: "Back to Manage Subscription" }),
+      within(empty).getByRole("button", { name: "Back to Manage Subscriptions" }),
     );
     expect(push).toHaveBeenCalledWith("/subscription/subscriptions");
   });
@@ -310,10 +310,12 @@ describe("07-M in the list", () => {
       `You are now the owner of the ${mine.entity_name} subscription and have full control of this Minty.`,
     );
     expect(within(row).getByText(/Your next subscription renewal date/)).toBeInTheDocument();
-    // The handover's row shares the result screens' button: it leaves for 08-A too (07-M).
+    // The handover's row shares the result screens' button: it stays on the list too (owner,
+    // 2026-11-16), the company's row open on its new state.
     await userEvent.click(
       within(row).getByRole("button", { name: "Back to Manage Subscriptions" }),
     );
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/subscription"));
+    await waitFor(() => expect(document.querySelector("[data-result]")).toBeNull());
+    expect(push).not.toHaveBeenCalledWith("/subscription");
   });
 });

@@ -328,7 +328,7 @@ export function TransferRequested({
           onClick={onBack}
           className="h-[66px] w-[368px] max-w-full rounded-[24px] bg-[#54d3da] text-xl font-bold text-white hover:opacity-90"
         >
-          Back to Manage Subscription
+          Back to Manage Subscriptions
         </button>
       </div>
       <Image

@@ -63,7 +63,7 @@ export function NoRequests({ onBack }: { onBack: () => void }) {
         onClick={onBack}
         className="mt-2 h-[52px] w-[260px] rounded-lg border border-[#d8dee4] bg-white text-[15px] font-semibold text-[#292e38] hover:bg-[#f5f7fa]"
       >
-        Back to Manage Subscription
+        Back to Manage Subscriptions
       </button>
     </section>
   );

@@ -839,18 +839,19 @@ button in 05·B lands". Built 2026-09-22.
   name and ⋮, the headline, the lines with the module names in their colours, the money, _Back to
   Manage Subscriptions_, Minty celebrating, the footer sentences; the other companies stay listed
   around it) and the page (`ChangeResultPage` — the banner retitled, one card with the ⋮, Minty
-  with a heart). _Back to Manage Subscriptions_ **leaves for the portal's landing** (08-A,
-  `/subscription`) — all 103 frames of 05·C carry `▶ Back to Manage Subscriptions → 08-A`, and so
-  does 07-M, so every result screen ends the same way (2026-09-23; it used to clear the result in
-  place). One handler serves all five kinds and both layouts, and the list unmounts, so nothing
-  is reset and nothing is reloaded on the way out. It **lands UNSCOPED** (2026-09-29, the user:
+  with a heart). _Back to Manage Subscriptions_ **stays on the list** (owner, 2026-11-16, over
+  the frames: all 103 of 05·C and 07-M carry `▶ Back to Manage Subscriptions → 08-A`; from
+  2026-09-23 it left for the landing): the result gives way to the company's own row, open,
+  which scrolls itself into view and takes focus, showing the state the change left it in -
+  the label names where you land, and the change began on that row. One handler
+  (`dismissResult`) serves every kind, both layouts and 07-M; the change already read the list
+  and the row again, so nothing is reloaded. It **lands UNSCOPED** (2026-09-29, the user:
   "Back to Manage Subscriptions button should reset the token to unscoped"): a token minted
   inside a company - the module settings page's, which its CTAs bring to the list - is traded
-  for the payer's on the way, through Flask's `/handoff/minty-web?next=/subscription` with no
-  `entity_id` (`lib/auth.ts::isEntityScoped`, `lib/handoff.ts::redirectToHandoff`; only Flask
-  mints). A token already unscoped goes straight there. So 08-A after a result is the payer's:
-  "Subscriptions" in the header (it read "My entities" until 2026-10-02), and its way out is Minty's entity list. Back into the list from
-  there: _Manage Subscription_ on the landing. The illustrations are the design's (`public/portal/minty-celebrating.png`,
+  for the payer's on the way, through `/handoff/minty-web?next=/subscription/subscriptions?entity=<id>`
+  with no `entity_id` (`lib/auth.ts::isEntityScoped`, `lib/handoff.ts::redirectToHandoff`), back
+  to this list with the row open; a token already unscoped stays put. The overview (08-A) is
+  one step up, through the header's Back. The illustrations are the design's (`public/portal/minty-celebrating.png`,
   `minty-heart.png`, cropped and shrunk).
 - **Readings and gaps, for the design**: the base frame 05·C-4 ("Subscription Update
   Confirmed", a full page) is not what the generated grid draws for a mixed change (RU24 and
@@ -965,7 +966,16 @@ The dialog family (`components/ui/ModalFrame`, `components/ui/ConfirmDialog`, `L
   itself there - the user: "i have to scroll down to find it"); a decline shows 06·B and no
   modal, and _Try again now_ that succeeds shows the modal then. A change that only CANCELS
   bills nothing: it asks in its modal first ("Cancel Subscription?", "Remove …?", "Stop … after
-  the trial?"), whose Confirm applies it, and no account is asked for. Preselected: the
+  the trial?"), whose Confirm applies it, and no account is asked for. "Cancel Subscription?"
+  and "Remove …?" also carry a REQUIRED free-text box, _Tell us why you're leaving_ (owner,
+  2026-11-13; red `*`, `aria-required`, a screen-reader "(required)"; max 500 characters, the
+  count shown from 400; Enter is a new line). Nothing is red on open; a Confirm with nothing
+  typed (spaces count as nothing) is refused - "The reason is still empty. Tell us why you're
+  leaving to continue." under the box, focus moved to it - and typing clears it. Confirm sends
+  the words as `reason` with each `cancel` (`cancelModule`), which minty-subscription-api records in
+  `subscription_audit_log.cancel_reason`. "Stop … after the trial?" does not ask - a trial
+  stopping is not a cancellation - and neither does a removal beside an addition (it bills, so
+  Billing Accounts asks). Nothing reads the reasons yet. Preselected: the
   account the company is on, else the first that can take it. The rows the API would refuse are shown disabled with their reason
   (`lib/billingAccounts.ts` `nominationChoice`): another account whose collection is failing
   ("Payment failed") or with no card ("No card"), and - while the company itself is past due -
@@ -1012,7 +1022,8 @@ The dialog family (`components/ui/ModalFrame`, `components/ui/ConfirmDialog`, `L
   the person closes it, opens another company, goes back, or takes another company's ⋮ —
   "You have unsaved changes." / "Your changes will be lost if you leave this page.", _Discard
   changes_ (drops the ticks and goes) or _Go Back_ (stays; Escape and the backdrop stay); a
-  reload or a closed tab gets the browser's own warning (`beforeunload`). The same dialog now asks
+  reload or a closed tab leaves WITHOUT asking and drops the ticks - Minty shows no native browser
+  dialog, so no "Leave site?" (owner, 2026-11-16). The same dialog now asks
   on **08-C** (billing details) and **08-D** (edit card) when they are left with changes not
   saved, through the shared guard `lib/leaveGuard.ts` (what each exit does is its header). **08-Y**
   (adding a card) deliberately does NOT ask: the number, CVC and address are Stripe's own fields
@@ -1071,7 +1082,7 @@ payer's money does not cover, and the subscription moves.
   _Cancel_ / _Request transfer_ (`POST /transfer {entity, to_user}`) — beside Minty handing the
   papers to Lemon.
 - **07-B "Transfer requested"**: "Request has been sent to <email>." and the responsibility
-  sentence again, Lemon stamping the papers, _Back to Manage Subscription_ → the list with this
+  sentence again, Lemon stamping the papers, _Back to Manage Subscriptions_ → the list with this
   company's row open (`?entity=`).
 - **07-C, a request already waiting** (`pending_transfer`): the amber notice "A request is
   already waiting. Sent <date> to <name>. Nothing has changed and you are still the
@@ -1087,7 +1098,7 @@ payer's money does not cover, and the subscription moves.
 - **07-F "Subscription requests"** — the only portal screen about companies the viewer does NOT
   pay for, and the one a person can arrive at with no subscriptions at all: "No requests
   waiting" / "When someone asks you to take over billing for their company, it'll appear here
-  for you to accept or decline.", _Back to Manage Subscription_ → the list. Several requests waiting are
+  for you to accept or decline.", _Back to Manage Subscriptions_ → the list. Several requests waiting are
   a list to pick from (`?transfer=` picks one); a single one is reviewed at once.
 - **07-D "Transfer Subscription - Choose Modules"**, the request under review
   (`/api/me/subscriptions/transfers`): who asks and for which company, the company's two module
@@ -1129,7 +1140,7 @@ payer's money does not cover, and the subscription moves.
 - **07-M "Subscription Transfer Completed"**: the list's row for the company, in the result
   row's celebrate layout (§12): the headline, "You are now the owner of the <company>
   subscription and have full control of this Minty." with the company in teal, and how billing
-  carries on; _Back to Manage Subscriptions_ leaves for the landing, as on every result screen. `useSubscriptionsList` reads
+  carries on; _Back to Manage Subscriptions_ closes it onto the row, open, as on every result screen. `useSubscriptionsList` reads
   `?transferred=1` and shows it once the row's page model is in (`transferredResult`), until the
   row is closed or the person moves on.
 - **The modal shell's colours** (`ConfirmDialog`, so every modal that shows a company):
@@ -1268,9 +1279,8 @@ schema change), which 08-C writes.
   routes them — one module enabled goes straight in (Petty Cash's dashboard, or the payments
   app), two offer the module selection. Minty decides, from `entity_function_map`; this app
   counts no modules. With no company in the cookie the link goes to the entity list - which,
-  since 2026-09-29, is also where it goes after a result's _Back to Manage Subscriptions_: that
-  button trades the company's token for an unscoped one (§12, Layouts), so the landing it
-  reaches is the payer's.
+  since 2026-09-29, is also where it goes once a result's _Back to Manage Subscriptions_ has
+  traded the company's token for an unscoped one (§12, Layouts), so the portal is the payer's.
   Then the billing-account card: **"Manage Billing Details and Payment Methods"** (the frame's
   "Payment Method" eyebrow is gone), **Bill to** = the shown account's name, **Next Billing
   Date** = the payer's `next_billing` - the end of the anchor period now is in, NEVER the anchor

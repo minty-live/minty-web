@@ -81,7 +81,8 @@ pending on the row until _Confirm Subscription Change_. A change that bills anyt
 it; once paid, the change's modal from Figma section 06 celebrates it with one button -
 `lib/changeModal`, `components/ConfirmDialog` (the shell, shared with the Start Trial dialog)
 and `components/ChangeDialog` (§13). A change that only cancels asks in its modal first and is
-applied by its Confirm (`api/moduleChanges`, one API action per module). Either lands on its
+applied by its Confirm (`api/moduleChanges`, one API action per module); a paid cancellation's
+modal also asks why they are leaving - required (`askReason`, free text sent as `reason`). Either lands on its
 result from Figma 05·C -
 `lib/changeResult`, `components/ChangeResultView` (§12): in the row for what was added,
 confirmed, restored or started (Start Trial lands there too), the whole page for a

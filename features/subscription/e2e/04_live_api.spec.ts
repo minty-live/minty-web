@@ -113,17 +113,22 @@ test.describe("over the live API", () => {
     // The other module was not touched - its own offer is still open.
     expect(after.cards.find((card) => card.code === "PETTY_CASH")?.trial_eligible).toBe(true);
 
-    // Back to Manage Subscriptions leaves for the landing (08-A), over live data - trading the
-    // company's token for an unscoped one through Flask's handoff, asked with no company. The
-    // portal is then the payer's, so its way out is Minty's entity list (the scoped way out,
-    // to the company's modules, is BillingScreens.test.tsx's).
+    // Back to Manage Subscriptions stays on the list (owner, 2026-11-16), over live data - the
+    // company's row open on its new state - trading the company's token for an unscoped one
+    // through the handoff, asked with no company. The portal is then the payer's, so its way
+    // out is Minty's entity list (the scoped way out, to the company's modules, is
+    // BillingScreens.test.tsx's).
     const asked = await bounceFlaskHandoff(page, c);
     await landed.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
-    await page.waitForURL((u) => u.pathname === "/subscription");
-    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText(
-      "Subscription & Billing",
+    await page.waitForURL(
+      (u) =>
+        u.pathname === "/subscription/subscriptions" && u.searchParams.get("entity") === c.entityId,
     );
-    expect(asked).toEqual([`?next=${encodeURIComponent("/subscription")}`]);
+    await expect(body(page).locator("li[data-result]")).toHaveCount(0);
+    await expect(body(page).locator("li[data-open]")).toHaveAttribute("data-entity", c.entityId);
+    expect(asked).toEqual([
+      `?next=${encodeURIComponent(`/subscription/subscriptions?entity=${encodeURIComponent(c.entityId)}`)}`,
+    ]);
     expect(await storedScope(page)).toEqual({ cookie: "", claim: "" });
     // The way out sits in the header bar (PortalBack), not the page body; with nothing before
     // it and no company scoped, its fallback is this app's own entity list.

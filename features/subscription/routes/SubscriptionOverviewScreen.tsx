@@ -12,8 +12,8 @@
  * the portal's own pages, out to the app they came from). With nothing before it (a new tab), it
  * goes to the COMPANY this browser is scoped to, not to Minty's entity picker: through
  * `/entity/<id>/modules`, to its module selection - or straight into the module, when only one
- * is on (Minty routes it). A result's Back to Manage Subscriptions lands here UNSCOPED (it trades
- * the company's token for the payer's), and then that fallback is Minty's entity list.
+ * is on (Minty routes it). Once a result's Back to Manage Subscriptions has traded the company's
+ * token for the payer's, that fallback is Minty's entity list.
  */
 
 import { useSyncExternalStore } from "react";

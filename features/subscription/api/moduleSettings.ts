@@ -167,12 +167,18 @@ export function startTrial(
 
 // ---- the changes the open row confirms (Figma 05·B → 05·C) ---------------------------------
 
-/** `cancel`: one module stops at its access end (a paid one under the prorated rule, a trial at once). */
+/**
+ * `cancel`: one module stops at its access end (a paid one under the prorated rule, a trial at
+ * once). `reason` is the person's own words from the cancellation dialog (required there for a
+ * paid cancellation; a trial stop has none) - sent only
+ * when something was typed; the API trims it and records it in the audit log.
+ */
 export function cancelModule(
   entityId: string,
   code: ModuleCode,
+  reason?: string,
 ): Promise<{ ok: true; access_until: string | null }> {
-  return postModuleAction(entityId, "cancel", { code });
+  return postModuleAction(entityId, "cancel", reason?.trim() ? { code, reason } : { code });
 }
 
 /** `renew`: a module scheduled to cancel carries on. */

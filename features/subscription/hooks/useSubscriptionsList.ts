@@ -26,7 +26,7 @@
  * module). Either lands on its RESULT (05·C, `lib/changeResult.ts`): in the row for what was
  * added, confirmed, restored or started - where Start Trial lands too - or the whole page for a
  * cancellation. Back to Manage Subscriptions
- * leaves for the portal's landing (08-A), as every result frame's hotspot says. When the change
+ * stays on this list with the company's row open (owner, 2026-11-16; the frames say 08-A). When the change
  * finds no card to charge, "Billing Accounts" is asked AGAIN with the API's sentence - a card is
  * only ever added through a billing account ("New billing account", in place), never on a
  * Stripe-hosted page (the user, 2026-10-01).
@@ -167,6 +167,8 @@ export type ApplyRequest = {
    * say - the row then lands on its result straight away.
    */
   celebrate?: ChangeModal | null;
+  /** Why they are leaving, typed in the cancellation's modal - sent with each cancel. */
+  reason?: string;
 };
 
 /** A cancellation asked about and not yet confirmed: an `ApplyRequest` plus the modal's words. */
@@ -282,8 +284,8 @@ export type UseSubscriptionsListResult = {
   /** The cancellation's asking modal, while it asks. */
   changePrompt: ChangePrompt | null;
   dismissChangePrompt: () => void;
-  /** Its Confirm: the cancellation is applied. */
-  applyChangePrompt: () => Promise<void>;
+  /** Its Confirm: the cancellation is applied, with the reason typed in it (required by the dialog for a paid cancellation; none for a trial stop). */
+  applyChangePrompt: (reason?: string) => Promise<void>;
   changeBusy: boolean;
   /**
    * "Activate Subscription" on a row nobody pays for: opens "Billing Accounts", whose Confirm
@@ -529,14 +531,8 @@ export function useSubscriptionsList({
     prompt.proceed();
   }, [leavePrompt, summary]);
   const stay = useCallback(() => setLeavePrompt(null), []);
-  useEffect(() => {
-    if (!ticksPending) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [ticksPending]);
+  // No "Leave site?" on a reload or a closed tab: Minty shows no native browser dialog (owner,
+  // 2026-11-16), and a browser allows no other prompt there - those exits drop the ticks.
 
   const toggleRow = useCallback(
     (entity: PortalEntity) =>
@@ -816,6 +812,7 @@ export function useSubscriptionsList({
       try {
         const applied = await applyChange(entity.entity_id, before, change.codes, {
           cardChosen: Boolean(prompt.card),
+          reason: prompt.reason,
         });
         if (applied.needsCard) {
           await askAgainForCard(prompt, applied.needsCard);
@@ -860,10 +857,13 @@ export function useSubscriptionsList({
   );
   // The cancellation modal's Confirm: it bills nothing, so it is applied at once. (A change that
   // bills never asks here - Billing Accounts asks first, and its modal celebrates once paid.)
-  const applyChangePrompt = useCallback(async () => {
-    if (!changePrompt || changeBusy) return;
-    await apply({ ...changePrompt, celebrate: null });
-  }, [changePrompt, changeBusy, apply]);
+  const applyChangePrompt = useCallback(
+    async (reason?: string) => {
+      if (!changePrompt || changeBusy) return;
+      await apply({ ...changePrompt, celebrate: null, reason });
+    },
+    [changePrompt, changeBusy, apply],
+  );
   // The celebration's Confirm - and its Escape and backdrop, since the change is already paid:
   // the row lands on its result.
   const confirmCelebration = useCallback(() => {
@@ -1017,21 +1017,29 @@ export function useSubscriptionsList({
     if (!changeBusy) setDeclined(null);
   }, [changeBusy]);
   /**
-   * The result screens' "Back to Manage Subscriptions" - every one of them, row or page, since
-   * they share this handler. It LEAVES for the portal's landing (Figma 08-A): all 103 frames of
-   * section 05·C carry `▶ Back to Manage Subscriptions → 08-A`, and so does 07-M. This list
-   * unmounts on the way, so there is nothing to reset and nothing to reload - the landing does
-   * its own read, and coming back here reloads anyway. It lands UNSCOPED (below).
+   * The result screens' "Back to Manage Subscriptions" - every one of them, row or page, and
+   * 07-M's handover, since they share this handler. It STAYS on this list (owner, 2026-11-16,
+   * over Figma 05·C's `→ 08-A`): the result gives way to the company's own row, open - which
+   * scrolls itself into view and takes focus - showing the state the change left it in. The
+   * change already read the list and the row again, so nothing is read here. It lands UNSCOPED
+   * (below).
    */
+  const shownResult = result ?? landedTransfer ?? landedTrial;
   const dismissResult = useCallback(() => {
+    const entityId = shownResult?.entity.entity_id ?? null;
     // The portal is the PAYER's, not a company's (the user, 2026-09-29: "Back to Manage
     // Subscriptions ... should reset the token to unscoped"). A token minted inside a company -
     // the module settings page's, which its CTAs bring here - is swapped for an unscoped one on
-    // the way. Only Flask mints, so that is a trip through its handoff with no company, back
-    // to the same landing; a token already unscoped just goes.
-    if (isEntityScoped()) redirectToHandoff(PORTAL.index);
-    else router.push(PORTAL.index);
-  }, [router]);
+    // the way: a trip through the handoff with no company, back to this list with the row open
+    // (`?entity=`); a token already unscoped stays put.
+    if (isEntityScoped()) {
+      redirectToHandoff(entityId ? moduleRoutes(entityId).manage : PORTAL.subscriptions);
+      return;
+    }
+    setResult(null);
+    setLandingDismissed(true);
+    setOpenEntityId(entityId);
+  }, [shownResult]);
   // The panel's Change beside the company's card: which account it is billed on, as a move.
   const changePaymentMethod = useCallback(
     (entity: PortalEntity) => {
@@ -1116,7 +1124,7 @@ export function useSubscriptionsList({
     leavePrompt,
     discardAndLeave,
     stay,
-    result: result ?? landedTransfer ?? landedTrial,
+    result: shownResult,
     dismissResult,
     changePaymentMethod,
     subscribe,

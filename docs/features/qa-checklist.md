@@ -132,7 +132,7 @@ run" below).
       the change intact, _Discard changes_ puts the saved value back and then goes.
 - [ ] Change the country, then press the browser's Back - it asks too (nothing was clicked, so
       this is the history sentinel); _Discard changes_ then lands where Back was going, once.
-- [ ] Change the country, then reload - the browser's own warning, NOT the app's dialog.
+- [ ] Change the country, then reload - no dialog at all (no browser "Leave site?"); the change is dropped.
 - [ ] Save, then leave - nothing is asked. A REFUSED save still asks (the values are still there).
 - [ ] As a viewer (read-only), leaving never asks.
 - [ ] Change something, then Logout from the menu - it asks (a button, so the guard is explicit
@@ -234,8 +234,8 @@ pettycashv3.entity_module_subscription WHERE entity_id = '<id>';` — a confirme
 - [ ] Tick a module, then press the same box again — the change undoes in place (no network
       call either way until Confirm).
 - [ ] Tick a module, then close the row (or open another company, or reload) — the pending tick
-      is dropped; reloading specifically should trigger the browser's own `beforeunload` warning,
-      not the app's "Leave without saving?" dialog.
+      is dropped; reloading shows no dialog at all - never the browser's own "Leave site?"
+      (owner, 2026-11-16).
 - [ ] Tick a module, then try to close the row via its chevron — the in-app "Leave without
       saving?" (A-11) appears; _Discard changes_ drops the tick and closes; _Go Back_ keeps it
       open with the tick intact.
@@ -256,8 +256,9 @@ pettycashv3.entity_module_subscription WHERE entity_id = '<id>';` — a confirme
       removing one module while another paid one survives → module cancellation page; one
       removed + one added in the same change → in-row "Subscription updated"; anything
       added/restored/started → "Congratulations!" row.
-- [ ] From any result screen, _Back to Manage Subscriptions_ returns to the landing with an
-      **unscoped** token — confirm the header reads "Subscriptions", not a company name.
+- [ ] From any result screen, _Back to Manage Subscriptions_ stays on the list with that
+      company's row open and in view, with an **unscoped** token — confirm the header reads
+      "Subscriptions", not a company name.
 - [ ] At 375px width, no element scrolls sideways; a row's name+chevron/⋮ sit on one line and
       each module cell sits on its own full line.
 - [ ] **DB:** moving a company to a different account (the account picker inside this flow)

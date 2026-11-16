@@ -737,17 +737,15 @@ test.describe("manage subscriptions", () => {
     expect(posts.map((p) => [p.url.split("/modules/")[1], p.body, p.entity])).toEqual([
       ["renew", { code: "PAYMENT_REQUEST" }, "e-kestrel-foods-limited"],
     ]);
-    // Back: the portal's landing (08-A), where every 05·C frame's hotspot points.
+    // Back stays on the list (owner, 2026-11-16, over 05·C's 08-A): the result gives way to
+    // the company's own row, open, on its new state.
     await result.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
-    await page.waitForURL((u) => u.pathname === "/subscription");
-    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText(
-      "Subscription & Billing",
-    );
-    // and Manage Subscription there is the way back into the list
-    await body(page).getByRole("button", { name: "Manage Subscription" }).click();
-    await page.waitForURL((u) => u.pathname === "/subscription/subscriptions");
     await expect(body(page).locator("li[data-result]")).toHaveCount(0);
-    await expect(body(page).locator("li[data-open]")).toHaveCount(0);
+    await expect(page).toHaveURL((u) => u.pathname === "/subscription/subscriptions");
+    await expect(body(page).locator("li[data-open]")).toHaveAttribute(
+      "data-entity",
+      "e-kestrel-foods-limited",
+    );
 
     // Remove Petty Cash while Payment Request winds down (M45): the module cancellation page.
     await serveModules(SUMMARY_FIXTURES.M45);
@@ -765,10 +763,10 @@ test.describe("manage subscriptions", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(mino.getByRole("checkbox", { name: "Petty Cash subscription" })).not.toBeChecked();
     await mino.getByRole("button", { name: "Confirm Subscription Change" }).click();
-    await page
-      .getByRole("dialog", { name: "Cancel Subscription?" })
-      .getByRole("button", { name: "Confirm Cancellation" })
-      .click();
+    const confirmAsk = page.getByRole("dialog", { name: "Cancel Subscription?" });
+    // The reason is required (owner, 2026-11-13).
+    await confirmAsk.getByRole("textbox").fill("Switching to another tool.");
+    await confirmAsk.getByRole("button", { name: "Confirm Cancellation" }).click();
     await expect(body(page).getByRole("heading", { level: 1 })).toHaveText(
       "Module Cancellation Scheduled",
     );
@@ -788,11 +786,57 @@ test.describe("manage subscriptions", () => {
       entity: "e-mino-market-limited",
     });
     expect(posts.at(-1)!.url).toMatch(/\/modules\/cancel$/);
-    // The page layout's button is the same one: it leaves for the landing too.
+    // The page layout's button is the same one: back on the list, Mino Market's row open.
     await cancelled.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
-    await page.waitForURL((u) => u.pathname === "/subscription");
-    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText(
-      "Subscription & Billing",
+    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText("Manage Subscriptions");
+    await expect(page).toHaveURL((u) => u.pathname === "/subscription/subscriptions");
+    await expect(body(page).locator("li[data-result]")).toHaveCount(0);
+    await expect(body(page).locator("li[data-open]")).toHaveAttribute(
+      "data-entity",
+      "e-mino-market-limited",
     );
   });
+
+  // A paid cancellation asks why, in the person's own words - required (owner, 2026-11-13):
+  // the box sits in the modal at every width, a blank Confirm is refused under it, and
+  // Confirm sends the words with the cancel.
+  for (const width of [360, 768, 1440]) {
+    test(`at ${width}px Cancel Subscription? asks why and sends the reason`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      const posts = await stubApi(page, subscriptionsPage());
+      const address = "/subscription/subscriptions?entity=e-mino-market-limited";
+      await handoff(page, creds(), address, { entity_id: "" });
+      const mino = body(page).locator("li[data-entity='e-mino-market-limited']");
+      const tick = mino.getByRole("checkbox", { name: "Petty Cash subscription" });
+      await expect(tick).toBeChecked();
+      await tick.click();
+      await mino.getByRole("button", { name: "Confirm Subscription Change" }).click();
+      const ask = page.getByRole("dialog", { name: "Cancel Subscription?" });
+      const why = ask.getByRole("textbox", { name: "Tell us why you're leaving (required)" });
+      await expect(why).toBeVisible();
+      await ask.getByRole("button", { name: "Confirm Cancellation" }).click();
+      await expect(ask).toContainText(
+        "The reason is still empty. Tell us why you're leaving to continue.",
+      );
+      await expect(why).toBeFocused();
+      await page.screenshot({ path: testInfo.outputPath(`cancel-reason-refused-${width}.png`) });
+      expect(posts).toEqual([]);
+      await why.fill("We only needed it for the year-end audit.");
+      const box = await ask.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+      await page.screenshot({ path: testInfo.outputPath(`cancel-reason-${width}.png`) });
+      await ask.getByRole("button", { name: "Confirm Cancellation" }).click();
+      await expect.poll(() => posts.length).toBe(1);
+      expect(posts[0]).toMatchObject({
+        body: { code: "PETTY_CASH", reason: "We only needed it for the year-end audit." },
+        entity: "e-mino-market-limited",
+      });
+    });
+  }
 });

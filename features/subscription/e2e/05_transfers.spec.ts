@@ -76,7 +76,7 @@ test.describe("transfers", () => {
     ]);
     const done = body(page).getByRole("region", { name: "Transfer requested" });
     await expect(done).toContainText("Request has been sent to jiwon.kim@oliveandvine.com.");
-    await done.getByRole("button", { name: "Back to Manage Subscription" }).click();
+    await done.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
     await page.waitForURL(
       (u) =>
         u.pathname === "/subscription/subscriptions" &&
@@ -121,7 +121,7 @@ test.describe("transfers", () => {
     await expect(body(page).getByRole("heading", { level: 1 })).toHaveText("Subscription requests");
     const empty = body(page).getByRole("region", { name: "No requests waiting" });
     await expect(empty).toContainText("When someone asks you to take over billing");
-    await empty.getByRole("button", { name: "Back to Manage Subscription" }).click();
+    await empty.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
     await page.waitForURL((u) => u.pathname === "/subscription/subscriptions");
   });
 
@@ -218,12 +218,13 @@ test.describe("transfers", () => {
     await expect(landed).toContainText(
       "You are now the owner of the New Company Limited subscription and have full control of this Minty.",
     );
-    // A company's token (real credentials name one) is traded for an unscoped one on the way.
+    // Back stays on the list (owner, 2026-11-16): the company's row, open, on its new state. A
+    // company's token (real credentials name one) is traded for an unscoped one on the way.
     await bounceFlaskHandoff(page, creds());
     await landed.getByRole("button", { name: "Back to Manage Subscriptions" }).click();
-    await page.waitForURL((u) => u.pathname === "/subscription");
-    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText(
-      "Subscription & Billing",
-    );
+    await expect(body(page).locator("li[data-result]")).toHaveCount(0);
+    await expect(page).toHaveURL((u) => u.pathname === "/subscription/subscriptions");
+    await expect(body(page).getByRole("heading", { level: 1 })).toHaveText("Manage Subscriptions");
+    await expect(body(page).locator("li[data-open]")).toHaveCount(1);
   });
 });

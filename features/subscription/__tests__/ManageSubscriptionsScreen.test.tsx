@@ -554,11 +554,13 @@ describe("ManageSubscriptionsScreen", { timeout: 30_000 }, () => {
     // The other companies are still listed around it.
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Manage Subscriptions");
     expect(screen.getAllByRole("listitem").length).toBeGreaterThan(1);
-    // Back leaves for the portal's landing (08-A), as every 05·C frame's hotspot says.
+    // Back stays on the list (owner, 2026-11-16): the company's row, open, in its new state.
     await userEvent.click(
       within(item).getByRole("button", { name: "Back to Manage Subscriptions" }),
     );
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/subscription"));
+    await waitFor(() => expect(document.querySelector("[data-result]")).toBeNull());
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Manage Subscriptions");
   });
 
   it("06: Confirm Subscription Change asks in the change's modal; Go back keeps the tick", async () => {
@@ -830,7 +832,8 @@ describe("ManageSubscriptionsScreen", { timeout: 30_000 }, () => {
     await userEvent.click(
       within(row).getByRole("button", { name: "Back to Manage Subscriptions" }),
     );
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/subscription"));
+    await waitFor(() => expect(document.querySelector("[data-result]")).toBeNull());
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("a module that is not on trial gets no celebration, just its row", async () => {

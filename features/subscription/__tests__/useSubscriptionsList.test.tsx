@@ -438,22 +438,45 @@ describe("useSubscriptionsList", () => {
     expect(result.current.openEntityId).toBe(e.entity_id);
     expect(push).not.toHaveBeenCalled();
 
-    // Back to Manage Subscriptions leaves for the portal's landing (08-A). This list is on its
-    // way out, so it does not read itself again on the way.
+    // Back to Manage Subscriptions stays on the list (owner, 2026-11-16, over Figma 05·C's
+    // 08-A): the result gives way to the company's own row, open, showing its new state. The
+    // change already read the list again, so nothing is read on the way.
     const listCalls = fetchMock.mock.calls.filter((c) =>
       String(c[0]).includes("/api/me/subscriptions?"),
     ).length;
     act(() => result.current.dismissResult());
-    expect(push).toHaveBeenCalledWith("/subscription");
+    expect(push).not.toHaveBeenCalled();
+    expect(result.current.result).toBeNull();
+    expect(result.current.openEntityId).toBe(e.entity_id);
     expect(
       fetchMock.mock.calls.filter((c) => String(c[0]).includes("/api/me/subscriptions?")).length,
     ).toBe(listCalls);
   });
 
+  it("Back to Manage Subscriptions from a cancellation's page lands on that company's row, open", async () => {
+    serveChange(fetchMock, "RV44");
+    const e = ENTITIES[0];
+    const { result } = renderHook(
+      () => useSubscriptionsList({ today: TODAY, focusEntityId: e.entity_id }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.status).toBe("ready"));
+    act(() => result.current.summary.toggleTick("PETTY_CASH"));
+    act(() => result.current.confirmChange(e, result.current.summary.view!.pendingChange!));
+    await act(() => result.current.applyChangePrompt("Too expensive"));
+    expect(result.current.result?.result.layout).toBe("page");
+    expect(result.current.openEntityId).toBeNull();
+
+    act(() => result.current.dismissResult());
+    expect(push).not.toHaveBeenCalled();
+    expect(result.current.result).toBeNull();
+    expect(result.current.openEntityId).toBe(e.entity_id);
+  });
+
   it("Back to Manage Subscriptions trades a company's token for an unscoped one", async () => {
     // Arrived from the module settings page, the token names the company. The portal is the
-    // payer's: Back goes through Flask's handoff with NO company, which mints an unscoped token
-    // and lands on 08-A, rather than carrying the company's scope into the portal.
+    // payer's: Back goes through the handoff with NO company, which mints an unscoped token and
+    // lands back on this list, rather than carrying the company's scope into the portal.
     serveChange(fetchMock, "RV44");
     const e = ENTITIES[0];
     const claims = btoa(JSON.stringify({ user_id: "u1", entity_id: e.entity_id })).replace(
@@ -468,7 +491,7 @@ describe("useSubscriptionsList", () => {
 
     act(() => result.current.dismissResult());
     expect(left).toEqual([
-      `${env.ACCOUNTS_API_URL}/handoff/minty-web?next=%2Fsubscription&return_origin=${encodeURIComponent(window.location.origin)}`,
+      `${env.ACCOUNTS_API_URL}/handoff/minty-web?next=%2Fsubscription%2Fsubscriptions&return_origin=${encodeURIComponent(window.location.origin)}`,
     ]);
     expect(push).not.toHaveBeenCalled();
     // The company's token is dropped on the way out; the landing stores the new one.
@@ -552,6 +575,27 @@ describe("useSubscriptionsList", () => {
     expect(result.current.result?.result.layout).toBe("page");
     expect(result.current.openEntityId).toBeNull();
     expect(result.current.celebration).toBeNull();
+  });
+
+  it.each([
+    [
+      "typed, it is sent as typed (the API trims it)",
+      "  Too expensive for us  ",
+      { code: "PETTY_CASH", reason: "  Too expensive for us  " },
+    ],
+    ["blank, nothing is sent", "   ", { code: "PETTY_CASH" }],
+  ])("a removal's reason: %s", async (_label, reason, body) => {
+    const posts = serveChange(fetchMock, "RV44");
+    const e = ENTITIES[0];
+    const { result } = renderHook(
+      () => useSubscriptionsList({ today: TODAY, focusEntityId: e.entity_id }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.status).toBe("ready"));
+    act(() => result.current.summary.toggleTick("PETTY_CASH"));
+    act(() => result.current.confirmChange(e, result.current.summary.view!.pendingChange!));
+    await act(() => result.current.applyChangePrompt(reason));
+    expect(posts.map((p) => [p.action, p.body])).toEqual([["cancel", body]]);
   });
 
   it("a trial with no card at all is put on the account picked and confirmed on its card", async () => {
@@ -853,6 +897,24 @@ describe("useSubscriptionsList", () => {
     expect(result.current.openEntityId).toBe(second.entity_id);
     await waitFor(() => expect(result.current.summary.status).toBe("ready"));
     expect(result.current.summary.view?.pendingChange ?? null).toBeNull();
+  });
+
+  it("ticks pending never arm the browser's own 'Leave site?' (owner, 2026-11-16)", async () => {
+    serveChange(fetchMock, "RV44");
+    const added = vi.spyOn(window, "addEventListener");
+    try {
+      const { result } = renderHook(
+        () => useSubscriptionsList({ today: TODAY, focusEntityId: ENTITIES[0].entity_id }),
+        { wrapper },
+      );
+      await waitFor(() => expect(result.current.summary.status).toBe("ready"));
+      act(() => result.current.summary.toggleTick("PETTY_CASH"));
+      expect(result.current.summary.view?.pendingChange).not.toBeNull();
+      // eslint-disable-next-line no-restricted-syntax -- the test proves the listener is absent
+      expect(added.mock.calls.map(([type]) => type)).not.toContain("beforeunload");
+    } finally {
+      added.mockRestore();
+    }
   });
 
   it("an action the API refuses is said in a toast, and the row is read again", async () => {
