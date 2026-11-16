@@ -50,9 +50,15 @@ every company. Flask sends them onboarding first, then most recently opened; min
 (`lib/entityRows.sortRows`, user's choice 2026-10-05): "Setup in progress" first, then A→Z by
 name (case-insensitive, "Scenario 2" before "Scenario 10"). Flask's own Jinja list keeps its order. Per card (`components/EntityCard`):
 the "Setup in progress" pill, the name, the free-trial badge (the design's own tag, named
-"Free trial: <modules>"), one badge per module that is on, the last-opened clock ("9 Jun 5:42
+"Free trial: <modules>"), one badge per module that is on, the Xero badge for a `connected`
+company (the Xero mark; on hover the organisation's name alone, `xero_org_name` - "Connected to Xero"
+only when none was sent - and "Xero: <name>" to a screen reader; 2026-11-16, since two companies may share a name; a disconnected company
+keeps its organisation but gets none), the last-opened clock ("9 Jun 5:42
 PM" in the viewer's zone, "By <name>" on hover, grey "Not opened yet" when nobody has) and the
-chevron. Search is Flask's: case-insensitive, anywhere in the name. The "+" and the empty
+chevron. **The card's layout (owner, 2026-11-16):** one row - name, then the badges, clock and chevron -
+while the whole name fits beside them, at any width. A name too long for that is never cut short:
+it goes lower left (wrapping if it must), the badges and clock top right, the chevron lower right.
+CSS alone (the row wraps in reverse, so the badges are what moves, and they move up). Search is Flask's: case-insensitive, anywhere in the name. The "+" and the empty
 state's _Create Entity_ go to Minty's `/entity/create` (the onboarding wizard).
 
 **A card leads into its company** through Minty's `/entity/<id>/enter?next=/entity/<id>/modules`

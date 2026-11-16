@@ -13,6 +13,7 @@ export const PAGE_TITLE = "Select Company";
 export const SEARCH_PLACEHOLDER = "Search company";
 export const SETUP_IN_PROGRESS = "Setup in progress";
 export const NOT_OPENED_YET = "Not opened yet";
+export const XERO_CONNECTED = "Connected to Xero";
 export const NO_MATCH = "No companies found.";
 export const EMPTY_TITLE = "No Entity Found";
 export const EMPTY_TEXT =

@@ -1,8 +1,10 @@
 /**
  * One company on the select-company list - Flask's row (`templates/entity/index.html`), moved
  * as it looks: the "Setup in progress" pill over its top edge, the name, then the free-trial
- * badge, one badge per module that is on, the last-opened clock and the chevron. The whole row
- * leads into the company.
+ * badge, one badge per module that is on, the Xero badge (a connected company; its organisation
+ * on hover, 2026-11-16), the last-opened clock and the chevron, on one row while the name fits;
+ * a longer name goes lower left with the badges top right and the chevron lower right (owner,
+ * 2026-11-16). The whole row leads into the company.
  *
  * In the list's manage mode (2026-11-10, "Archive companies") a row is not a link: just its name,
  * and Archive on each company not archived yet (`canArchive`) - a superuser's mode only, asked
@@ -30,6 +32,7 @@ import {
   RESTORE,
   SETUP_IN_PROGRESS,
   trialLabel,
+  XERO_CONNECTED,
 } from "@/features/entities/lib/entityRows";
 
 const CLOCK_PATH =
@@ -64,6 +67,43 @@ function TrialBadge({ label }: { label: string }) {
         height={44}
         unoptimized
       />
+    </span>
+  );
+}
+
+/**
+ * Connected to Xero (2026-11-16): the mark Settings > Integration draws, at the module badges'
+ * size, and the organisation's name alone in the same hover card as the clock's ("Connected to
+ * Xero" only when no name was sent) - two companies may share a name (owner, 2026-11-16), their
+ * organisations tell them apart. A disconnected company keeps its organisation but gets no badge.
+ */
+function XeroBadge({ row }: { row: EntityRow }) {
+  if (row.status !== "connected") return null;
+  const org = row.xero_org_name?.trim() || null;
+  return (
+    <span className="group relative inline-flex">
+      <span
+        className="inline-flex h-7 w-7"
+        role="img"
+        aria-label={org ? `Xero: ${org}` : XERO_CONNECTED}
+      >
+        <Image
+          className="h-7 w-7"
+          src="/settings/xero-mark.svg"
+          alt=""
+          width={40}
+          height={40}
+          unoptimized
+        />
+      </span>
+      <span
+        className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-max max-w-[16rem] rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-right shadow-md group-hover:block"
+        aria-hidden
+      >
+        <span className="block break-words text-[12px] leading-snug text-gray-500">
+          {org ?? XERO_CONNECTED}
+        </span>
+      </span>
     </span>
   );
 }
@@ -181,47 +221,58 @@ export function EntityCard({
       ) : null}
       <a
         href={enterHref(row)}
-        className="flex min-h-[56px] w-full items-center justify-between gap-2 rounded-[12px] border border-[#f6f6f8] bg-white px-4 py-3 font-semibold text-[#1f2937] shadow-md transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-lg"
+        className="grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-[12px] border border-[#f6f6f8] bg-white px-4 py-3 font-semibold text-[#1f2937] shadow-md transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-lg"
       >
-        <span className="min-w-0 flex-1 truncate text-[17px]">{row.name}</span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {trial ? <TrialBadge label={trial} /> : null}
-          {row.modules.includes("PETTY_CASH") ? (
-            <span
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FFF3D6]"
-              role="img"
-              title="Petty Cash"
-              aria-label="Petty Cash module"
-            >
-              <Image
-                className="h-4 w-4 object-contain"
-                src="/entities/cash_reg.webp"
-                alt=""
-                width={678}
-                height={569}
-                unoptimized
-              />
-            </span>
-          ) : null}
-          {row.modules.includes("PAYMENT_REQUEST") ? (
-            // The sidebar's Payment Request icon (@minty/shared SideMenu), its own disc included.
-            <span
-              className="inline-flex h-7 w-7"
-              role="img"
-              title="Bills"
-              aria-label="Bills module"
-            >
-              <Image
-                className="h-7 w-7"
-                src="/menu/payment-request.svg"
-                alt=""
-                width={76}
-                height={76}
-                unoptimized
-              />
-            </span>
-          ) : null}
-          <LastOpened row={row} />
+        {/* Owner, 2026-11-16: one row while the whole name fits beside the badges; a name too
+            long for that goes lower left (whole, wrapped, never cut short), the badges top right
+            and the arrow lower right. CSS alone: the row wraps in reverse, so the badges are what
+            moves, and they move up. The name comes first in the markup, so it leads the link's name. */}
+        <span className="flex min-w-0 flex-wrap-reverse items-center gap-x-2 gap-y-1">
+          <span className="min-w-0 break-words text-[17px]">{row.name}</span>
+          <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {trial ? <TrialBadge label={trial} /> : null}
+            {row.modules.includes("PETTY_CASH") ? (
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FFF3D6]"
+                role="img"
+                title="Petty Cash"
+                aria-label="Petty Cash module"
+              >
+                <Image
+                  className="h-4 w-4 object-contain"
+                  src="/entities/cash_reg.webp"
+                  alt=""
+                  width={678}
+                  height={569}
+                  unoptimized
+                />
+              </span>
+            ) : null}
+            {row.modules.includes("PAYMENT_REQUEST") ? (
+              // The sidebar's Payment Request icon (@minty/shared SideMenu), its own disc included.
+              <span
+                className="inline-flex h-7 w-7"
+                role="img"
+                title="Bills"
+                aria-label="Bills module"
+              >
+                <Image
+                  className="h-7 w-7"
+                  src="/menu/payment-request.svg"
+                  alt=""
+                  width={76}
+                  height={76}
+                  unoptimized
+                />
+              </span>
+            ) : null}
+            <XeroBadge row={row} />
+            <LastOpened row={row} />
+          </span>
+        </span>
+        {/* As tall as the badges, at the bottom: beside a one-row card's middle, by a stacked
+            card's name. */}
+        <span className="flex h-7 items-center self-end">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
             <path
               d="M10.8234 9.99945L6.98561 13.8395L8.07324 14.9434L13.0142 9.99945L8.07324 5.05555L6.98561 6.15938L10.8234 9.99945Z"

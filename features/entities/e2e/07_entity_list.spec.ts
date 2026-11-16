@@ -101,6 +101,72 @@ test.describe("the entity list", () => {
     await expect(main.getByText("No companies found.")).toBeVisible();
   });
 
+  test("a company connected to Xero wears the badge, its organisation on hover, phone first", async ({
+    page,
+  }) => {
+    await stubFlask(page);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await handoff(page, creds(), "/entities");
+    const main = page.getByRole("main");
+    const five = main.getByRole("link", { name: /Scenario 5 - Free trial \+ Active/ });
+    const badge = five.getByRole("img", { name: "Xero: Digitalisation Ltd (HK)" });
+    for (const width of [360, 768, 1440]) {
+      // the pointer left over from the last width could sit on a card's edge, where its hover
+      // lift moves the card off the pointer and back every frame
+      await page.mouse.move(0, 0);
+      await page.setViewportSize({ width, height: 800 });
+      await expect(badge).toBeVisible();
+      await badge.hover();
+      const card = five.getByText("Digitalisation Ltd (HK)");
+      await expect(card).toBeVisible();
+      const box = (await card.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      if (process.env.E2E_SHOTS) {
+        await page.screenshot({ path: `${process.env.E2E_SHOTS}/xero-badge-${width}.png` });
+      }
+    }
+    // owner, 2026-11-16: one line while the name fits beside the badges; a name too long for that
+    // goes lower left (whole, wrapped, never cut short), the badges top right, the arrow lower right
+    const name = five.getByText("Digitalisation - Scenario 5 - Free trial + Active");
+    const arrowOf = (card: typeof five) => card.locator("svg[aria-hidden]").last();
+    for (const [width, stacked] of [
+      [360, true],
+      [768, true],
+      [1440, false],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      const nameBox = (await name.boundingBox())!;
+      const badgeBox = (await badge.boundingBox())!;
+      const cardBox = (await five.boundingBox())!;
+      const arrowBox = (await arrowOf(five).boundingBox())!;
+      expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      expect(nameBox.x - cardBox.x).toBeLessThan(24);
+      expect(arrowBox.x).toBeGreaterThanOrEqual(nameBox.x + nameBox.width - 1);
+      if (stacked) {
+        expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(nameBox.y + 1);
+        expect(arrowBox.y).toBeGreaterThanOrEqual(badgeBox.y + badgeBox.height - 1);
+      } else {
+        const middle = badgeBox.y + badgeBox.height / 2;
+        expect(middle).toBeGreaterThan(nameBox.y);
+        expect(middle).toBeLessThan(nameBox.y + nameBox.height);
+      }
+    }
+    // a short name stays on one line even on a phone
+    await page.setViewportSize({ width: 360, height: 800 });
+    const short = main.getByRole("link", { name: /^Scenario/ });
+    const shortName = (await short.getByText("Scenario", { exact: true }).boundingBox())!;
+    const clock = (await short.getByRole("img", { name: "Not opened yet" }).boundingBox())!;
+    expect(clock.y + clock.height / 2).toBeGreaterThan(shortName.y);
+    expect(clock.y + clock.height / 2).toBeLessThan(shortName.y + shortName.height);
+    // not connected: no badge
+    const ten = main.getByRole("link", { name: /Scenario 10/ });
+    await expect(ten.getByRole("img", { name: /Xero/ })).toHaveCount(0);
+  });
+
   test("setup in progress first, then A→Z, kept while searching, at phone to desktop widths", async ({
     page,
   }) => {

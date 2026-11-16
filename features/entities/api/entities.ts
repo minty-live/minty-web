@@ -33,6 +33,11 @@ export type EntityRow = {
    */
   archived_at?: string | null;
   /**
+   * The Xero organisation's name for a `connected` company, else null (2026-11-16, the Xero
+   * badge's hover text). An older API omits it; a connected company still gets the badge.
+   */
+  xero_org_name?: string | null;
+  /**
    * The caller's own role on the company (`admin`, `accountant`, ...), or `superadmin` where a
    * superuser holds no membership.
    */

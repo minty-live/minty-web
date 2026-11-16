@@ -86,6 +86,19 @@ describe("EntityListScreen", () => {
       card.getByRole("img", { name: "Bills module" }).querySelector("img")?.getAttribute("src"),
     ).toBe("/menu/payment-request.svg");
     expect(card.getByRole("img", { name: /^Last opened .+ by Olive Vine$/ })).toBeInTheDocument();
+    // connected to Xero (2026-11-16): the badge names the organisation, on hover and to a reader
+    const xero = card.getByRole("img", { name: "Xero: Digitalisation Ltd (HK)" });
+    expect(xero.querySelector("img")?.getAttribute("src")).toBe("/settings/xero-mark.svg");
+    expect(
+      within(xero.parentElement as HTMLElement).getByText("Digitalisation Ltd (HK)"),
+    ).toBeInTheDocument();
+    // a name is the whole hover card - no "Connected to Xero" beside it
+    expect(within(xero.parentElement as HTMLElement).queryByText("Connected to Xero")).toBeNull();
+    // connected with no organisation name sent: "Connected to Xero"; not connected: no badge
+    const ten = within(list().getByRole("link", { name: /Scenario 10/ }));
+    expect(ten.queryByRole("img", { name: /Xero/ })).toBeNull();
+    const eight = within(list().getByRole("link", { name: /Scenario 8/ }));
+    expect(eight.getByRole("img", { name: "Connected to Xero" })).toBeInTheDocument();
 
     // setup in progress: the pill over the card, the grey clock of a company nobody opened yet
     expect(list().getByText("Setup in progress")).toBeInTheDocument();

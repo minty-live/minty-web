@@ -43,6 +43,7 @@ export const LIST: EntityListAnswer = {
       trial_modules: ["PETTY_CASH"],
       trial_module_names: ["Petty Cash"],
       last_accessed_at: hoursAgo(1),
+      xero_org_name: "Digitalisation Ltd (HK)",
     }),
     row({
       id: "e-scenario-6",
@@ -53,6 +54,7 @@ export const LIST: EntityListAnswer = {
     row({
       id: "e-scenario-10",
       name: "Digitalisation - Scenario 10 - Resume Module After A Renewal",
+      status: "disconnected",
     }),
     row({
       id: "e-scenario-2",
