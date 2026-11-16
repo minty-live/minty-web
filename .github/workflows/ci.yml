@@ -1,5 +1,5 @@
 # Types, the boundary rules, the unit tests and a production build. The workflow body is shared:
-# minty-oliveandvine/.github -> .github/workflows/next-web.yml
+# minty-live/.github -> .github/workflows/next-web.yml
 #
 # Browser tests (npm run test:e2e) need the whole stack and run from Minty's e2e.yml.
 name: ci
@@ -11,7 +11,7 @@ on:
 
 jobs:
   check:
-    uses: minty-oliveandvine/.github/.github/workflows/next-web.yml@v1
+    uses: minty-live/.github/.github/workflows/next-web.yml@v1
     with:
       extra-scripts: format:check
       build-env: |

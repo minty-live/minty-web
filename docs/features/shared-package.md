@@ -1,7 +1,7 @@
 # `@minty/shared` — the shared TypeScript package
 
 Since **2026-10-12** this app's sidebar, its viewer store and four small modules live in
-[`minty-shared-ts`](https://github.com/minty-oliveandvine/minty-shared-ts) instead of here. It is
+[`minty-shared-ts`](https://github.com/minty-live/minty-shared-ts) instead of here. It is
 Part 3 step 4 of the modernisation plan, brought forward: nothing in the plan gated it, and the
 same week had produced a third byte-identical copy of the design tokens.
 
@@ -94,7 +94,7 @@ Change the package, tag it, bump the pin — never edit `node_modules`:
 
 ```
 minty-shared-ts: development -> green -> main -> git tag -a vX.Y -> push the tag
-here:            npm install "git+https://github.com/minty-oliveandvine/minty-shared-ts.git#vX.Y"
+here:            npm install "git+https://github.com/minty-live/minty-shared-ts.git#vX.Y"
                  -> push a BRANCH, let check / check and the Vercel preview go green -> merge
 ```
 
