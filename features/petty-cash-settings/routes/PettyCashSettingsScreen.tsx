@@ -34,8 +34,10 @@ import { ApiError, mintyFetch, type ApiRequest } from "@/lib/apiClient";
 
 import { pettyCashSettingsFetch } from "@/features/petty-cash-settings/api/pettyCashSettings";
 import { BusyOverlay } from "@/features/petty-cash-settings/components/parts";
+import { SalesAccountsCard } from "@/features/petty-cash-settings/components/SalesAccountsCard";
 import {
   SalesMethodsCard,
+  SalesMethodsList,
   type MethodActions,
 } from "@/features/petty-cash-settings/components/SalesMethodsCard";
 import {
@@ -53,6 +55,8 @@ import {
   viewOnly,
   type MethodType,
   type SalesMethod,
+  type SalesPart,
+  type SalesParts,
   type SettingsAnswer,
   type SettingsRead,
 } from "@/features/petty-cash-settings/lib/settings";
@@ -147,12 +151,14 @@ function SettingsBody({
 
   // "Leave without saving?" over the two Xero cards (each saves on its own; the sales methods save
   // at once, so they never hold anything). Discard remounts both forms from what the API holds.
-  const [dirty, setDirty] = useState({ mapping: false, codes: false });
+  // The sales accounts card holds its ticks until Save changes too (2026-11-17).
+  const [dirty, setDirty] = useState({ mapping: false, codes: false, accounts: false });
   const [resetKey, setResetKey] = useState(0);
   const mappingDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, mapping: on })), []);
   const codesDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, codes: on })), []);
-  const leave = useLeaveGuard(dirty.mapping || dirty.codes, () => {
-    setDirty({ mapping: false, codes: false });
+  const accountsDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, accounts: on })), []);
+  const leave = useLeaveGuard(dirty.mapping || dirty.codes || dirty.accounts, () => {
+    setDirty({ mapping: false, codes: false, accounts: false });
     setResetKey((k) => k + 1);
   });
 
@@ -271,6 +277,37 @@ function SettingsBody({
     say: (message) => showToast(message, "error"),
   };
 
+  // Each ticked account's methods inside its card (owner, 2026-11-17; Figma 529:675). A Non-cash
+  // company's leftover delivery methods (from before the business type was asked) stay under
+  // Electronic Payment while Delivery is off, so they can be seen and removed.
+  const methodsList = (type: MethodType) => (
+    <SalesMethodsList
+      key={type}
+      region
+      type={type}
+      groups={read.sales_groups}
+      methods={read.sales_methods[type]}
+      available={read.available[type]}
+      permissions={perms}
+      busy={busy !== null}
+      actions={actions}
+    />
+  );
+  const methodsFor = (part: SalesPart) => {
+    if (part === "cash") return null;
+    if (part === "delivery") return methodsList("delivery");
+    const leftover =
+      read.sales_groups === "non_cash" &&
+      !read.sales_parts?.delivery &&
+      read.sales_methods.delivery.length > 0;
+    return (
+      <div className="flex min-w-0 flex-col gap-5">
+        {methodsList("electronic")}
+        {leftover ? methodsList("delivery") : null}
+      </div>
+    );
+  };
+
   return (
     <>
       {viewOnly(perms) ? <ReadOnlyNotice>{READ_ONLY}</ReadOnlyNotice> : null}
@@ -302,7 +339,23 @@ function SettingsBody({
           resetKey={resetKey}
         />
 
-        {shownTypes(read).map((type) => (
+        {/* under the account codes (owner, 2026-11-17; Figma 464:73 row 4) */}
+        {read.sales_parts ? (
+          <SalesAccountsCard
+            key={resetKey}
+            saved={read.sales_parts}
+            canEdit={!!perms.edit_sales_accounts}
+            busy={busy !== null}
+            onSave={(parts: SalesParts) =>
+              write("/settings/sales-accounts", { method: "PUT", json: parts })
+            }
+            onDirty={accountsDirty}
+            methodsFor={methodsFor}
+          />
+        ) : null}
+
+        {/* an API without the sales accounts: the method cards of their own, as before */}
+        {(read.sales_parts ? [] : shownTypes(read)).map((type) => (
           <SalesMethodsCard
             key={type}
             type={type}
@@ -368,7 +421,7 @@ function SettingsBody({
             <p className="[overflow-wrap:anywhere]">
               Remove &quot;
               <strong className="font-semibold text-set-ink">{confirmDelete.method.name}</strong>
-              &quot; from your list? You can add it back any time from Add New Method.
+              &quot; from your list? You can add it back any time.
             </p>
           )}
         </SettingsDialog>

@@ -67,6 +67,7 @@ const ALL: SettingsPermissions = {
   rename_sales_method: true,
   remove_sales_method: true,
   reorder_sales_methods: true,
+  edit_sales_accounts: true,
 };
 const CASHIER: SettingsPermissions = {
   ...ALL,
@@ -75,6 +76,7 @@ const CASHIER: SettingsPermissions = {
   rename_sales_method: false,
   remove_sales_method: false,
   reorder_sales_methods: false,
+  edit_sales_accounts: false,
 };
 // `own`: typed by the company (pencil and Delete); Minty's only come off its list (owner, 2026-11-12)
 const m = (id: string, name: string, own = false) => ({
@@ -362,7 +364,7 @@ describe("PettyCashSettingsScreen", () => {
       "DELETE /sales-methods/d1": () =>
         answer(
           { ...state, sales_methods: { ...state.sales_methods, delivery: [] } },
-          "Foodpanda is off your list. Add it back any time from Add New Method.",
+          "Foodpanda is off your list. You can add it back any time.",
         ),
       "DELETE /sales-methods/v2": () =>
         answer(
@@ -381,9 +383,10 @@ describe("PettyCashSettingsScreen", () => {
     const user = userEvent.setup();
 
     // add: the catalogue, picked, sent by id
-    await user.click(await card("Electronic").findByRole("button", { name: /Add New Method/ }));
-    const picker = card("Electronic").getByRole("combobox", { name: "Method" });
-    await waitFor(() => expect(picker).toHaveFocus());
+    // the add field is always there under the chips (Figma 529:675): no Add New Method to open
+    expect(card("Electronic").queryByRole("button", { name: /Add New Method/ })).toBeNull();
+    const picker = await card("Electronic").findByRole("combobox", { name: "Method" });
+    await user.click(picker);
     expect(
       card("Electronic")
         .getAllByRole("option")
@@ -430,7 +433,7 @@ describe("PettyCashSettingsScreen", () => {
     const removeFoodpanda = { name: "Remove Foodpanda from my list" };
     await user.click(card("Delivery").getByRole("button", removeFoodpanda));
     expect(screen.getByRole("dialog", { name: "Remove Delivery Method" })).toHaveTextContent(
-      'Remove "Foodpanda" from your list? You can add it back any time from Add New Method.',
+      'Remove "Foodpanda" from your list? You can add it back any time.',
     );
     let dialog = within(screen.getByRole("dialog", { name: "Remove Delivery Method" }));
     expect(dialog.getByRole("button", { name: "Go back" })).toHaveFocus();
@@ -442,9 +445,7 @@ describe("PettyCashSettingsScreen", () => {
     expect(dialog.getByRole("button", { name: "Remove" }).className).toBe(SETTINGS_DANGER_FILL);
     await user.click(dialog.getByRole("button", { name: "Remove" }));
     expect(
-      await screen.findByText(
-        "Foodpanda is off your list. Add it back any time from Add New Method.",
-      ),
+      await screen.findByText("Foodpanda is off your list. You can add it back any time."),
     ).toBeInTheDocument();
     expect(card("Delivery").getByText("No delivery methods yet.")).toBeInTheDocument();
 
@@ -468,7 +469,6 @@ describe("PettyCashSettingsScreen", () => {
     await drawn();
     const user = userEvent.setup();
 
-    await user.click(await card("Delivery").findByRole("button", { name: /Add New Method/ }));
     // a name typed into the picker is offered as a new method, then lands in the Name box
     const picker = card("Delivery").getByRole("combobox", { name: "Method" });
     await user.type(picker, "Lalamove");
@@ -702,6 +702,124 @@ describe("PettyCashSettingsScreen", () => {
 
 // "Leave without saving?" over the two Xero cards (2026-11-11; the port had no guard): the sales
 // methods save at once, so only the cards can hold unsaved choices.
+// The sales accounts, under the account codes (owner, 2026-11-17; Figma 464:73 row 4): Sales - Cash,
+// Electronic Payment and Delivery on or off, saved together; turning one off asks first; at least one
+// stays on; only the ticked accounts' method cards show.
+describe("PettyCashSettingsScreen - the sales accounts", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ON = { cash: true, electronic: true, delivery: true };
+  const box = (name: RegExp) => card("Sales accounts and methods").getByRole("checkbox", { name });
+  const save = () =>
+    card("Sales accounts and methods").getByRole("button", { name: "Save changes" });
+
+  it("sits under the account codes, ticked as the API says", async () => {
+    api({
+      "GET /settings": () => json(settings({ sales_parts: ON })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    show();
+    await drawn();
+    const order = Array.from(document.querySelectorAll("[data-settings-card]")).map((el) =>
+      el.getAttribute("data-settings-card"),
+    );
+    expect(order.indexOf("sales-accounts")).toBe(order.indexOf("account-codes") + 1);
+    expect(box(/Sales - Cash/)).toHaveAttribute("aria-checked", "true");
+    expect(box(/Sales - Delivery/)).toHaveAttribute("aria-checked", "true");
+    expect(save()).toBeDisabled();
+  });
+
+  it("turning Delivery off asks first, saves the three, and hides its methods card", async () => {
+    api({
+      "GET /settings": () => json(settings({ sales_parts: ON })),
+      "GET /settings/xero": () => json(xero()),
+      "PUT /settings/sales-accounts": (body) =>
+        json({
+          ...settings({ sales_parts: body as typeof ON }),
+          message: "Your sales accounts are saved.",
+        }),
+    });
+    show();
+    await drawn();
+    expect(screen.getByRole("list", { name: "Delivery methods" })).toBeInTheDocument();
+    await userEvent.click(box(/Sales - Delivery/));
+    expect(
+      card("Sales accounts and methods").getByText("1 change not saved yet"),
+    ).toBeInTheDocument();
+    await userEvent.click(save());
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText("Turn off Sales - Delivery?")).toBeInTheDocument();
+    await userEvent.click(dialog.getByRole("button", { name: "Turn off" }));
+    await waitFor(() =>
+      expect(sent("PUT /settings/sales-accounts")).toEqual([
+        { cash: true, electronic: true, delivery: false },
+      ]),
+    );
+    expect(await screen.findByText("Your sales accounts are saved.")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Delivery methods" })).toBeNull();
+  });
+
+  it("refuses none ticked, at once, and sends nothing", async () => {
+    api({
+      "GET /settings": () =>
+        json(settings({ sales_parts: { cash: true, electronic: false, delivery: false } })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    show();
+    await screen.findByRole("region", { name: "Sales accounts and methods" });
+    await userEvent.click(box(/Sales - Cash/));
+    expect(
+      card("Sales accounts and methods").getByText(
+        "No sales account is ticked yet. Tick at least one to continue.",
+      ),
+    ).toBeInTheDocument();
+    expect(save()).toBeDisabled();
+    expect(sent("PUT /settings/sales-accounts")).toEqual([]);
+  });
+
+  it("each ticked account holds its methods; Cash has none and there are no separate cards", async () => {
+    api({
+      "GET /settings": () =>
+        json(settings({ sales_parts: { cash: true, electronic: true, delivery: false } })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    show();
+    await drawn();
+    const accounts = screen.getByRole("region", { name: "Sales accounts and methods" });
+    const electronic = within(accounts).getByRole("region", { name: "Electronic" });
+    expect(
+      within(electronic).getByRole("list", { name: "Electronic methods" }),
+    ).toBeInTheDocument();
+    expect(within(electronic).getByRole("combobox", { name: "Method" })).toBeInTheDocument();
+    // Delivery is off: its methods fold away with it
+    expect(screen.queryByRole("list", { name: "Delivery methods" })).toBeNull();
+    // no card of their own any more
+    expect(document.querySelector('[data-settings-card="electronic"]')).toBeNull();
+    expect(document.querySelector('[data-settings-card="delivery"]')).toBeNull();
+  });
+
+  it("a cashier sees the accounts but cannot change them", async () => {
+    api({
+      "GET /settings": () =>
+        json(
+          settings({ sales_parts: ON, permissions: { ...CASHIER, edit_sales_accounts: false } }),
+        ),
+      "GET /settings/xero": () => json(xero({ edit: false })),
+    });
+    show();
+    await drawn();
+    expect(box(/Sales - Cash/)).toBeDisabled();
+    expect(
+      card("Sales accounts and methods").queryByRole("button", { name: "Save changes" }),
+    ).toBeNull();
+  });
+});
+
 describe("PettyCashSettingsScreen - leaving with unsaved Xero choices", () => {
   let went: string[];
   const onClick = (event: MouseEvent) => {

@@ -27,7 +27,44 @@ export type SettingsPermissions = {
   rename_sales_method: boolean;
   remove_sales_method: boolean;
   reorder_sales_methods: boolean;
+  /** The sales accounts card (2026-11-17); absent from an older API: not this person's. */
+  edit_sales_accounts?: boolean;
 };
+
+/** Sales - Cash, Sales - Electronic Payment, Sales - Delivery on or off (owner, 2026-11-17): which
+ * parts the daily report asks for (the API's `sales_parts`; onboarding's sales accounts screen). */
+export type SalesParts = { cash: boolean; electronic: boolean; delivery: boolean };
+export type SalesPart = keyof SalesParts;
+export const SALES_PARTS: readonly SalesPart[] = ["cash", "electronic", "delivery"];
+
+/** Each account's words, as onboarding's screen says them (Figma 464:73 rows 1 and 4). */
+export const SALES_ACCOUNT: Record<
+  SalesPart,
+  { name: string; body: string; part: string; icon: string; kept: string }
+> = {
+  cash: {
+    name: "Sales - Cash",
+    body: "Notes and coins taken at the counter.",
+    part: "Cash Sales",
+    icon: "payments",
+    kept: "Your daily report stops asking for cash sales. Past reports keep their cash sales.",
+  },
+  electronic: {
+    name: "Sales - Electronic Payment",
+    body: "Cards, wallets and transfers — Visa, Alipay, FPS…",
+    part: "Electronic Payments",
+    icon: "credit_card",
+    kept: "Its methods leave your daily report and come back if you turn it on again. Past reports keep their electronic payments.",
+  },
+  delivery: {
+    name: "Sales - Delivery",
+    body: "Orders through delivery apps — Foodpanda, Keeta…",
+    part: "Delivery Sales",
+    icon: "local_shipping",
+    kept: "Its methods leave your daily report and come back if you turn it on again. Past reports keep their delivery sales.",
+  },
+};
+export const NO_SALES_ACCOUNT = "No sales account is ticked yet. Tick at least one to continue.";
 
 /**
  * How the methods are grouped (owner, 2026-11-11; the API's `sales_groups`, from the business type):
@@ -40,6 +77,8 @@ export type SalesGroups = "non_cash" | "electronic_delivery";
 export type SettingsRead = {
   sales_methods: Record<MethodType, SalesMethod[]>;
   sales_groups?: SalesGroups;
+  /** Absent from an older API: every card shows, as before. */
+  sales_parts?: SalesParts;
   available: Record<MethodType, CatalogueMethod[]>;
   xero_connected: boolean;
   permissions: SettingsPermissions;
@@ -88,14 +127,20 @@ export function kindFor(type: MethodType, groups?: SalesGroups): (typeof KIND)[M
   return KIND[type];
 }
 
-/** The cards the page shows: a Non-cash company's Delivery card only while it still holds methods
- * (from before the business type was asked), so they can be seen and removed. */
+/** The cards the page shows: only the ticked sales accounts' (2026-11-17). With Delivery not ticked,
+ * a Non-cash company's Delivery card still shows while it holds methods (from before the business
+ * type was asked), so they can be seen and removed - its report counts them in Non-cash. */
 export function shownTypes(
-  read: Pick<SettingsRead, "sales_groups" | "sales_methods">,
+  read: Pick<SettingsRead, "sales_groups" | "sales_methods" | "sales_parts">,
 ): MethodType[] {
-  if (read.sales_groups !== "non_cash" || read.sales_methods.delivery.length)
-    return [...METHOD_TYPES];
-  return ["electronic"];
+  const parts = read.sales_parts;
+  const nonCash = read.sales_groups === "non_cash";
+  const legacyDelivery = nonCash && read.sales_methods.delivery.length > 0;
+  const types: MethodType[] = [];
+  if (!parts || parts.electronic) types.push("electronic");
+  if (parts ? parts.delivery || (legacyDelivery && parts.electronic) : !nonCash || legacyDelivery)
+    types.push("delivery");
+  return types;
 }
 
 /** The catalogue picker's rows: the methods offered (`available`, never on the list), filtered. */
@@ -147,6 +192,7 @@ export function viewOnly(p: SettingsPermissions): boolean {
     p.add_sales_method ||
     p.rename_sales_method ||
     p.remove_sales_method ||
-    p.reorder_sales_methods
+    p.reorder_sales_methods ||
+    p.edit_sales_accounts
   );
 }

@@ -2,7 +2,7 @@
 
 import { type DragEvent, useEffect, useId, useRef, useState } from "react";
 
-import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
+import { SETTINGS_OUTLINE } from "@/components/ui/settingsButtons";
 import { SETTINGS_FIELD_ERROR, SETTINGS_LABEL } from "@/components/ui/settingsFields";
 
 import {
@@ -43,14 +43,42 @@ export type MethodActions = {
   say: (message: string) => void;
 };
 
+type ListProps = {
+  type: MethodType;
+  methods: SalesMethod[];
+  available: CatalogueMethod[];
+  permissions: SettingsPermissions;
+  busy: boolean;
+  actions: MethodActions;
+  /** The API's `sales_groups`: a Non-cash company's electronic list is titled Non-cash. */
+  groups?: SalesGroups;
+};
+
 /**
- * One of the Electronic / Delivery cards (Flask's `partials/electronic_delivery_section.html`):
- * the methods in order and "Add New Method" - the catalogue picker, or a new name typed into it.
- * A row reads name, then its actions (owner, 2026-11-12): the company's own method has a pencil
- * (an inline rename) and a bin (delete); Minty's has only a bin that takes it off the company's
- * list; both keep the drag handle. Each change is the API's at once; the page shows its answer.
+ * One of the Electronic / Delivery cards, for an API that does not send the sales accounts yet: the
+ * methods (`SalesMethodsList`) in a card of their own, as before 2026-11-17.
  */
-export function SalesMethodsCard({
+export function SalesMethodsCard(props: ListProps) {
+  const kind = kindFor(props.type, props.groups);
+  const p = props.permissions;
+  const editable =
+    p.add_sales_method || p.rename_sales_method || p.remove_sales_method || p.reorder_sales_methods;
+  return (
+    <PettyCashCard title={kind.title} lead={kind.sub} readOnly={!editable} testId={props.type}>
+      <SalesMethodsList {...props} />
+    </PettyCashCard>
+  );
+}
+
+/**
+ * A sales account's methods (owner, 2026-11-17; Figma 529:675): chips in order - drag one, or press
+ * the arrow keys on it, to reorder; x takes it off (the company's own is deleted, Minty's only leaves
+ * the list - owner, 2026-11-12); the company's own has a pencil for an inline rename - and the add
+ * field always there under them: the catalogue picker, or a new name typed into it, then + Add. Each
+ * change is the API's at once; the page shows its answer. `region` names the block (inside an
+ * account card) by its title.
+ */
+export function SalesMethodsList({
   type,
   methods,
   available,
@@ -58,65 +86,26 @@ export function SalesMethodsCard({
   busy,
   actions,
   groups,
-}: {
-  type: MethodType;
-  methods: SalesMethod[];
-  available: CatalogueMethod[];
-  permissions: SettingsPermissions;
-  busy: boolean;
-  actions: MethodActions;
-  /** The API's `sales_groups`: a Non-cash company's electronic card is titled Non-cash. */
-  groups?: SalesGroups;
-}) {
+  region = false,
+}: ListProps & { region?: boolean }) {
   const kind = kindFor(type, groups);
-  const editable =
-    permissions.add_sales_method ||
-    permissions.rename_sales_method ||
-    permissions.remove_sales_method ||
-    permissions.reorder_sales_methods;
   const canMove = permissions.reorder_sales_methods && methods.length > 1;
   const [renaming, setRenaming] = useState<string | null>(null);
-  // the row being dragged and the row it is over
+  // the chip being dragged and the chip it is over
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
 
   let note: string | null = null;
   if (!permissions.view_sales_methods)
     note = "You can't see the sales methods. Ask an Accountant or an Admin.";
   else if (!methods.length) note = `No ${kind.title.toLowerCase()} methods yet.`;
 
-  return (
-    <PettyCashCard
-      title={kind.title}
-      lead={kind.sub}
-      readOnly={!editable}
-      testId={type}
-      // the add button at the card's top right (owner, 2026-11-12)
-      headerAction={
-        permissions.add_sales_method && !adding ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setAdding(true)}
-            className={`${SETTINGS_OUTLINE} -mt-2.5 shrink-0`}
-          >
-            <Icon name="add" className="text-[20px]" />
-            Add New Method
-          </button>
-        ) : null
-      }
-    >
-      {/* the add form opens inline above the list - no dialog (owner, 2026-11-12) */}
-      {permissions.add_sales_method && adding ? (
-        <AddForm
-          type={type}
-          methods={methods}
-          available={available}
-          busy={busy}
-          actions={actions}
-          onClose={() => setAdding(false)}
-        />
+  const body = (
+    <div className="flex min-w-0 flex-col gap-3">
+      {region ? (
+        <p className="text-[13px] font-semibold text-set-mute">
+          {kind.title} methods{canMove ? " · drag a chip to reorder" : ""}
+        </p>
       ) : null}
       {note ? (
         <p className="text-sm text-set-mute" role="status">
@@ -124,7 +113,7 @@ export function SalesMethodsCard({
         </p>
       ) : null}
       <ul
-        className={`m-0 list-none p-0 ${methods.length ? "border-t border-set-line" : ""}`}
+        className="m-0 flex min-w-0 list-none flex-wrap gap-2 p-0"
         aria-label={`${kind.title} methods`}
       >
         {methods.map((method, index) => (
@@ -145,80 +134,88 @@ export function SalesMethodsCard({
               setDragFrom(null);
               setDragOver(null);
             }}
-            className={`border-b transition-[border-color,opacity] ${
+            className={`inline-flex min-h-11 max-w-full min-w-0 items-center rounded-[10px] border bg-set-pill transition-[border-color,opacity] ${
               dragOver === index && dragFrom !== index ? "border-set-tab-ink" : "border-set-line"
             } ${dragFrom === index ? "opacity-45" : ""}`}
           >
-            <div className="flex min-h-12 min-w-0 items-center justify-between gap-3 py-0.5">
-              {renaming === method.id ? (
-                <RenameBox
-                  method={method}
-                  listed={methods}
-                  onDone={() => setRenaming(null)}
-                  onCommit={(name) => actions.rename(method, name)}
-                />
-              ) : (
-                <span className="min-w-0 truncate text-[14.5px] text-set-ink">{method.name}</span>
-              )}
-              {renaming !== method.id &&
-              ((method.own && permissions.rename_sales_method) ||
-                permissions.remove_sales_method ||
-                canMove) ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  {method.own && permissions.rename_sales_method ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setRenaming(method.id)}
-                      aria-label={`Edit ${method.name}`}
-                      title="Edit"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] text-set-mute transition-colors enabled:hover:bg-set-pill enabled:hover:text-set-ink disabled:cursor-not-allowed"
-                    >
-                      <Icon name="edit" className="text-[22px]" />
-                    </button>
-                  ) : null}
-                  {permissions.remove_sales_method ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => actions.remove(type, method)}
-                      aria-label={
-                        method.own ? `Delete ${method.name}` : `Remove ${method.name} from my list`
-                      }
-                      title={method.own ? "Delete" : "Remove from my list"}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-[12px] text-set-mute transition-colors enabled:hover:bg-[#fdecec] enabled:hover:text-[#d9534f] disabled:cursor-not-allowed"
-                    >
-                      <Icon
-                        name={method.own ? "delete" : "playlist_remove"}
-                        className="text-[22px]"
-                      />
-                    </button>
-                  ) : null}
-                  {canMove ? (
-                    <DragHandle
-                      label={`Move ${method.name}`}
-                      disabled={busy}
-                      onDragStart={(e) => {
-                        setDragFrom(index);
-                        e.dataTransfer?.setData("text/plain", method.id);
-                        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => {
-                        setDragFrom(null);
-                        setDragOver(null);
-                      }}
-                      onStep={(step) => actions.move(type, index, step)}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+            {renaming === method.id ? (
+              <RenameBox
+                method={method}
+                listed={methods}
+                onDone={() => setRenaming(null)}
+                onCommit={(name) => actions.rename(method, name)}
+              />
+            ) : (
+              <>
+                {canMove ? (
+                  <ChipHandle
+                    label={`Move ${method.name}`}
+                    disabled={busy}
+                    onDragStart={(e) => {
+                      setDragFrom(index);
+                      e.dataTransfer?.setData("text/plain", method.id);
+                      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => {
+                      setDragFrom(null);
+                      setDragOver(null);
+                    }}
+                    onStep={(step) => actions.move(type, index, step)}
+                  >
+                    {method.name}
+                  </ChipHandle>
+                ) : (
+                  <span className="min-w-0 truncate py-2 pr-1 pl-3 text-sm text-set-ink">
+                    {method.name}
+                  </span>
+                )}
+                {method.own && permissions.rename_sales_method ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setRenaming(method.id)}
+                    aria-label={`Edit ${method.name}`}
+                    title="Edit"
+                    className={CHIP_BUTTON}
+                  >
+                    <Icon name="edit" className="text-[18px]" />
+                  </button>
+                ) : null}
+                {permissions.remove_sales_method ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => actions.remove(type, method)}
+                    aria-label={
+                      method.own ? `Delete ${method.name}` : `Remove ${method.name} from my list`
+                    }
+                    title={method.own ? "Delete" : "Remove from my list"}
+                    className={`${CHIP_BUTTON} enabled:hover:text-[#d9534f]`}
+                  >
+                    <Icon name="close" className="text-[18px]" />
+                  </button>
+                ) : null}
+              </>
+            )}
           </li>
         ))}
       </ul>
-    </PettyCashCard>
+      {permissions.add_sales_method ? (
+        <AddRow type={type} methods={methods} available={available} busy={busy} actions={actions} />
+      ) : null}
+    </div>
+  );
+  return region ? (
+    <section aria-label={kind.title} data-methods={type} className="min-w-0">
+      {body}
+    </section>
+  ) : (
+    body
   );
 }
+
+const CHIP_BUTTON =
+  "inline-flex h-11 w-9 shrink-0 items-center justify-center rounded-[10px] text-set-mute transition-colors enabled:hover:text-set-ink disabled:cursor-not-allowed";
 
 /** The rename: the name becomes a box; Enter or leaving saves, Escape puts it back. */
 function RenameBox({
@@ -290,61 +287,62 @@ function RenameBox({
   );
 }
 
-/** The row's ⋮, then a card of its actions. */
-/** The handle (owner, 2026-11-12: no Move up / Move down): drag it to reorder; with the keyboard,
- * the up and down arrows move the method one place. */
-function DragHandle({
+/** The chip's name is its handle (owner, 2026-11-12: no Move up / Move down): drag it to reorder;
+ * with the keyboard, the arrow keys move the method one place. */
+function ChipHandle({
   label,
   disabled,
   onDragStart,
   onDragEnd,
   onStep,
+  children,
 }: {
   label: string;
   disabled: boolean;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onStep: (step: -1 | 1) => void;
+  children: string;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
-      aria-description="Drag to reorder, or use the up and down arrow keys."
-      title="Drag to reorder"
+      title="Drag to reorder, or use the arrow keys"
       draggable={!disabled}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onKeyDown={(e) => {
-        if (disabled || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+        const back = e.key === "ArrowUp" || e.key === "ArrowLeft";
+        const on = e.key === "ArrowDown" || e.key === "ArrowRight";
+        if (disabled || (!back && !on)) return;
         e.preventDefault();
-        onStep(e.key === "ArrowUp" ? -1 : 1);
+        onStep(back ? -1 : 1);
       }}
-      className="inline-flex h-11 w-11 cursor-grab items-center justify-center rounded-[12px] text-set-mute transition-colors hover:bg-set-pill hover:text-set-ink active:cursor-grabbing"
+      className="min-h-11 min-w-0 cursor-grab truncate rounded-[10px] py-2 pr-1 pl-3 text-left text-sm text-set-ink active:cursor-grabbing"
     >
-      <Icon name="drag_handle" className="text-[22px]" />
+      {children}
     </button>
   );
 }
 
 type Choice = { id: string; name: string } | "other" | null;
 
-/** "Add New Method": the catalogue picker - or a name typed into it, "+ Add '<name>' as a new
- * method" opening the Name box with it (owner, 2026-11-12: as the contact pickers) - Cancel / Add. */
-function AddForm({
+/** The add field under the chips: the catalogue picker - or a name typed into it, "+ Add '<name>' as
+ * a new method" opening the Name box with it (owner, 2026-11-12: as the contact pickers) - then
+ * + Add. Always there (Figma 529:675); it empties itself after an add. */
+function AddRow({
   type,
   methods,
   available,
   busy,
   actions,
-  onClose,
 }: {
   type: MethodType;
   methods: SalesMethod[];
   available: CatalogueMethod[];
   busy: boolean;
   actions: MethodActions;
-  onClose: () => void;
 }) {
   const kind = KIND[type];
   const catalogId = useId();
@@ -362,8 +360,14 @@ function AddForm({
 
   useEffect(() => {
     catalog.current = document.getElementById(catalogId) as HTMLInputElement | null;
-    catalog.current?.focus();
   }, [catalogId]);
+
+  function onClose() {
+    setText("");
+    setChoice(null);
+    setName("");
+    setRefusedEmpty(false);
+  }
 
   useEffect(() => {
     if (choice === "other") nameBox.current?.focus();
@@ -417,36 +421,42 @@ function AddForm({
         void commit();
       }}
     >
-      <div className="flex min-w-0 flex-col">
-        <label className={SETTINGS_LABEL} htmlFor={catalogId}>
-          Method
-        </label>
-        <Combo
-          id={catalogId}
-          value={text}
-          placeholder={kind.pick}
-          rows={rows}
-          rotateChevron
-          onText={(t) => {
-            // typing filters the list; nothing is chosen until a row is picked
-            setText(t);
-            setChoice(null);
-          }}
-          onPick={(key) => {
-            if (key === OTHER) {
-              // the typed name goes into the Name box, to check or change before Add
-              setChoice("other");
-              setName(text.trim());
-              setRefusedEmpty(false);
-              return;
-            }
-            const picked = available.find((m) => m.id === key);
-            if (!picked) return;
-            setChoice({ id: picked.id, name: picked.name });
-            setText(picked.name);
-          }}
-          onBlur={() => setText((t) => (choice && choice !== "other" ? choice.name : t))}
-        />
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <label className="sr-only" htmlFor={catalogId}>
+            Method
+          </label>
+          <Combo
+            id={catalogId}
+            value={text}
+            placeholder={kind.pick}
+            rows={rows}
+            rotateChevron
+            onText={(t) => {
+              // typing filters the list; nothing is chosen until a row is picked
+              setText(t);
+              setChoice(null);
+            }}
+            onPick={(key) => {
+              if (key === OTHER) {
+                // the typed name goes into the Name box, to check or change before Add
+                setChoice("other");
+                setName(text.trim());
+                setRefusedEmpty(false);
+                return;
+              }
+              const picked = available.find((m) => m.id === key);
+              if (!picked) return;
+              setChoice({ id: picked.id, name: picked.name });
+              setText(picked.name);
+            }}
+            onBlur={() => setText((t) => (choice && choice !== "other" ? choice.name : t))}
+          />
+        </div>
+        <button type="submit" disabled={busy} className={`${SETTINGS_OUTLINE} shrink-0`}>
+          <Icon name="add" className="text-[20px]" />
+          Add
+        </button>
       </div>
       {choice === "other" ? (
         <div className="flex min-w-0 flex-col">
@@ -472,14 +482,6 @@ function AddForm({
           ) : null}
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={onClose} className={`${SETTINGS_OUTLINE} flex-1`}>
-          Cancel
-        </button>
-        <button type="submit" disabled={busy} className={`${SETTINGS_PRIMARY} flex-1`}>
-          Add
-        </button>
-      </div>
     </form>
   );
 }
