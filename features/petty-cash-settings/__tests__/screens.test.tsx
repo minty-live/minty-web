@@ -121,6 +121,8 @@ const LABELS: Record<MappingKey, string> = {
   owners_contact: "Director / Responsible person",
   discrepancy_account: "Discrepancy account code",
   discrepancy_contact: "Discrepancy contact",
+  electronicsale_account: "Electronic Payment sales account code",
+  deliverysale_account: "Delivery sales account code",
 };
 const BANKS = [
   { id: "b1", name: "Petty Cash", code: "090" },
@@ -143,6 +145,9 @@ const SAVED: Record<MappingKey, string | null> = {
   owners_contact: "c2",
   discrepancy_account: "a2",
   discrepancy_contact: "c2",
+  // the other two sales accounts' codes (2026-11-17): not in these reads, so sent empty
+  electronicsale_account: "",
+  deliverysale_account: "",
 };
 
 function xero(
@@ -251,7 +256,7 @@ describe("PettyCashSettingsScreen", () => {
     expect(mapping.getByText(/Xero isn.t connected/)).toBeInTheDocument();
   });
 
-  it("a Non-cash company sees one Non-cash card and no empty Delivery card", async () => {
+  it("a Non-cash company sees one Electronic card (named after its sales account since 2026-11-17) and no empty Delivery card", async () => {
     api({
       "GET /settings": () =>
         json(
@@ -264,7 +269,7 @@ describe("PettyCashSettingsScreen", () => {
     });
     show();
 
-    expect(await screen.findByRole("list", { name: "Non-cash methods" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Electronic methods" })).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Delivery methods" })).toBeNull();
     expect(screen.queryByText("No delivery methods yet.")).toBeNull();
   });
@@ -817,6 +822,60 @@ describe("PettyCashSettingsScreen - the sales accounts", () => {
     expect(
       card("Sales accounts and methods").queryByRole("button", { name: "Save changes" }),
     ).toBeNull();
+  });
+});
+
+// Each sales account has its own code (owner, 2026-11-17): the mapping draws Electronic Payment
+// Sales and Delivery Sales when the API sends them (their sales account ticked), optional, and saves
+// the picks with the rest.
+describe("PettyCashSettingsScreen - each sales account's code", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("offers the two codes, optional, and sends the one picked", async () => {
+    const read = xero();
+    const at = read.mapping!.findIndex((f) => f.key === "cashsale_account") + 1;
+    const codeField = (key: MappingKey, label: string) => ({
+      key,
+      label,
+      kind: "account" as const,
+      options: ACCOUNTS,
+      selected: null,
+      optional: true,
+    });
+    read.mapping!.splice(
+      at,
+      0,
+      codeField("electronicsale_account", "Electronic Payment sales account code"),
+      codeField("deliverysale_account", "Delivery sales account code"),
+    );
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(read),
+      "PUT /settings/xero/mapping": () =>
+        json({ ...read, message: "Account mapping saved.", first_save: false }),
+    });
+    show();
+    await drawn();
+    const mapping = card("Account mapping");
+    const electronic = await mapping.findByRole("combobox", {
+      name: /Select account code for electronic payment sales/,
+    });
+    expect(mapping.getByText("Select account code for delivery sales")).toBeInTheDocument();
+    expect(electronic).not.toBeRequired();
+    const user = userEvent.setup();
+    await user.click(electronic);
+    await user.click(mapping.getByRole("option", { name: /Sales/ }));
+    await user.click(mapping.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() =>
+      expect(sent("PUT /settings/xero/mapping")).toEqual([
+        { ...SAVED, electronicsale_account: "a1" },
+      ]),
+    );
   });
 });
 

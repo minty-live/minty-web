@@ -12,17 +12,23 @@ export type MappingKey =
   | "main_bank"
   | "deposit_bank"
   | "cashsale_account"
+  | "electronicsale_account"
+  | "deliverysale_account"
   | "cashsale_contact"
   | "owners_account"
   | "owners_contact"
   | "discrepancy_account"
   | "discrepancy_contact";
 
-/** The eight the person chooses, in Flask's order. The Discrepancy Bank Account mirrors the Petty Cash Account (the API sets it). */
+/** What the person chooses, in Flask's order, with the other two sales accounts' codes after Cash
+ * Sales' (owner, 2026-11-17; optional, sent only while their sales account is ticked). The
+ * Discrepancy Bank Account mirrors the Petty Cash Account (the API sets it). */
 export const MAPPING_KEYS: readonly MappingKey[] = [
   "main_bank",
   "deposit_bank",
   "cashsale_account",
+  "electronicsale_account",
+  "deliverysale_account",
   "cashsale_contact",
   "owners_account",
   "owners_contact",
@@ -93,6 +99,28 @@ export const MAPPING_GROUPS: readonly {
       {
         key: "cashsale_account",
         sub: "Select account code for cash sales",
+        placeholder: "Select an account code",
+      },
+    ],
+  },
+  // Each sales account has its own code (owner, 2026-11-17: "each sales should be tied"): the day's
+  // sales invoice in Xero gets a line for each. Optional; drawn only while that account is ticked.
+  {
+    title: "Electronic Payment Sales",
+    fields: [
+      {
+        key: "electronicsale_account",
+        sub: "Select account code for electronic payment sales",
+        placeholder: "Select an account code",
+      },
+    ],
+  },
+  {
+    title: "Delivery Sales",
+    fields: [
+      {
+        key: "deliverysale_account",
+        sub: "Select account code for delivery sales",
         placeholder: "Select an account code",
       },
     ],

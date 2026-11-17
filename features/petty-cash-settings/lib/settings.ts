@@ -121,7 +121,7 @@ export function kindFor(type: MethodType, groups?: SalesGroups): (typeof KIND)[M
   if (groups === "non_cash" && type === "electronic")
     return {
       ...KIND.electronic,
-      title: "Non-cash",
+      title: "Electronic",
       sub: "Card, wallet and transfer payments a sales report can record.",
     };
   return KIND[type];

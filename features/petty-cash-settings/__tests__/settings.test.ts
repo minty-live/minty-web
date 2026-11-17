@@ -77,11 +77,11 @@ describe("the cards follow the business type (owner, 2026-11-11)", () => {
     expect(kindFor("electronic", "electronic_delivery").title).toBe("Electronic");
   });
 
-  it("a retail shop, a service or a general business: one Non-cash card", () => {
+  it("a retail shop, a service or a general business: one card, titled Electronic since 2026-11-17", () => {
     expect(shownTypes({ sales_groups: "non_cash", sales_methods: lists(0) })).toEqual([
       "electronic",
     ]);
-    expect(kindFor("electronic", "non_cash").title).toBe("Non-cash");
+    expect(kindFor("electronic", "non_cash").title).toBe("Electronic");
     expect(kindFor("delivery", "non_cash").title).toBe("Delivery");
   });
 

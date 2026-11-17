@@ -120,6 +120,8 @@ describe("a company that banks all its sales (2026-11-10)", () => {
       owners_contact: "",
       discrepancy_account: "y",
       discrepancy_contact: "",
+      electronicsale_account: "",
+      deliverysale_account: "",
     };
     expect(mappingProblems(mapping, picked, true)).toEqual({});
     expect(mappingProblems(base.mapping!, picked, true)).toEqual({
