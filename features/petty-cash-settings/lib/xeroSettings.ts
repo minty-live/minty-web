@@ -39,7 +39,7 @@ export type MappingField = {
   selected: string | null;
   /** May stay empty: the cash-sale pair, for a company that banks all its sales (2026-11-10). */
   optional?: boolean;
-  /** The saved account is archived (in Xero, or by the company): a publish into it fails (2026-11-13). */
+  /** The saved account (2026-11-13) or contact (2026-11-17) is archived (in Xero, or by the company): a publish to it fails. */
   archived?: boolean;
 };
 export type AccountCode = { code: string; name: string; selected: boolean };

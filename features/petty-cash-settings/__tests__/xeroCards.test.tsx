@@ -265,6 +265,26 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
 
+  it("a saved contact archived in Xero says contact, not account (2026-11-17)", () => {
+    // Company of Friends' cash sale contact, 7-Eleven, was archived in Xero; its publishes failed
+    const base = xeroRead();
+    const mapping = base.mapping!.map((f) =>
+      f.key === "cashsale_contact"
+        ? { ...f, options: [{ id: "c-7", name: "7-Eleven" }], selected: "c-7", archived: true }
+        : f,
+    );
+    render(
+      <XeroMappingCard
+        {...props}
+        onAdded={vi.fn()}
+        load={{ kind: "ready", read: { ...base, mapping } }}
+      />,
+    );
+    expect(
+      screen.getByText("7-Eleven is archived in Xero. Choose another contact to keep publishing."),
+    ).toBeInTheDocument();
+  });
+
   it("an active account has no note", () => {
     render(
       <XeroMappingCard {...props} onAdded={vi.fn()} load={{ kind: "ready", read: xeroRead() }} />,
