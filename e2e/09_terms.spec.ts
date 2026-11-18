@@ -163,8 +163,8 @@ test.describe("the Terms gate", () => {
     const accept = dialog.getByRole("button", { name: "Accept & Continue" });
     await expect(box).toBeDisabled();
     await expect(accept).toBeDisabled();
-    // Flask's look, from the CSS module: the grey of a locked Accept
-    await expect(accept).toHaveCSS("background-color", "rgb(209, 213, 219)");
+    // the CSS module's locked Accept: action-disabled (Part 13)
+    await expect(accept).toHaveCSS("background-color", "rgb(232, 234, 234)");
 
     // not dismissible
     await page.keyboard.press("Escape");
@@ -174,7 +174,7 @@ test.describe("the Terms gate", () => {
     await expect(box).toBeEnabled();
     await box.check();
     await expect(accept).toBeEnabled();
-    await expect(accept).toHaveCSS("background-color", "rgb(54, 195, 180)");
+    await expect(accept).toHaveCSS("background-color", "rgb(60, 188, 195)");
     await accept.click();
 
     await expect(dialog).toBeHidden();

@@ -719,7 +719,7 @@ describe("the card screens", () => {
     expect(stripeForm.elementOptions.at(-1)).toMatchObject({
       appearance: {
         variables: { borderRadius: "10px", colorPrimary: "#4fc7c7" },
-        rules: { ".Input": { border: "1.5px solid #d6dae0" } },
+        rules: { ".Input": { border: "1.5px solid #d8dee4" } },
       },
     });
 
@@ -906,12 +906,15 @@ describe("08-A, the portal's landing", () => {
     // The accessible name is the WHOLE title, so the coloured name must stay contiguous with
     // the rest of the sentence - the same trap the <br/> in section 06's titles has.
     expect(dialog).toHaveAccessibleName("Sonia Chan declined the transfer");
-    // The design's colours: the person in orange, the company in teal, "Entity" neither.
+    // Part 13: the person in bold ink, the company in the link teal, "Entity" neither.
     // The same rule wherever the name appears - the title here, the body on 07-L.
-    expect(within(dialog).getByText("Sonia Chan")).toHaveClass("text-[#ea9713]");
+    expect(within(dialog).getByText("Sonia Chan")).toHaveClass(
+      "font-semibold",
+      "text-text-primary",
+    );
     const company = within(dialog).getByText("Company B Limited");
     expect(company).toBeInTheDocument();
-    expect(company).toHaveClass("text-[#18c4c7]");
+    expect(company).toHaveClass("text-text-link");
     expect(
       within(dialog).getByText("You can send a new request to anyone anytime."),
     ).toBeInTheDocument();
@@ -966,7 +969,7 @@ describe("08-A, the portal's landing", () => {
     expect(posts).toEqual([]);
   });
 
-  it("07-L: an accepted handover names the person in the body, in the same orange", async () => {
+  it("07-L: an accepted handover names the person in the body, in the same bold ink", async () => {
     fetchMock.mockImplementation(async (input, init) => {
       if (init?.method === "POST") return reply(200, { ok: true, message: "Done." });
       void input;
@@ -998,7 +1001,10 @@ describe("08-A, the portal's landing", () => {
     expect(dialog).toHaveAccessibleName("Transfer has been successful");
     // The sentence stays whole around the coloured run.
     expect(dialog).toHaveTextContent("Angelika Lifecycle has accepted the transfer.");
-    expect(within(dialog).getByText("Angelika Lifecycle")).toHaveClass("text-[#ea9713]");
+    expect(within(dialog).getByText("Angelika Lifecycle")).toHaveClass(
+      "font-semibold",
+      "text-text-primary",
+    );
   });
 
   it("nothing is told when there is no unseen outcome", async () => {

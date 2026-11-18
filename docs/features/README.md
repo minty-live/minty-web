@@ -71,6 +71,14 @@ every face is self-hosted via `next/font`, which is what supplies the metric-mat
 and onboarding's `BillingSheet.tsx`), fetched inside Stripe's cross-origin iframe, which cannot see
 our `@font-face`.
 
+Colours: `@minty/shared` `colors.css` roles only (owner 2026-11-18); no raw hex — `__tests__/no_raw_colours.test.ts`.
+The old names in `app/globals.css` (`--ink`, `--set-*`, `--action` ...) are aliases of those roles; new code
+uses the role utilities (`bg-action-primary`, `text-text-secondary`, `border-border-input`,
+`bg-status-danger-bg` ...). Two exceptions, each allow-listed in the test with its reason:
+`CardBrand.tsx` (card networks' colours) and `features/subscription/lib/stripeColours.ts` (Stripe's
+iframe cannot read CSS variables). ConfirmDialog's orange warning button (`#ea9713`) waits for the
+owner's choice of role.
+
 Keep these current: when a route, a rule or a test named here changes, change the line that
 names it in the same commit. `subscriptions.md` §8 says which step fills which part; move a row
 out of it when the step lands.

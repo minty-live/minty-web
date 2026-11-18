@@ -2,6 +2,11 @@
 /* The faces, shared: @minty/shared/theme.css (--font-sans, --font-brand). Plain CSS resolved by
    the bundler, like the icon font below - misspell it and the build fails. */
 @import "@minty/shared/theme.css";
+/* The colours, shared: @minty/shared/colors.css - Part 13's semantic roles (bg-action-primary,
+   text-text-secondary, border-border-input, bg-status-danger-bg ...). One palette for every Minty
+   app (owner, 2026-11-18): screens use these utilities, never a hex or a Tailwind palette class
+   (__tests__/no_raw_colours.test.ts). Colours only - Tailwind's own radius and type scale stay. */
+@import "@minty/shared/colors.css";
 /* minty-payment-request-web's icon font (its Header, NavMenu and pills use these glyphs) */
 @import "material-symbols/outlined.css";
 /* Tailwind v4 NEVER scans node_modules, so without this every utility class inside a packaged
@@ -10,58 +15,60 @@
    Guarded by app/__tests__/packagedStyles.test.ts - do not delete either. */
 @source "../node_modules/@minty/shared/src";
 
-/* Skeletal by decision (2026-09-21): a new frontend design replaces this. Only the tokens
-   minty-payment-request-web also carries, so the two apps read the same until then. Nothing pixel-level
-   is worth keeping; components/ take their look from here and nowhere else. */
+/* Skeletal by decision (2026-09-21); since 2026-11-18 every colour token below is an ALIAS of a
+   @minty/shared/colors.css role (owner: one palette for every app), kept so the components that
+   read the older names follow the roles. New code uses the role utilities directly. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --primary: #656565;
-  --secondary: #54d3da;
-  --danger: #b42318;
-  /* The module settings page (Figma 43YI3MYtTfX5Xzz6dRoRuT, section 03): the first screen with a
-     design. Components read these, never a hex, so a retheme is this block. */
-  --accent: #f15a24;
-  --teal-strong: #18c4c7;
-  --info: #2374f2;
-  --ink: #16202e;
-  --ink-soft: #757575;
-  --quiet: #a0a8b2;
-  --pill: #e5e7eb;
-  --pill-text: #374151;
-  --card-live: #f5ffff;
-  --tile-petty: #fff7ec;
-  --avatar-bg: #ffe6b1;
-  --avatar-fg: #6b3a12;
-  --alert-bg: #fff5f5;
-  --alert-border: #f3b6ad;
-  --alert-icon: #d92d20;
+  --background: var(--color-surface-page);
+  --foreground: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border-subtle);
+  --primary: var(--color-text-secondary);
+  /* Brand #54d3da is never a button fill: the old fills read the Primary CTA. The focus ring is
+     its own role (border-focus, below). */
+  --secondary: var(--color-action-primary);
+  --danger: var(--color-status-danger-ink);
+  /* The module settings page's tokens (Figma 43YI3MYtTfX5Xzz6dRoRuT, section 03). --accent was
+     the orange of "N days remaining" / "Cancels ..." - a warning. */
+  --accent: var(--color-status-warning-ink);
+  --teal-strong: var(--color-action-secondary-text);
+  --info: var(--color-status-info-ink);
+  --ink: var(--color-text-primary);
+  --ink-soft: var(--color-text-secondary);
+  --quiet: var(--color-text-muted);
+  --pill: var(--color-status-neutral-bg);
+  --pill-text: var(--color-status-neutral-ink);
+  --card-live: var(--color-state-selected);
+  --tile-petty: var(--color-module-pettycash-wash);
+  --avatar-bg: var(--color-accent-avatar-bg);
+  --avatar-fg: var(--color-accent-avatar-ink);
+  --alert-bg: var(--color-status-danger-bg);
+  --alert-border: var(--color-action-danger);
+  --alert-icon: var(--color-action-danger);
   /* Settings (Figma 353:999, owner 2026-11-10): the page head, the underlined tab row, the white
-     cards and their buttons. Every settings tab reads these. Red, status and grey are @minty/shared's
-     Part 13 values (owner, 2026-11-18); the teals (set-tab, set-tab-ink) stay as they are. */
-  --set-ink: #242828;
-  --set-ink-2: #535a5a;
-  --set-mute: #676f6f;
-  --set-line: #e8eaea;
-  --set-edge: #d9dcdb;
-  --set-tab: #36c3b4;
-  --set-tab-ink: #0f7a6e;
-  --set-pill: #f3f4f4;
-  --set-ok-bg: #dff4ec;
-  --set-ok-ink: #0c5c42;
-  --set-warn-bg: #fcecec;
-  --set-danger-line: #c2363b;
-  --set-danger-ink: #a82a2f;
-  --set-warning-bg: #fdf0dc;
-  --set-warning-ink: #7e4e05;
-  --set-info-bg: #e7f4fe;
-  --set-info-ink: #1b57b4;
+     cards and their buttons. Part 13 everywhere, the teals included (owner, 2026-11-18): the
+     active tab's underline is the Primary CTA, its text the link teal. */
+  --set-ink: var(--color-text-primary);
+  --set-ink-2: var(--color-text-secondary);
+  --set-mute: var(--color-text-muted);
+  --set-line: var(--color-border-subtle);
+  --set-edge: var(--color-border-default);
+  --set-tab: var(--color-border-focus);
+  --set-tab-ink: var(--color-text-link);
+  --set-pill: var(--color-surface-sunk);
+  --set-ok-bg: var(--color-status-success-bg);
+  --set-ok-ink: var(--color-status-success-ink);
+  --set-warn-bg: var(--color-status-danger-bg);
+  --set-danger-line: var(--color-action-danger);
+  --set-danger-ink: var(--color-status-danger-ink);
+  --set-warning-bg: var(--color-status-warning-bg);
+  --set-warning-ink: var(--color-status-warning-ink);
+  --set-info-bg: var(--color-status-info-bg);
+  --set-info-ink: var(--color-status-info-ink);
   /* The Primary CTA (CLAUDE.md, Minty Action): rest, hover, pressed. */
-  --action: #3cbcc3;
-  --action-hover: #35b2b9;
-  --action-pressed: #2fa4ab;
+  --action: var(--color-action-primary);
+  --action-hover: var(--color-action-primary-hover);
+  --action-pressed: var(--color-action-primary-pressed);
   /* AppHeader's height (its row is h-16 / sm:h-18, plus the 1px border and the notch): what a
      bar that sticks UNDER the sticky header uses as its top. Change the two together. */
   --app-header-h: calc(4rem + 1px + env(safe-area-inset-top, 0px));
@@ -129,6 +136,6 @@ body {
 
 /* Every screen is reachable by keyboard; the ring is the one thing the design pass may not remove. */
 :focus-visible {
-  outline: 2px solid var(--secondary);
+  outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }

@@ -34,13 +34,13 @@ export function TransferSubscriptionScreen(args: UseTransferSubscriptionArgs) {
         {t.status === "error" ? (
           <div
             role="alert"
-            className="rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800"
+            className="rounded-lg border border-action-danger/30 bg-status-danger-bg px-3.5 py-2.5 text-sm text-status-danger-ink"
           >
             {t.error}
           </div>
         ) : t.requested ? (
           <>
-            <h2 className="text-[25px] font-bold text-black">{t.entityName}</h2>
+            <h2 className="text-[25px] font-bold text-text-primary">{t.entityName}</h2>
             <TransferRequested
               email={t.requested.email}
               note={t.note}
@@ -50,7 +50,7 @@ export function TransferSubscriptionScreen(args: UseTransferSubscriptionArgs) {
           </>
         ) : (
           <>
-            <h2 className="text-[25px] font-bold text-black">
+            <h2 className="text-[25px] font-bold text-text-primary">
               {t.status === "loading" ? "Loading…" : t.entityName}
             </h2>
             <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">

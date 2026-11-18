@@ -27,7 +27,7 @@ import type { AddedCard, CardPrompt } from "@/features/subscription/hooks/useBil
 export { shortCardName };
 
 function CardName({ text }: { text: string }) {
-  return <span className="text-[#ea9713]">{text}</span>;
+  return <span className="font-semibold text-text-primary">{text}</span>;
 }
 
 /** 08-N / 08-S: the card is saved; the only question left is whether it becomes the default. */
@@ -47,12 +47,12 @@ export function CardAddedDialog({
     <ConfirmDialog
       title={
         <>
-          {CARD_ADDED} <span className="text-[#54d3da]">{CARD_ADDED_TAIL}</span>
+          {CARD_ADDED} <span className="text-text-link">{CARD_ADDED_TAIL}</span>
         </>
       }
       image="celebrating"
       lead={
-        <p className="text-[#8b93a0]">
+        <p className="text-text-muted">
           <CardName text={name} /> is added successfully.
         </p>
       }
@@ -114,7 +114,7 @@ export function RemoveCardDialog({
       title={REMOVE_TITLE}
       image="surprised"
       lead={
-        <p className="text-[#8b93a0]">
+        <p className="text-text-muted">
           <CardName text={cardTitle(prompt.row.card)} />
         </p>
       }
@@ -126,7 +126,7 @@ export function RemoveCardDialog({
     >
       <p>{REMOVE_BODY}</p>
       {error && (
-        <p role="alert" className="text-[#b42318]">
+        <p role="alert" className="text-status-danger-ink">
           {error}
         </p>
       )}

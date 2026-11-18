@@ -176,7 +176,7 @@ export function SettingsDialog({
         tabIndex={-1}
         disabled={busy}
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-[rgb(17_19_19/0.48)]"
+        className="absolute inset-0 cursor-default bg-overlay-scrim"
       />
       <div
         ref={card}

@@ -50,7 +50,7 @@ export function EntityListScreen(args: UseEntityListArgs) {
   const empty = list.status === "ready" && !list.hasEntities;
 
   return (
-    <div className="flex h-dvh flex-col bg-gray-50">
+    <div className="flex h-dvh flex-col bg-surface-canvas">
       <SelectCompanyHeader />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <main className="mx-auto flex min-h-full w-full flex-col p-6 pb-40 min-[640px]:w-[640px] min-[1024px]:w-[768px] min-[1200px]:w-[1024px]">
@@ -69,7 +69,7 @@ export function EntityListScreen(args: UseEntityListArgs) {
                     type="button"
                     onClick={list.toggleManaging}
                     aria-pressed={list.managing}
-                    className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border border-gray-300 bg-white px-4 text-sm font-semibold text-[#1f2937] transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#18c4c7]"
+                    className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border border-border-default bg-white px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                   >
                     {list.managing ? MANAGE_DONE : MANAGE_ARCHIVE}
                   </button>
@@ -114,7 +114,7 @@ export function EntityListScreen(args: UseEntityListArgs) {
         >
           <p>{list.pending.kind === "archive" ? ARCHIVE_TEXT : RESTORE_TEXT}</p>
           {list.pendingError ? (
-            <p role="alert" className="text-red-600">
+            <p role="alert" className="text-status-danger-ink">
               {list.pendingError}
             </p>
           ) : null}

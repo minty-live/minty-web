@@ -23,12 +23,17 @@ export const MODULE_ART: Record<
   ModuleCode,
   { src: string; width: number; height: number; accent: string }
 > = {
-  PETTY_CASH: { src: "/modules/petty-cash.png", width: 556, height: 384, accent: "#f5b945" },
+  PETTY_CASH: {
+    src: "/modules/petty-cash.png",
+    width: 556,
+    height: 384,
+    accent: "var(--color-module-pettycash)",
+  },
   PAYMENT_REQUEST: {
     src: "/modules/payment-request.png",
     width: 556,
     height: 384,
-    accent: "#3aa6f5",
+    accent: "var(--color-module-payment)",
   },
 };
 
@@ -59,8 +64,8 @@ export function ModuleCardShell({
 }) {
   const art = MODULE_ART[code];
   const frame = selected
-    ? "bg-[linear-gradient(90deg,#00cbc6_0%,#00d5bf_100%)] shadow-[0_12px_32px_rgba(0,203,198,0.28)]"
-    : "bg-[#ececea]";
+    ? "bg-action-primary shadow-[0_12px_32px_rgba(0,203,198,0.28)]"
+    : "bg-surface-sunk";
   const lift = onClick
     ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,20,25,0.08)]"
     : "";
@@ -93,7 +98,7 @@ export function ModuleCardShell({
         {/* Inset so a long name balances over two lines; the margin is the room the pinned
             status (and the chip, when there is one) takes at the bottom. */}
         <h3
-          className={`mt-2 px-[34px] text-center text-[26px] font-bold leading-tight tracking-[-0.015em] text-balance text-[#16202e] ${
+          className={`mt-2 px-[34px] text-center text-[26px] font-bold leading-tight tracking-[-0.015em] text-balance text-text-primary ${
             footer === undefined ? "mb-[86px]" : "mb-[118px]"
           }`}
         >
@@ -103,7 +108,7 @@ export function ModuleCardShell({
             names wrap. */}
         <div
           className={`absolute inset-x-0 bottom-[26px] flex flex-col items-center gap-0.5 text-center text-xl font-bold leading-[1.2] ${
-            selected ? "text-[#18c4c7]" : "text-[#8a8d8b]"
+            selected ? "text-text-link" : "text-text-muted"
           }`}
         >
           {status}
@@ -111,10 +116,10 @@ export function ModuleCardShell({
         </div>
         {/* The description, over the whole card on hover. Inert, so a click lands on the card. */}
         <div className="pointer-events-none absolute inset-0 z-[2] flex translate-y-2 flex-col justify-center gap-2.5 bg-white/95 p-7 text-center opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:transition-none">
-          <p aria-hidden className="text-xl font-bold tracking-[-0.01em] text-[#16202e]">
+          <p aria-hidden className="text-xl font-bold tracking-[-0.01em] text-text-primary">
             {name}
           </p>
-          <p className="whitespace-pre-line text-[15px] leading-[1.55] text-[#4a4d4b]">
+          <p className="whitespace-pre-line text-[15px] leading-[1.55] text-text-secondary">
             {description}
           </p>
         </div>
@@ -144,11 +149,11 @@ export function ModuleStatus({
 }
 
 const TONE: Record<ModuleStatusLine["tone"], string> = {
-  accent: "text-accent",
+  accent: "text-status-warning-ink",
   teal: "",
   muted: "",
-  info: "text-info",
-  plain: "text-black",
+  info: "text-status-info-ink",
+  plain: "text-text-primary",
 };
 
 /** The module settings page's card (Figma 03); its CTA is drawn under it by the grid. */

@@ -54,7 +54,7 @@ function ClockGlyph() {
 function TrialBadge({ label }: { label: string }) {
   return (
     <span
-      className="inline-flex h-[28px] shrink-0 items-center justify-center rounded-[14.889px] bg-[rgba(79,199,199,0.15)] pb-[4.222px] pl-[11.778px] pr-[6.444px] pt-[4.222px]"
+      className="inline-flex h-[28px] shrink-0 items-center justify-center rounded-[14.889px] bg-action-primary/15 pb-[4.222px] pl-[11.778px] pr-[6.444px] pt-[4.222px]"
       role="img"
       title={label}
       aria-label={label}
@@ -97,10 +97,10 @@ function XeroBadge({ row }: { row: EntityRow }) {
         />
       </span>
       <span
-        className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-max max-w-[16rem] rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-right shadow-md group-hover:block"
+        className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-max max-w-[16rem] rounded-lg border border-border-default bg-white px-3 py-1.5 text-right shadow-md group-hover:block"
         aria-hidden
       >
-        <span className="block break-words text-[12px] leading-snug text-gray-500">
+        <span className="block break-words text-[12px] leading-snug text-text-muted">
           {org ?? XERO_CONNECTED}
         </span>
       </span>
@@ -113,7 +113,7 @@ function LastOpened({ row }: { row: EntityRow }) {
   if (!when) {
     return (
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-400"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-border-subtle text-text-muted"
         role="img"
         title={NOT_OPENED_YET}
         aria-label={NOT_OPENED_YET}
@@ -125,19 +125,19 @@ function LastOpened({ row }: { row: EntityRow }) {
   return (
     <span className="group relative inline-flex">
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-500 text-white"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-avatar-bg text-accent-avatar-ink"
         role="img"
         aria-label={lastOpenedLabel(when, row.last_accessed_by)}
       >
         <ClockGlyph />
       </span>
       <span
-        className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-right shadow-md group-hover:block"
+        className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden whitespace-nowrap rounded-lg border border-border-default bg-white px-3 py-1.5 text-right shadow-md group-hover:block"
         aria-hidden
       >
-        <span className="block text-[12px] leading-snug text-gray-500">{when}</span>
+        <span className="block text-[12px] leading-snug text-text-muted">{when}</span>
         {row.last_accessed_by ? (
-          <span className="block text-[12px] leading-snug text-gray-500">
+          <span className="block text-[12px] leading-snug text-text-muted">
             By {row.last_accessed_by}
           </span>
         ) : null}
@@ -149,14 +149,14 @@ function LastOpened({ row }: { row: EntityRow }) {
 function ManageCard({ row, onArchive }: { row: EntityRow; onArchive?: (row: EntityRow) => void }) {
   return (
     <li className="relative">
-      <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[#f6f6f8] bg-white px-4 py-3 font-semibold text-[#1f2937] shadow-md">
+      <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-primary shadow-md">
         <span className="min-w-0 flex-1 truncate text-[17px]">{row.name}</span>
         {onArchive && canArchive(row) ? (
           <button
             type="button"
             onClick={() => onArchive(row)}
             aria-label={`${ARCHIVE_COMPANY} ${row.name}`}
-            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-red-200 px-4 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#18c4c7]"
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-action-danger/30 px-4 text-sm font-semibold text-status-danger-ink transition-colors hover:bg-status-danger-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
           >
             {ARCHIVE}
           </button>
@@ -175,17 +175,17 @@ function ArchivedCard({
 }) {
   return (
     <li className="relative" data-archived="">
-      <span className="absolute -top-2 left-3 z-10 rounded-full bg-gray-100 px-2.5 py-0.5 text-[12px] font-medium text-gray-600 shadow-sm">
+      <span className="absolute -top-2 left-3 z-10 rounded-full bg-status-neutral-bg px-2.5 py-0.5 text-[12px] font-medium text-status-neutral-ink shadow-sm">
         {ARCHIVED}
       </span>
-      <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[#f6f6f8] bg-white px-4 py-3 font-semibold text-gray-500 shadow-md">
+      <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-muted shadow-md">
         <span className="min-w-0 flex-1 truncate text-[17px]">{row.name}</span>
         {onRestore ? (
           <button
             type="button"
             onClick={() => onRestore(row)}
             aria-label={`${RESTORE} ${row.name}`}
-            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-gray-300 px-4 text-sm font-semibold text-[#1f2937] transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#18c4c7]"
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-border-default px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
           >
             {RESTORE}
           </button>
@@ -215,13 +215,13 @@ export function EntityCard({
     // The pill hangs off this wrapper, not the link, so it is hidden with the card it labels.
     <li className="relative">
       {isSettingUp(row) ? (
-        <span className="absolute -top-2 left-3 z-10 rounded-full bg-[#E6F9FA] px-2.5 py-0.5 text-[11px] font-medium text-[#1FA9B1] shadow-sm">
+        <span className="absolute -top-2 left-3 z-10 rounded-full bg-status-progress-bg px-2.5 py-0.5 text-[11px] font-medium text-status-progress-ink shadow-sm">
           {SETUP_IN_PROGRESS}
         </span>
       ) : null}
       <a
         href={enterHref(row)}
-        className="grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-[12px] border border-[#f6f6f8] bg-white px-4 py-3 font-semibold text-[#1f2937] shadow-md transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-lg"
+        className="grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-primary shadow-md transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:bg-surface-sunk hover:shadow-lg"
       >
         {/* Owner, 2026-11-16: one row while the whole name fits beside the badges; a name too
             long for that goes lower left (whole, wrapped, never cut short), the badges top right
@@ -233,7 +233,7 @@ export function EntityCard({
             {trial ? <TrialBadge label={trial} /> : null}
             {row.modules.includes("PETTY_CASH") ? (
               <span
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FFF3D6]"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-module-pettycash-wash"
                 role="img"
                 title="Petty Cash"
                 aria-label="Petty Cash module"
@@ -273,10 +273,17 @@ export function EntityCard({
         {/* As tall as the badges, at the bottom: beside a one-row card's middle, by a stacked
             card's name. */}
         <span className="flex h-7 items-center self-end">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            aria-hidden
+            className="text-text-primary"
+          >
             <path
               d="M10.8234 9.99945L6.98561 13.8395L8.07324 14.9434L13.0142 9.99945L8.07324 5.05555L6.98561 6.15938L10.8234 9.99945Z"
-              fill="#1F2937"
+              fill="currentColor"
             />
           </svg>
         </span>

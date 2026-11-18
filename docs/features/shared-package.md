@@ -27,6 +27,7 @@ the provider's look, with no PASSWORD row.
 | `lib/viewer.ts`                                            | a shim over `@minty/shared/viewer`                        |
 | `lib/{safeNext,companyRef,leaveGuard,emailInput}.ts`       | **deleted**; ~23 call sites import `@minty/shared/<name>` |
 | the `@theme` font block in `app/globals.css`               | `@import "@minty/shared/theme.css";`                      |
+| the colour hexes in `app/globals.css` and every screen     | `@import "@minty/shared/colors.css";` (v0.23, 2026-11-18) |
 
 899 lines of component became 54 lines of shim. Each shim's first line is
 `import "@/components/ui/sidebarHost";` — **load-bearing**: it registers this app's host before
@@ -64,6 +65,7 @@ Three parts of its shape exist for reasons worth keeping:
 /* app/globals.css */
 @import "tailwindcss";
 @import "@minty/shared/theme.css"; /* tokens - a bad specifier fails the build */
+@import "@minty/shared/colors.css"; /* Part 13 colour roles, colours only */
 @import "material-symbols/outlined.css";
 @source "../node_modules/@minty/shared/src"; /* AFTER every @import */
 ```

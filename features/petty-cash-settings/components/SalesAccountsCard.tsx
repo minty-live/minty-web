@@ -116,7 +116,7 @@ export function SalesAccountsCard({
                     {account.body}
                   </span>
                   <span
-                    className={`mt-1 rounded-[6px] px-2 py-0.5 text-xs font-medium ${on ? "bg-[#e6f7f4] text-[#0f7a6e]" : "bg-transparent px-0 text-set-mute"}`}
+                    className={`mt-1 rounded-[6px] px-2 py-0.5 text-xs font-medium ${on ? "bg-state-selected text-text-link" : "bg-transparent px-0 text-set-mute"}`}
                   >
                     {on
                       ? `Shows on your daily report: ${account.part}`
@@ -124,7 +124,7 @@ export function SalesAccountsCard({
                   </span>
                 </span>
                 <span
-                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[18px] text-white ${on ? "border-[#0f7a6e] bg-[#0f7a6e]" : "border-set-edge bg-white"}`}
+                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[18px] text-white ${on ? "border-border-selected bg-action-primary" : "border-set-edge bg-white"}`}
                 >
                   {on ? <Icon name="check" /> : null}
                 </span>

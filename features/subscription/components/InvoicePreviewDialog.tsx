@@ -48,7 +48,7 @@ export function InvoicePreviewDialog({
 
   const error = preview.status === "error" ? (preview.error ?? INVOICE_PDF_FAILED) : drawError;
   const preparing = (
-    <p role="status" className="py-16 text-center text-[15px] text-[#8b93a0]">
+    <p role="status" className="py-16 text-center text-[15px] text-text-muted">
       {PREPARING_INVOICE}
     </p>
   );
@@ -61,8 +61,8 @@ export function InvoicePreviewDialog({
       dismissLabel="Close preview"
       className="flex max-h-[min(92dvh,1180px)] w-full max-w-[860px] flex-col overflow-hidden rounded-[20px] bg-white shadow-[0px_4px_8px_0px_rgba(15,23,42,0.08),0px_12px_32px_0px_rgba(0,0,0,0.1)]"
     >
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-[#eef1f4] px-6 py-4">
-        <h2 id={titleId} className="min-w-0 truncate text-[17px] font-bold text-[#16202e]">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
+        <h2 id={titleId} className="min-w-0 truncate text-[17px] font-bold text-text-primary">
           {title}
         </h2>
         <button
@@ -70,15 +70,15 @@ export function InvoicePreviewDialog({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="shrink-0 rounded-lg p-1.5 text-[#8b93a0] hover:bg-[#f5f7fa] hover:text-[#16202e]"
+          className="shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-surface-sunk hover:text-text-primary"
         >
           <Icon name="close" size={20} />
         </button>
       </div>
       {/* The page at its true size fits the card's 860 with 32px a side; a phone's is narrower. */}
-      <div className="min-h-0 flex-1 overflow-auto bg-[#f5f6f8] p-3 sm:px-8 sm:py-6">
+      <div className="min-h-0 flex-1 overflow-auto bg-surface-sunk p-3 sm:px-8 sm:py-6">
         {error ? (
-          <p role="alert" className="py-16 text-center text-[15px] text-[#b42318]">
+          <p role="alert" className="py-16 text-center text-[15px] text-status-danger-ink">
             {error}
           </p>
         ) : preview.status === "ready" && preview.bytes ? (

@@ -36,13 +36,13 @@ function LandingContent() {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
-          <p role="alert" className="text-sm text-primary">
+          <p role="alert" className="text-sm text-text-primary">
             {refused}
           </p>
           <button
             type="button"
             onClick={() => backThroughHandoff(readLanding(searchParams, HUB_HOME))}
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-[#3CBCC3] px-5 text-sm font-semibold text-white hover:bg-[#35B2B9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2FA4AB] active:bg-[#2FA4AB]"
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-action-primary px-5 text-sm font-semibold text-action-on-primary hover:bg-action-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus active:bg-action-primary-pressed"
           >
             Continue
           </button>

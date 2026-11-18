@@ -28,10 +28,10 @@ import {
 import { EXPIRY_INVALID, useAddCard, useEditCard } from "@/features/subscription/hooks/useCardForm";
 
 const SHEET =
-  "mx-auto flex w-full max-w-[490px] flex-col gap-4 rounded-xl border border-[#eef1f4] bg-white px-7 py-6 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.1)]";
+  "mx-auto flex w-full max-w-[490px] flex-col gap-4 rounded-xl border border-border-subtle bg-white px-7 py-6 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.1)]";
 const FIELD =
-  "h-11 w-full rounded-lg border border-[#d8dee4] px-3.5 text-[15px] text-[#16202e] outline-none focus:border-[#2e9b9b]";
-const LABEL = "text-[13px] font-semibold text-[#16202e]";
+  "h-11 w-full rounded-lg border border-border-input px-3.5 text-[15px] text-text-primary outline-none focus:border-border-focus";
+const LABEL = "text-[13px] font-semibold text-text-primary";
 
 function MintyWithCards() {
   return (
@@ -59,8 +59,8 @@ export function AddCardScreen({
       <PortalHero title={ADD_CARD_TITLE} />
       <section aria-label={ADD_CARD_HEADING} className={SHEET}>
         <div>
-          <h2 className="text-[17px] font-bold text-[#16202e]">{ADD_CARD_HEADING}</h2>
-          <p className="mt-1.5 text-[13px] text-[#8b93a0]">{STRIPE_NOTE}</p>
+          <h2 className="text-[17px] font-bold text-text-primary">{ADD_CARD_HEADING}</h2>
+          <p className="mt-1.5 text-[13px] text-text-muted">{STRIPE_NOTE}</p>
         </div>
         <CardCapturePanel
           setup={add}
@@ -93,16 +93,16 @@ export function EditCardScreen({
       <PortalHero title={EDIT_CARD_TITLE} />
       <section aria-label={EDIT_CARD_HEADING} className={SHEET}>
         <div>
-          <h2 className="text-[17px] font-bold text-[#16202e]">{EDIT_CARD_HEADING}</h2>
-          <p className="mt-1.5 text-[13px] text-[#8b93a0]">{EDIT_CARD_NOTE}</p>
+          <h2 className="text-[17px] font-bold text-text-primary">{EDIT_CARD_HEADING}</h2>
+          <p className="mt-1.5 text-[13px] text-text-muted">{EDIT_CARD_NOTE}</p>
         </div>
 
         {edit.status === "error" ? (
-          <p role="alert" className="text-[15px] text-[#b42318]">
+          <p role="alert" className="text-[15px] text-status-danger-ink">
             {edit.error}
           </p>
         ) : edit.status === "loading" || !edit.card ? (
-          <p role="status" className="py-6 text-center text-[15px] text-[#8b93a0]">
+          <p role="status" className="py-6 text-center text-[15px] text-text-muted">
             Loading…
           </p>
         ) : (
@@ -119,7 +119,7 @@ export function EditCardScreen({
               </label>
               <input
                 id="card-number"
-                className={`${FIELD} mt-1.5 bg-[#f2f4f7] text-[#8b93a0]`}
+                className={`${FIELD} mt-1.5 bg-surface-sunk text-text-muted`}
                 value={`•••• •••• •••• ${edit.card.last4 ?? "••••"}`}
                 disabled
                 readOnly
@@ -136,9 +136,9 @@ export function EditCardScreen({
                   value={edit.fields.expMonth}
                   onChange={(e) => edit.setField("expMonth", e.target.value)}
                   aria-invalid={edit.saveError === EXPIRY_INVALID ? true : undefined}
-                  className={`${FIELD} w-20 text-center ${edit.saveError === EXPIRY_INVALID ? "border-[#b4231f]" : ""}`}
+                  className={`${FIELD} w-20 text-center ${edit.saveError === EXPIRY_INVALID ? "border-action-danger" : ""}`}
                 />
-                <span className="text-[#8b93a0]">/</span>
+                <span className="text-text-muted">/</span>
                 <input
                   aria-label="Expiry year"
                   inputMode="numeric"
@@ -147,7 +147,7 @@ export function EditCardScreen({
                   value={edit.fields.expYear}
                   onChange={(e) => edit.setField("expYear", e.target.value)}
                   aria-invalid={edit.saveError === EXPIRY_INVALID ? true : undefined}
-                  className={`${FIELD} w-20 text-center ${edit.saveError === EXPIRY_INVALID ? "border-[#b4231f]" : ""}`}
+                  className={`${FIELD} w-20 text-center ${edit.saveError === EXPIRY_INVALID ? "border-action-danger" : ""}`}
                 />
               </div>
             </div>
@@ -162,9 +162,9 @@ export function EditCardScreen({
                 onChange={(e) => edit.setField("name", e.target.value)}
               />
             </div>
-            <p className="text-[13px] leading-relaxed text-[#8b93a0]">{EDIT_CARD_FOOT}</p>
+            <p className="text-[13px] leading-relaxed text-text-muted">{EDIT_CARD_FOOT}</p>
             {edit.saveError && (
-              <p role="alert" className="text-[13px] text-[#b42318]">
+              <p role="alert" className="text-[13px] text-status-danger-ink">
                 {edit.saveError}
               </p>
             )}
@@ -173,14 +173,14 @@ export function EditCardScreen({
                 type="button"
                 onClick={edit.cancel}
                 disabled={edit.busy}
-                className="h-[44px] w-[104px] rounded-lg border border-[#d8dee4] bg-white text-[15px] font-semibold text-[#292e38] hover:bg-[#f5f7fa] disabled:opacity-60"
+                className="h-[44px] w-[104px] rounded-lg border border-border-default bg-white text-[15px] font-semibold text-text-primary hover:bg-surface-sunk disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={edit.busy || !edit.dirty}
-                className="h-[44px] w-[150px] rounded-lg bg-[#4fc7c7] text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                className="h-[44px] w-[150px] rounded-lg bg-action-primary text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
                 {edit.busy ? "Saving…" : "Save changes"}
               </button>

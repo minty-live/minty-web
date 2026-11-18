@@ -268,7 +268,7 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
             aria-expanded={expanded}
             aria-controls="payment-account-codes"
             aria-label={PAYMENT_SETTINGS_COPY.title}
-            className="-m-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-set-mute hover:bg-set-pill hover:text-set-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-set-tab"
+            className="-m-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-set-mute hover:bg-set-pill hover:text-set-ink-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
           >
             <span
               className={`material-symbols-outlined leading-none transition-transform duration-200 ease-out ${expanded ? "rotate-0" : "rotate-180"}`}

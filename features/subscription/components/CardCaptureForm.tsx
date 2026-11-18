@@ -65,6 +65,7 @@ import type { SetupIntentState } from "@/features/subscription/hooks/useCardForm
 import { CARD_MANDATE, STRIPE_NOTE } from "@/features/subscription/lib/billing";
 import { SAVE_BILLING_ACCOUNT } from "@/features/subscription/lib/billingAccounts";
 import { STRIPE_FONTS, stripeFor } from "@/features/subscription/lib/stripe";
+import { STRIPE_COLOURS } from "@/features/subscription/lib/stripeColours";
 
 export const CARD_SAVE_FAILED =
   "The card was saved with our payment provider, but we couldn't finish adding it. Refresh and check before trying again.";
@@ -86,20 +87,24 @@ const SHEET_APPEARANCE: Appearance = {
   variables: {
     fontFamily: "Inter, system-ui, -apple-system, sans-serif",
     fontSizeBase: "14px",
-    colorText: "#16202E",
-    colorTextPlaceholder: "#9AA6AC",
-    colorDanger: "#b4231f",
+    colorText: STRIPE_COLOURS.textPrimary,
+    colorTextPlaceholder: STRIPE_COLOURS.textMuted,
+    colorDanger: STRIPE_COLOURS.dangerInk,
     borderRadius: "8px",
     spacingUnit: "4px",
   },
   rules: {
-    ".Input": { border: "1px solid #D7DEE2", boxShadow: "none", padding: "12px 14px" },
+    ".Input": {
+      border: `1px solid ${STRIPE_COLOURS.borderInput}`,
+      boxShadow: "none",
+      padding: "12px 14px",
+    },
     ".Input:focus": {
-      border: "1px solid #4FC7C7",
-      boxShadow: "0 0 0 3px rgba(79, 199, 199, 0.18)",
+      border: `1px solid ${STRIPE_COLOURS.borderFocus}`,
+      boxShadow: `0 0 0 3px ${STRIPE_COLOURS.focusGlow}`,
       outline: "none",
     },
-    ".Label": { fontWeight: "600", fontSize: "13px", color: "#16202E" },
+    ".Label": { fontWeight: "600", fontSize: "13px", color: STRIPE_COLOURS.textPrimary },
   },
 };
 
@@ -284,16 +289,16 @@ function PageForm(props: FormProps) {
       />
       <AddressElement options={addressOptions} onChange={form.onAddressChange} />
       {props.firstCard && (
-        <p className="text-[13px] text-[#6b7380]">
+        <p className="text-[13px] text-text-secondary">
           This is the first payment method on your billing account, so it is the one card pickers
           will offer first.
         </p>
       )}
-      <p className="text-[13px] leading-relaxed text-[#8b93a0]">{CARD_MANDATE}</p>
+      <p className="text-[13px] leading-relaxed text-text-muted">{CARD_MANDATE}</p>
       {form.error && (
         <p
           role="alert"
-          className="rounded-lg border border-[#f3c2c2] bg-[#fdf3f3] px-4 py-3 text-[13px] text-[#b42318]"
+          className="rounded-lg border border-action-danger/30 bg-status-danger-bg px-4 py-3 text-[13px] text-status-danger-ink"
         >
           {form.error}
         </p>
@@ -303,14 +308,14 @@ function PageForm(props: FormProps) {
           type="button"
           onClick={props.onCancel}
           disabled={form.busy}
-          className="h-[44px] w-[104px] rounded-lg border border-[#d8dee4] bg-white text-[15px] font-semibold text-[#292e38] hover:bg-[#f5f7fa] disabled:opacity-60"
+          className="h-[44px] w-[104px] rounded-lg border border-border-default bg-white text-[15px] font-semibold text-text-primary hover:bg-surface-sunk disabled:opacity-60"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!form.canSubmit}
-          className="h-[44px] w-[114px] rounded-lg bg-[#4fc7c7] text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          className="h-[44px] w-[114px] rounded-lg bg-action-primary text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
           {form.busy ? "Saving…" : "Save"}
         </button>
@@ -336,7 +341,7 @@ function SheetForm(props: FormProps) {
           Payment method
           <RequiredMark />
         </span>
-        <div className="rounded-[10px] border border-[#d7dee2] p-4">
+        <div className="rounded-[10px] border border-border-default p-4">
           <PaymentElement
             onReady={form.onReady}
             onLoadError={form.onLoadError}
@@ -347,7 +352,7 @@ function SheetForm(props: FormProps) {
           </div>
         </div>
       </div>
-      <p className="mt-6 text-[12.5px] leading-normal text-[#6b7a80] [overflow-wrap:anywhere]">
+      <p className="mt-6 text-[12.5px] leading-normal text-text-secondary [overflow-wrap:anywhere]">
         {CARD_MANDATE}
       </p>
       {form.error && (
@@ -409,7 +414,7 @@ export function CardCaptureForm({
     // No key means no form: the API said the account has no Stripe configured (or a fixture is
     // being served), and an empty box would read as a broken page.
     return (
-      <p role="status" className={look === "sheet" ? SHEET_LOADING : "text-[15px] text-[#8b93a0]"}>
+      <p role="status" className={look === "sheet" ? SHEET_LOADING : "text-[15px] text-text-muted"}>
         {STRIPE_NOTE}
       </p>
     );
@@ -477,21 +482,21 @@ export function CardCapturePanel({
     }
     return (
       <div className="flex flex-col items-start gap-3">
-        <p role="alert" className="text-[15px] text-[#b42318]">
+        <p role="alert" className="text-[15px] text-status-danger-ink">
           {setup.error}
         </p>
         <div className="flex gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="h-[44px] w-[104px] rounded-lg border border-[#d8dee4] bg-white text-[15px] font-semibold text-[#292e38]"
+            className="h-[44px] w-[104px] rounded-lg border border-border-default bg-white text-[15px] font-semibold text-text-primary"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={setup.retry}
-            className="h-[44px] w-[114px] rounded-lg bg-[#4fc7c7] text-[15px] font-semibold text-white"
+            className="h-[44px] w-[114px] rounded-lg bg-action-primary text-[15px] font-semibold text-white"
           >
             Try again
           </button>
@@ -504,7 +509,9 @@ export function CardCapturePanel({
     return (
       <p
         role="status"
-        className={look === "sheet" ? SHEET_LOADING : "py-6 text-center text-[15px] text-[#8b93a0]"}
+        className={
+          look === "sheet" ? SHEET_LOADING : "py-6 text-center text-[15px] text-text-muted"
+        }
       >
         {OPENING_CARD_FORM}
       </p>

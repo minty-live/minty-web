@@ -15,11 +15,11 @@ import type { ModuleCta as ModuleCtaModel } from "@/features/subscription/lib/mo
 
 const LOOK: Record<ModuleCtaModel["variant"], string> = {
   filled:
-    "h-[66px] w-[248px] rounded-[24px] bg-secondary text-lg font-bold text-white hover:opacity-90",
+    "h-[66px] w-[248px] rounded-[24px] bg-brand-primary text-lg font-bold text-white hover:opacity-90",
   outline:
-    "h-[66px] w-[248px] rounded-[24px] border border-secondary bg-white text-lg font-bold text-teal-strong hover:bg-[var(--card-live)]",
+    "h-[66px] w-[248px] rounded-[24px] border border-action-secondary-border bg-white text-lg font-bold text-action-secondary-text hover:bg-[var(--card-live)]",
   // Same row height as the buttons, so a link beside one (03-D) centres on it.
-  link: "inline-flex h-[66px] items-center gap-2 text-base font-bold text-teal-strong hover:underline",
+  link: "inline-flex h-[66px] items-center gap-2 text-base font-bold text-text-link hover:underline",
 };
 
 export function ModuleCta({

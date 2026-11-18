@@ -163,7 +163,7 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
 
       {invited && arrival.email ? (
         <div
-          className="rounded-lg border border-secondary/40 bg-[#f5ffff] px-3.5 py-3 text-[13.5px] leading-normal text-ink"
+          className="rounded-lg border border-border-selected/40 bg-state-selected px-3.5 py-3 text-[13.5px] leading-normal text-ink"
           role="status"
         >
           This invitation was sent to <strong className="font-semibold">{arrival.email}</strong>.
@@ -235,7 +235,7 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
                 opens the document; agreeing at its end ticks it. Unticking is always allowed. */}
             <input
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--teal-strong)]"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-action-tick"
               checked={Boolean(agreedVersion)}
               onChange={() => {
                 if (agreedVersion) setAgreedVersion("");
@@ -277,9 +277,9 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
       </form>
 
       <div className="flex items-center gap-3 text-[13px] text-muted" role="separator">
-        <span className="h-px flex-1 bg-gray-200" />
+        <span className="h-px flex-1 bg-border-subtle" />
         or
-        <span className="h-px flex-1 bg-gray-200" />
+        <span className="h-px flex-1 bg-border-subtle" />
       </div>
 
       <a

@@ -98,14 +98,16 @@ function SortHead({
       aria-pressed={active}
       data-direction={direction ?? "none"}
       className={`flex items-center gap-1.5 ${
-        strong ? "text-lg font-bold text-ink lg:text-[25px]" : "text-base text-[#6b7380] lg:text-lg"
+        strong
+          ? "text-lg font-bold text-ink lg:text-[25px]"
+          : "text-base text-text-secondary lg:text-lg"
       }`}
     >
       {label}
       <Icon
         name={direction === "asc" ? "chevron-up" : "chevron-down"}
         size={24}
-        className={active ? "text-[#2e9b9b]" : "text-[#6b7380]"}
+        className={active ? "text-text-link" : "text-text-secondary"}
       />
     </button>
   );
@@ -129,13 +131,13 @@ function Row({ row, focused, on }: { row: SubscriptionRow; focused: boolean; on:
         if (!fromControl(e)) on.onToggle(row.entity);
       }}
       className={`${LIST_GRID} ${LIST_ROW} cursor-pointer shadow-[0px_2px_8px_0px_rgba(0,0,0,0.1)] ${
-        suspended ? "bg-[#f5f5f5]" : "bg-white"
-      } ${focused ? "ring-2 ring-secondary" : ""}`}
+        suspended ? "bg-surface-sunk" : "bg-white"
+      } ${focused ? "ring-2 ring-border-focus" : ""}`}
     >
       {/* The closed row carries no Activate button (the user, 2026-10-08): activating is asked
           inside the OPEN row, where Confirm Subscription Change sits - see
           SubscriptionSummaryRow. */}
-      <p className="min-w-0 text-xl font-bold text-black sm:text-[25px]">
+      <p className="min-w-0 text-xl font-bold text-text-primary sm:text-[25px]">
         <EntityNameLink entity={row.entity} />
       </p>
       {row.cells.map((cell) => (
@@ -154,7 +156,7 @@ function Row({ row, focused, on }: { row: SubscriptionRow; focused: boolean; on:
           onClick={() => on.onToggle(row.entity)}
           aria-label={`Open ${row.entity.entity_name}`}
           aria-expanded={false}
-          className="flex size-10 items-center justify-center rounded-md text-[#8c949e] hover:bg-gray-100"
+          className="flex size-10 items-center justify-center rounded-md text-text-muted hover:bg-surface-sunk"
         >
           <Icon name="chevron-down" size={24} />
         </button>

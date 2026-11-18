@@ -46,11 +46,12 @@ import {
   type ReadAddress,
 } from "@/features/subscription/lib/billingAccounts";
 import { STRIPE_FONTS, stripeFor } from "@/features/subscription/lib/stripe";
+import { STRIPE_COLOURS } from "@/features/subscription/lib/stripeColours";
 import { EMAIL_ASCII_HINT, useEmailInput } from "@minty/shared/emailInput";
 
-const LABEL = "text-[13px] font-semibold text-[#464e5a]";
+const LABEL = "text-[13px] font-semibold text-text-secondary";
 const INPUT =
-  "h-[46px] w-full rounded-[10px] border-[1.5px] border-[#d6dae0] bg-white px-[14px] text-[15px] text-[#282e38] outline-none placeholder:text-[#ccc] focus:border-[#4fc7c7] disabled:bg-[#f2f4f7] disabled:text-[#8b93a0] aria-[invalid=true]:border-[#dc5a5a]";
+  "h-[46px] w-full rounded-[10px] border-[1.5px] border-border-input bg-white px-[14px] text-[15px] text-text-primary outline-none placeholder:text-text-disabled focus:border-border-focus disabled:bg-surface-sunk disabled:text-text-muted aria-[invalid=true]:border-action-danger";
 
 /**
  * Stripe's fields in 08-C's look - the same numbers as `INPUT` and `LABEL` above, because they
@@ -63,10 +64,10 @@ const DETAILS_APPEARANCE: Appearance = {
   variables: {
     fontFamily: "Inter, system-ui, -apple-system, sans-serif",
     fontSizeBase: "15px",
-    colorText: "#282e38",
-    colorTextPlaceholder: "#cccccc",
-    colorPrimary: "#4fc7c7",
-    colorDanger: "#b42318",
+    colorText: STRIPE_COLOURS.textPrimary,
+    colorTextPlaceholder: STRIPE_COLOURS.textMuted,
+    colorPrimary: STRIPE_COLOURS.actionPrimary,
+    colorDanger: STRIPE_COLOURS.dangerInk,
     borderRadius: "10px",
     spacingUnit: "4px",
     // The form's own `gap-[18px]` between fields, so Stripe's rows keep our rhythm.
@@ -75,9 +76,22 @@ const DETAILS_APPEARANCE: Appearance = {
   rules: {
     // 13.5px + a 15px line + 13.5px + two 1.5px edges = the 46px of `INPUT` (measured live:
     // Stripe's default padding drew 43px beside ours).
-    ".Input": { border: "1.5px solid #d6dae0", boxShadow: "none", padding: "13.5px 14px" },
-    ".Input:focus": { border: "1.5px solid #4fc7c7", boxShadow: "none", outline: "none" },
-    ".Label": { fontSize: "13px", fontWeight: "600", color: "#464e5a", marginBottom: "7px" },
+    ".Input": {
+      border: `1.5px solid ${STRIPE_COLOURS.borderInput}`,
+      boxShadow: "none",
+      padding: "13.5px 14px",
+    },
+    ".Input:focus": {
+      border: `1.5px solid ${STRIPE_COLOURS.borderFocus}`,
+      boxShadow: "none",
+      outline: "none",
+    },
+    ".Label": {
+      fontSize: "13px",
+      fontWeight: "600",
+      color: STRIPE_COLOURS.textSecondary,
+      marginBottom: "7px",
+    },
   },
 };
 // `fonts` is what delivers the Inter the appearance above names - without it the fields fall
@@ -104,7 +118,7 @@ function Field({
       </label>
       {children}
       {error && (
-        <p id={`${id}-error`} className="text-[13px] text-[#b42318]">
+        <p id={`${id}-error`} className="text-[13px] text-status-danger-ink">
           {error}
         </p>
       )}
@@ -234,7 +248,7 @@ export function BillingDetailsForm({
         e.preventDefault();
         onSave(async () => (addressRef.current ? addressRef.current.read() : null));
       }}
-      className="mx-auto flex w-full max-w-[720px] flex-col gap-[18px] rounded-[16px] border border-[#e9ecf0] bg-white px-8 pb-6 pt-7"
+      className="mx-auto flex w-full max-w-[720px] flex-col gap-[18px] rounded-[16px] border border-border-subtle bg-white px-8 pb-6 pt-7"
     >
       <Field id="billing-company" label="Billing Company" error={errors.company}>
         <input
@@ -250,10 +264,10 @@ export function BillingDetailsForm({
         />
       </Field>
 
-      <div className="h-px w-full bg-[#e5ebed]" />
-      <p className="text-[12px] font-bold tracking-[0.48px] text-[#828a96]">Address</p>
+      <div className="h-px w-full bg-border-subtle" />
+      <p className="text-[12px] font-bold tracking-[0.48px] text-text-muted">Address</p>
       {addressLocked ? (
-        <p className="text-[13px] text-[#6b7380]">{NO_CARD_FOR_ADDRESS}</p>
+        <p className="text-[13px] text-text-secondary">{NO_CARD_FOR_ADDRESS}</p>
       ) : drawn ? (
         // Its own region, because everything in it is Stripe's: an iframe from js.stripe.com
         // that this page cannot read until Save asks.
@@ -271,13 +285,13 @@ export function BillingDetailsForm({
           </Elements>
         </section>
       ) : (
-        <p role="status" className="text-[13px] text-[#6b7380]">
+        <p role="status" className="text-[13px] text-text-secondary">
           {ADDRESS_UNAVAILABLE}
         </p>
       )}
 
       {saveError && (
-        <p role="alert" className="text-[13px] text-[#b42318]">
+        <p role="alert" className="text-[13px] text-status-danger-ink">
           {saveError}
         </p>
       )}
@@ -286,7 +300,7 @@ export function BillingDetailsForm({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className="rounded-[10px] border-[1.5px] border-[#d6dae0] bg-white px-[22px] py-3 text-[15px] font-semibold text-[#282e38] hover:bg-[#f5f7fa] disabled:opacity-60"
+          className="rounded-[10px] border-[1.5px] border-border-default bg-white px-[22px] py-3 text-[15px] font-semibold text-text-primary hover:bg-surface-sunk disabled:opacity-60"
         >
           Go Back
         </button>
@@ -294,7 +308,7 @@ export function BillingDetailsForm({
           type="submit"
           disabled={busy || !dirty}
           aria-busy={busy || undefined}
-          className="rounded-[10px] bg-[#4fc7c7] px-[22px] py-3 text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          className="rounded-[10px] bg-action-primary px-[22px] py-3 text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
           {busy ? "Saving…" : SAVE_BILLING_ACCOUNT}
         </button>

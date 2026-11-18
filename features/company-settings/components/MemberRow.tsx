@@ -8,9 +8,9 @@
 import type { Member, RoleOption } from "@/features/company-settings/api/companySettings";
 
 const TAG =
-  "inline-flex shrink-0 items-center rounded-full bg-[#eefbfb] px-2 py-0.5 text-xs font-medium text-[#1b9aa0]";
+  "inline-flex shrink-0 items-center rounded-full bg-state-selected px-2 py-0.5 text-xs font-medium text-text-link";
 export const ROLE_SELECT =
-  "h-11 min-w-0 rounded-lg border border-set-edge bg-white px-3 text-sm text-set-ink focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/25 disabled:bg-set-pill";
+  "h-11 min-w-0 rounded-lg border border-border-input bg-white px-3 text-sm text-set-ink focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus/25 disabled:bg-set-pill";
 
 export function MemberRow({
   member,
@@ -34,7 +34,7 @@ export function MemberRow({
     <li className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
         <span
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-white"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-avatar-bg text-sm font-medium text-accent-avatar-ink"
           aria-hidden
         >
           {member.initials}
@@ -79,7 +79,7 @@ export function MemberRow({
             onClick={onRemove}
             disabled={busy}
             aria-label={`Remove ${name}`}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-set-mute transition-colors hover:bg-set-warn-bg hover:text-set-danger-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-set-mute transition-colors hover:bg-set-warn-bg hover:text-set-danger-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-focus disabled:cursor-not-allowed disabled:opacity-50"
           >
             {/* Flask's Users tab's trash icon, as it was */}
             <svg

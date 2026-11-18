@@ -379,8 +379,9 @@ docs/features/company-settings.md). What is on it:
 - **Card looks = the onboarding card** (2026-10-02, the user: "make module settings the same as
   onboarding card design"). `ModuleCardShell` (`components/ModuleCard.tsx`) copies
   minty-onboarding-web's step-2 card (`.mp-*` in its `globals.css`): a 3 px frame, grey
-  `#ececea` or, when the module is live, the teal gradient with its glow; a 300×360 card washed
-  in the module's accent (Petty Cash `#f5b945`, Payment Request `#3aa6f5`, onboarding's
+  `surface-sunk` or, when the module is live, solid `action-primary` with its glow (the teal
+  gradient until 2026-11-18); a 300×360 card washed in the module's accent (Petty Cash
+  `module-pettycash`, Payment Request `module-payment`, onboarding's
   `MODULES`); the illustration filling the top at 92 % width, never dimmed; the 26 px name;
   the status pinned 26 px off the bottom edge (grey, teal when live, a state's own colour on
   its value line); and the description over the whole card on hover. The Figma 03 looks it
@@ -666,7 +667,7 @@ design's rules live (`buildSummaryView(page, entity, wallet, today, pending)`, `
   looks"), with a reserved chip slot under the status, and they use the page's vocabulary
   (`lib/moduleState.ts`): "Get Started / 30 days trial available", "Trial / N days remaining",
   "Trial Expired", "Active", "Cancellation pending / Ends in N days", "Subscription
-  Suspended". Only a **ticked** card carries the teal gradient frame and glow, as a picked card
+  Suspended". Only a **ticked** card carries the `action-primary` frame and glow, as a picked card
   does in onboarding; a card with a tick to press lifts on hover.
 - **The tick** is the state: ACTIVE (not winding down) → ticked, a press means _cancel_; a
   running trial → unticked, a press _confirms_ it (the N-frames: once confirmed — a card and this
@@ -1149,7 +1150,7 @@ payer's money does not cover, and the subscription moves.
   The block also sits **clear of the title** now (a `mt-4` gap, where it used to tuck `-mt-1`
   into the title's trailing leading and read as one block); `02_module_settings.spec.ts` pins
   the gap and that it still shares the title's column and never collides. In 07-I the
-  **person's name is orange** (`#ea9713`, the design's own), rendered as a `<span>` inside the
+  **person's name is bold `text-primary`** (orange `#ea9713` until the Part 13 colours, 2026-11-18), rendered as a `<span>` inside the
   `<h2>` so the dialog's accessible name stays the whole sentence.
 - **The bundle says it once** (2026-09-24). A change that did the SAME thing to every module of
   the bundle renders one line naming the bundle — "Super Minty is confirmed. Billing starts the

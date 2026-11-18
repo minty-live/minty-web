@@ -21,7 +21,7 @@ export function XeroNotConnected({ href }: { href: string }) {
         Xero isn&apos;t connected. Connect it in{" "}
         <a
           href={href}
-          className="font-semibold text-set-tab-ink underline underline-offset-2 hover:text-set-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-set-tab"
+          className="font-semibold text-set-tab-ink underline underline-offset-2 hover:text-set-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
         >
           Integration
         </a>{" "}

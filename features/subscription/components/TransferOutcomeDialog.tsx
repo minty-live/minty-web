@@ -23,7 +23,7 @@ export type TransferOutcome = "withdrawn" | "accepted" | "declined" | "expired";
  * transfer", not "Sonia Chandeclined". Same trap the `<br/>` in 06's titles has.
  */
 function who_(who: string | null) {
-  return <span className="text-[#ea9713]">{who || "They"}</span>;
+  return <span className="font-semibold text-text-primary">{who || "They"}</span>;
 }
 
 export const OUTCOME: Record<

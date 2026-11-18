@@ -38,7 +38,7 @@ export function Tick({
         aria-label={label}
         aria-busy={busy || undefined}
         onChange={(e) => onChange(e.target.checked)}
-        className="peer m-0 h-5 w-5 cursor-pointer appearance-none rounded-[6px] border border-set-edge bg-white checked:border-action checked:bg-action indeterminate:border-action indeterminate:bg-action focus:outline-none focus-visible:ring-2 focus-visible:ring-set-tab disabled:cursor-not-allowed disabled:opacity-40"
+        className="peer m-0 h-5 w-5 cursor-pointer appearance-none rounded-[6px] border border-border-input bg-white checked:border-action-tick checked:bg-action-tick indeterminate:border-action-tick indeterminate:bg-action-tick focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus disabled:cursor-not-allowed disabled:opacity-40"
       />
       <svg
         aria-hidden="true"

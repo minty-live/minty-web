@@ -50,16 +50,16 @@ export const MODAL_IMAGE: Record<ModalImage, { src: string; width: number; heigh
 };
 
 const CONFIRM_TONE: Record<ConfirmTone, string> = {
-  teal: "bg-[#4fc7c7]",
-  orange: "bg-[#ea9713]",
-  red: "bg-[#dc5a5a]",
+  teal: "bg-action-primary",
+  orange: "bg-status-warning-ink",
+  red: "bg-action-danger",
 };
 
 export type BackTone = "grey" | "teal";
 
 const BACK_TONE: Record<BackTone, string> = {
-  grey: "border-[#737a87]/30 font-bold text-black hover:bg-gray-50",
-  teal: "border-[#18c4c7] text-[#4fc7c7] hover:bg-[#f5ffff]",
+  grey: "border-border-default font-bold text-text-primary hover:bg-surface-sunk",
+  teal: "border-action-secondary-border text-action-secondary-text hover:bg-state-selected",
 };
 
 export function ConfirmDialog({
@@ -118,7 +118,7 @@ export function ConfirmDialog({
         */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="text-[26px] font-bold leading-tight text-black">
+          <h2 id={titleId} className="text-[26px] font-bold leading-tight text-text-primary">
             {title}
           </h2>
           {/*
@@ -129,13 +129,13 @@ export function ConfirmDialog({
           {lead !== undefined ? (
             <div className="mt-4 text-[15px] leading-snug break-words">{lead}</div>
           ) : entityName ? (
-            <p className="mt-4 text-[15px] leading-snug break-words text-[#737a87]">
+            <p className="mt-4 text-[15px] leading-snug break-words text-text-secondary">
               Entity
               <br />
               {/* The COMPANY is coloured, the label above it is not: "Entity" is furniture,
                     the name is the thing the modal is about. (It was one grey for a while -
                     that reading of the design's single text node is superseded.) */}
-              <span className="text-[#18c4c7]">{entityName}</span>
+              <span className="text-text-link">{entityName}</span>
             </p>
           ) : null}
         </div>

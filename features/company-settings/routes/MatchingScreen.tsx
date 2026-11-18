@@ -173,7 +173,7 @@ function Row({
           aria-required={row.used}
           aria-invalid={needed ? true : undefined}
           onChange={(e) => onPick(e.target.value || null)}
-          className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed ? "border-[#e8a13a] focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
+          className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed ? "border-status-warning-ink focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
         >
           <option value="">{MATCH_COPY.choose}</option>
           {suggestion ? (
@@ -338,7 +338,7 @@ export function MatchingScreen({ company }: { company: { id: string; name: strin
         <>
           <section
             aria-live="polite"
-            className="flex flex-col gap-2 rounded-[14px] border border-[#bfe7df] bg-set-ok-bg p-4"
+            className="flex flex-col gap-2 rounded-[14px] border border-border-selected bg-set-ok-bg p-4"
           >
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-lg font-bold text-set-ink">
@@ -349,7 +349,7 @@ export function MatchingScreen({ company }: { company: { id: string; name: strin
               ) : null}
             </p>
             <div
-              className="h-1.5 overflow-hidden rounded-full bg-[#cdeee8]"
+              className="h-1.5 overflow-hidden rounded-full bg-state-selected"
               role="progressbar"
               aria-label={MATCH_COPY.matched(page.matched, page.total)}
               aria-valuenow={progress}
@@ -490,7 +490,7 @@ export function MatchingScreen({ company }: { company: { id: string; name: strin
 
       {busy === "finish" || busy === "contacts" ? (
         <div
-          className="fixed inset-0 z-[210] flex items-center justify-center bg-[rgb(17_19_19/0.48)] p-4"
+          className="fixed inset-0 z-[210] flex items-center justify-center bg-overlay-scrim p-4"
           role="status"
         >
           <div className="flex flex-col items-center gap-3 rounded-[16px] bg-white px-8 py-6 text-[14.5px] font-medium text-set-ink">

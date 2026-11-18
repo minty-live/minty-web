@@ -41,7 +41,7 @@ export function LegalDocumentPage({ document }: { document: LegalDocumentBody })
       </div>
 
       {document.is_pinned ? null : (
-        <div className="mb-6 rounded-md border border-[#fcd34d] bg-[#fffbeb] px-4 py-3 text-[0.9rem]">
+        <div className="mb-6 rounded-md border border-status-warning-ink/30 bg-status-warning-bg px-4 py-3 text-[0.9rem]">
           <strong className="font-semibold">Draft.</strong> This wording is not final and its
           fingerprint has not been pinned, so it must not be relied on outside local testing.
         </div>

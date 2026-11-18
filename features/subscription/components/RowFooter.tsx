@@ -35,7 +35,7 @@ export function RowFooter({
     <div className="flex flex-col gap-3 text-[15px] text-quiet">
       {createdOn && (
         <p>
-          Minty for <span className="text-[#219994]">{entityName}</span> was originally created{" "}
+          Minty for <span className="text-text-link">{entityName}</span> was originally created{" "}
           {createdOn}.
         </p>
       )}

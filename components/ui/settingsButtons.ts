@@ -7,10 +7,10 @@
 
 /** What every settings button shares: size, type, focus ring, the not-allowed cursor. */
 const SETTINGS_BUTTON =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] px-5 py-3 text-sm leading-[1.4] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-set-tab disabled:cursor-not-allowed";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] px-5 py-3 text-sm leading-[1.4] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus disabled:cursor-not-allowed";
 
 /** The tab's main action: Save changes, Invite, Send invitation, Connect / Reconnect to Xero. */
-export const SETTINGS_PRIMARY = `${SETTINGS_BUTTON} bg-action text-white shadow-[0_4px_6px_rgba(0,203,198,0.28)] hover:bg-action-hover active:bg-action-pressed disabled:bg-set-line disabled:text-set-mute disabled:shadow-none`;
+export const SETTINGS_PRIMARY = `${SETTINGS_BUTTON} bg-action-primary text-action-on-primary shadow-[0_4px_6px_rgba(0,203,198,0.28)] hover:bg-action-primary-hover active:bg-action-primary-pressed disabled:bg-set-line disabled:text-set-mute disabled:shadow-none`;
 /** A quieter action beside it: Cancel, Resend. */
 export const SETTINGS_OUTLINE = `${SETTINGS_BUTTON} border border-set-edge bg-white text-set-ink-2 hover:bg-set-pill disabled:opacity-50 disabled:hover:bg-white`;
 /** Taking something away, as a quiet button: Disconnect from Xero, cancelling an invitation. */

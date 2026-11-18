@@ -77,15 +77,15 @@ export function ModuleChoiceScreen({
           unoptimized
           className="h-auto w-full max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[210px]"
         />
-        <div className="flex max-w-full items-center gap-3 rounded-full border border-gray-100 bg-white px-4 py-2 shadow-sm">
-          <span className="material-symbols-outlined text-[20px] text-[#00838F]" aria-hidden>
+        <div className="flex max-w-full items-center gap-3 rounded-full border border-border-subtle bg-white px-4 py-2 shadow-sm">
+          <span className="material-symbols-outlined text-[20px] text-text-link" aria-hidden>
             corporate_fare
           </span>
-          <span className="min-w-0 truncate text-sm font-semibold text-[#474747]">
+          <span className="min-w-0 truncate text-sm font-semibold text-text-secondary">
             {entityName}
           </span>
         </div>
-        <h1 className="text-center text-lg font-bold text-black sm:text-xl md:text-2xl">
+        <h1 className="text-center text-lg font-bold text-text-primary sm:text-xl md:text-2xl">
           {MODULE_CHOICE_COPY.title}
         </h1>
 
@@ -110,7 +110,7 @@ export function ModuleChoiceScreen({
           <p className="text-center text-sm text-ink-soft">
             {MODULE_CHOICE_COPY.none}{" "}
             <a
-              className="font-semibold text-teal-strong underline"
+              className="font-semibold text-text-link underline"
               href={companySettingsPath(entityId, entityName, "modules")}
             >
               {MODULE_CHOICE_COPY.settings}

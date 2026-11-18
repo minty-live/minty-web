@@ -20,8 +20,8 @@ import type { ModuleCode } from "@/features/subscription/api/moduleSettings";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const MODULE_COLOUR: Record<ModuleCode, string> = {
-  PETTY_CASH: "text-[#ea9713]",
-  PAYMENT_REQUEST: "text-info",
+  PETTY_CASH: "text-module-pettycash-ink",
+  PAYMENT_REQUEST: "text-module-payment-ink",
 };
 
 export function StartTrialDialog({

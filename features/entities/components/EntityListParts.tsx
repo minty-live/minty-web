@@ -60,7 +60,7 @@ export function CompanySearch({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="sticky top-0 z-30 bg-gray-50 py-2">
+    <div className="sticky top-0 z-30 bg-surface-canvas py-2">
       <div className="relative">
         <input
           type="text"
@@ -69,9 +69,9 @@ export function CompanySearch({
           placeholder={SEARCH_PLACEHOLDER}
           aria-label={SEARCH_PLACEHOLDER}
           autoComplete="off"
-          className="w-full rounded-2xl border border-gray-300 bg-white py-3 pl-3 pr-10 text-gray-700 placeholder:text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#54D3DA]"
+          className="w-full rounded-2xl border border-border-default bg-white py-3 pl-3 pr-10 text-text-secondary placeholder:text-text-secondary focus:border-transparent focus:outline-none focus:ring-2 focus:ring-border-focus"
         />
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-text-muted">
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
             <path
               fillRule="evenodd"
@@ -101,7 +101,7 @@ export function ArchivedFilterSwitch({
     <div
       role="group"
       aria-label={FILTER_LABEL}
-      className="grid grid-cols-3 gap-1 rounded-[12px] border border-gray-300 bg-white p-1"
+      className="grid grid-cols-3 gap-1 rounded-[12px] border border-border-default bg-white p-1"
     >
       {FILTERS.map((f) => {
         const on = f.value === value;
@@ -111,8 +111,8 @@ export function ArchivedFilterSwitch({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(f.value)}
-            className={`min-h-11 min-w-0 cursor-pointer rounded-[10px] px-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#18c4c7] ${
-              on ? "bg-[#E6F9FA] text-[#1FA9B1]" : "text-gray-600 hover:bg-gray-50"
+            className={`min-h-11 min-w-0 cursor-pointer rounded-[10px] px-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus ${
+              on ? "bg-state-selected text-text-link" : "text-text-secondary hover:bg-surface-sunk"
             }`}
           >
             {f.label}
@@ -134,7 +134,7 @@ export function AddEntityButton() {
       href={createEntityHref()}
       aria-label={CREATE_COMPANY}
       title={CREATE_COMPANY}
-      className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom,0px))] right-6 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-[#54D3DA] shadow-xl transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-[#54D3DA]/80 sm:right-8 lg:right-10"
+      className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom,0px))] right-6 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-action-primary shadow-xl transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-action-primary-hover sm:right-8 lg:right-10"
     >
       <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden>
         <path
@@ -159,11 +159,11 @@ export function EntityListLoading() {
 export function EntityListError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-6 text-center" role="alert">
-      <p className="text-sm text-gray-600">{message}</p>
+      <p className="text-sm text-text-secondary">{message}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="cursor-pointer rounded-xl bg-[#54D3DA] px-5 py-2 text-sm font-medium text-white hover:bg-[#54D3DA]/80"
+        className="cursor-pointer rounded-xl bg-action-primary px-5 py-2 text-sm font-medium text-white hover:bg-action-primary-hover"
       >
         Try again
       </button>
@@ -172,7 +172,7 @@ export function EntityListError({ message, onRetry }: { message: string; onRetry
 }
 
 export function EntityListNoMatch() {
-  return <p className="py-4 text-center text-sm text-gray-400">{NO_MATCH}</p>;
+  return <p className="py-4 text-center text-sm text-text-muted">{NO_MATCH}</p>;
 }
 
 /**
@@ -197,7 +197,7 @@ export function EntityListEmpty() {
       <div className="mb-6 mt-6 w-full max-w-md px-6">
         <a
           href={createEntityHref()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#54D3DA] py-3 font-medium text-white shadow-md transition-colors hover:bg-[#54D3DA]/80"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-action-primary py-3 font-medium text-white shadow-md transition-colors hover:bg-action-primary-hover"
         >
           <svg width="13" height="14" viewBox="0 0 13 14" fill="none" aria-hidden>
             <path

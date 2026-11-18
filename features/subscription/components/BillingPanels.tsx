@@ -67,9 +67,9 @@ const MENU_LABEL: Record<CardMenuItem, string> = {
 };
 
 const CHIP: Record<CardRow["chip"], string> = {
-  default: "bg-[#fdf2e0] text-[#c98b1b]",
-  saved: "bg-[#eff1f4] text-[#6b7380]",
-  expired: "bg-[#fdeded] text-[#dc5a5a]",
+  default: "bg-status-info-bg text-status-info-ink",
+  saved: "bg-status-neutral-bg text-status-neutral-ink",
+  expired: "bg-status-danger-bg text-status-danger-ink",
 };
 
 const CHIP_LABEL: Record<CardRow["chip"], string> = {
@@ -165,26 +165,26 @@ export function NextBillingCard({
       // WRAPS rather than clipping - an email after its "@". Only a phone stacks them, and
       // drops the cat.
       className={`grid cursor-pointer grid-cols-1 gap-x-6 gap-y-5 rounded-[20px] px-8 py-7 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${
-        next.failed ? "bg-[#fdf6ec]" : "bg-[#e7f6f5]"
+        next.failed ? "bg-status-danger-bg" : "bg-state-selected"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 sm:col-span-2">
-        <h2 className="text-[17px] font-bold text-[#16202e]">{NEXT_BILLING}</h2>
+        <h2 className="text-[17px] font-bold text-text-primary">{NEXT_BILLING}</h2>
         {/* What a click on the card does, for the keyboard - shown only while focused. */}
         <button
           type="button"
           onClick={onPick}
           aria-haspopup="dialog"
-          className="sr-only shrink-0 rounded-md text-[13px] font-semibold text-[#2e9b9b] underline underline-offset-4 focus-visible:not-sr-only focus-visible:px-2 focus-visible:py-1"
+          className="sr-only shrink-0 rounded-md text-[13px] font-semibold text-text-link underline underline-offset-4 focus-visible:not-sr-only focus-visible:px-2 focus-visible:py-1"
         >
           {CHOOSE_ACCOUNT}
         </button>
       </div>
       <div className="min-w-0 [overflow-wrap:anywhere] sm:col-start-1 sm:row-start-2">
-        <p className="text-[17px] font-bold text-[#16202e]">{BILL_TO}</p>
-        <p className="mt-2 text-[17px] text-[#16202e]">{next.billTo || "—"}</p>
+        <p className="text-[17px] font-bold text-text-primary">{BILL_TO}</p>
+        <p className="mt-2 text-[17px] text-text-primary">{next.billTo || "—"}</p>
         {next.addressLines.length > 0 && (
-          <address className="mt-3 text-[15px] not-italic leading-snug text-[#8b93a0]">
+          <address className="mt-3 text-[15px] not-italic leading-snug text-text-muted">
             {next.addressLines.map((line) => (
               <span key={line} className="block">
                 {line}
@@ -193,7 +193,7 @@ export function NextBillingCard({
           </address>
         )}
         {next.email && (
-          <p className="mt-3 text-[15px] text-[#8b93a0]">
+          <p className="mt-3 text-[15px] text-text-muted">
             <BreakableEmail address={next.email} />
           </p>
         )}
@@ -201,7 +201,7 @@ export function NextBillingCard({
           <button
             type="button"
             onClick={onChangeDetails}
-            className="mt-5 text-[15px] text-[#16202e] underline underline-offset-4 hover:text-[#2e9b9b]"
+            className="mt-5 text-[15px] text-text-primary underline underline-offset-4 hover:text-text-link"
           >
             {CHANGE_BILLING_DETAILS}
           </button>
@@ -213,15 +213,15 @@ export function NextBillingCard({
             the API prices it with the renewal runner itself, but a trial that lapses or a
             module cancelled before the date changes the bill. */}
         <dl className="grid grid-cols-[auto_auto] items-baseline gap-x-6 gap-y-6">
-          <dt className="text-[17px] font-bold text-[#16202e]">{NEXT_BILL_DATE}</dt>
-          <dd className="text-right text-[17px] text-[#16202e]">{next.date ?? "—"}</dd>
-          <dt className="text-[17px] font-bold text-[#16202e]">{AMOUNT}</dt>
+          <dt className="text-[17px] font-bold text-text-primary">{NEXT_BILL_DATE}</dt>
+          <dd className="text-right text-[17px] text-text-primary">{next.date ?? "—"}</dd>
+          <dt className="text-[17px] font-bold text-text-primary">{AMOUNT}</dt>
           <dd className="text-right">
-            <span className="block text-[28px] font-bold leading-none tabular-nums text-[#4fc7c7]">
+            <span className="block text-[28px] font-bold leading-none tabular-nums text-text-primary">
               {next.amount ?? "—"}
             </span>
             {next.amount && (
-              <span className="mt-1.5 block text-[13px] text-[#a0a8b2]">{ESTIMATED}</span>
+              <span className="mt-1.5 block text-[13px] text-text-muted">{ESTIMATED}</span>
             )}
           </dd>
         </dl>
@@ -229,8 +229,8 @@ export function NextBillingCard({
             says that the account owes something now. */}
         {next.failed && (
           <div className="mt-4 flex flex-col items-start gap-3">
-            <p className="text-[17px] text-[#dc5a5a]">{DUE_IMMEDIATELY}</p>
-            <span className="rounded-lg bg-[#fdeded] px-5 py-2 text-[15px] font-semibold text-[#dc5a5a]">
+            <p className="text-[17px] text-status-danger-ink">{DUE_IMMEDIATELY}</p>
+            <span className="rounded-lg bg-status-danger-bg px-5 py-2 text-[15px] font-semibold text-status-danger-ink">
               {PAYMENT_FAILED}
             </span>
           </div>
@@ -251,13 +251,17 @@ export function ExpiredCardNotice({ text, onAdd }: { text: string; onAdd: () => 
   return (
     <p
       role="alert"
-      className="mx-auto flex w-fit items-center gap-3 rounded-lg border border-[#f3c2c2] bg-[#fdf3f3] px-6 py-3.5 text-[15px] text-[#21262e]"
+      className="mx-auto flex w-fit items-center gap-3 rounded-lg border border-action-danger/30 bg-status-danger-bg px-6 py-3.5 text-[15px] text-text-primary"
     >
-      <span aria-hidden className="text-lg text-[#dc5a5a]">
+      <span aria-hidden className="text-lg text-status-danger-ink">
         ⚠
       </span>
       {text.replace(/\s*Update your payment method here\.$/, "")}{" "}
-      <button type="button" onClick={onAdd} className="font-semibold text-[#dc5a5a] underline">
+      <button
+        type="button"
+        onClick={onAdd}
+        className="font-semibold text-status-danger-ink underline"
+      >
         Update your payment method here.
       </button>
     </p>
@@ -269,7 +273,7 @@ function BrandTile({ label }: { label: string }) {
   return (
     <span
       aria-hidden
-      className={`flex h-[62px] w-[92px] shrink-0 items-center justify-center rounded-xl border border-[#eef1f4] bg-white text-center font-black italic text-[#1a1f71] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)] ${
+      className={`flex h-[62px] w-[92px] shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-center font-black italic text-text-primary shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)] ${
         label.length > 5 ? "text-[13px]" : "text-xl"
       }`}
     >
@@ -321,8 +325,10 @@ function CardMenu({
         aria-controls={menuId}
         aria-label={`${UPDATE_CARD} · ${row.title}`}
         data-attention={attention || undefined}
-        className={`h-[38px] w-[112px] rounded-lg border bg-white text-[13px] font-semibold hover:bg-[#f7f9fa] ${
-          attention ? "border-[#e3a1a1] text-[#dc5a5a]" : "border-[#d8dee4] text-[#292e38]"
+        className={`h-[38px] w-[112px] rounded-lg border bg-white text-[13px] font-semibold hover:bg-surface-sunk ${
+          attention
+            ? "border-action-danger text-status-danger-ink"
+            : "border-border-default text-text-primary"
         }`}
       >
         {UPDATE_CARD}
@@ -331,7 +337,7 @@ function CardMenu({
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-[44px] z-20 w-[164px] overflow-hidden rounded-xl border border-[#eef1f4] bg-white py-2 shadow-[0px_8px_24px_0px_rgba(0,0,0,0.12)]"
+          className="absolute right-0 top-[44px] z-20 w-[164px] overflow-hidden rounded-xl border border-border-subtle bg-white py-2 shadow-[0px_8px_24px_0px_rgba(0,0,0,0.12)]"
         >
           {items.map((item) => (
             <button
@@ -342,8 +348,8 @@ function CardMenu({
                 setOpen(false);
                 onSelect(item);
               }}
-              className={`block w-full px-5 py-2.5 text-left text-[15px] hover:bg-[#f5f7fa] ${
-                item === "delete" ? "text-[#dc5a5a]" : "text-[#292e38]"
+              className={`block w-full px-5 py-2.5 text-left text-[15px] hover:bg-surface-sunk ${
+                item === "delete" ? "text-status-danger-ink" : "text-text-primary"
               }`}
             >
               {MENU_LABEL[item]}
@@ -369,16 +375,16 @@ function CardRowView({
   return (
     <li className="flex items-center gap-4" data-card={row.card.id} data-chip={row.chip}>
       <BrandTile label={row.card.brand_label || "Card"} />
-      <div className="flex flex-1 items-center gap-6 rounded-xl border border-[#f0f2f5] bg-white px-7 py-4 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)]">
+      <div className="flex flex-1 items-center gap-6 rounded-xl border border-border-subtle bg-white px-7 py-4 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)]">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-[#a0a8b2]">Payment Method</p>
-          <p className="truncate text-[15px] font-bold text-[#16202e]">{row.title}</p>
+          <p className="text-[13px] text-text-muted">Payment Method</p>
+          <p className="truncate text-[15px] font-bold text-text-primary">{row.title}</p>
         </div>
         <div className="hidden min-w-[110px] sm:block">
-          <p className="text-[13px] text-[#a0a8b2]">Expiry date</p>
+          <p className="text-[13px] text-text-muted">Expiry date</p>
           <p
             className={`text-[15px] font-bold ${
-              row.chip === "expired" ? "text-[#dc5a5a]" : "text-[#16202e]"
+              row.chip === "expired" ? "text-status-danger-ink" : "text-text-primary"
             }`}
           >
             {row.expiry ?? "—"}
@@ -404,14 +410,14 @@ export function NoAccountPanel({ onOpen }: { onOpen: () => void }) {
   return (
     <div
       role="status"
-      className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[#c7cdd4] px-6 py-10 text-center"
+      className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border-default px-6 py-10 text-center"
     >
-      <p className="text-[17px] font-bold text-[#16202e]">{NO_ACCOUNT_TITLE}</p>
-      <p className="max-w-[520px] text-[15px] text-[#8b93a0]">{NO_ACCOUNT_BODY}</p>
+      <p className="text-[17px] font-bold text-text-primary">{NO_ACCOUNT_TITLE}</p>
+      <p className="max-w-[520px] text-[15px] text-text-muted">{NO_ACCOUNT_BODY}</p>
       <button
         type="button"
         onClick={onOpen}
-        className="mt-2 h-[44px] w-[220px] rounded-lg bg-[#4fc7c7] text-[15px] font-semibold text-white hover:opacity-90"
+        className="mt-2 h-[44px] w-[220px] rounded-lg bg-action-primary text-[15px] font-semibold text-white hover:opacity-90"
       >
         {OPEN_BILLING_ACCOUNT}
       </button>
@@ -424,14 +430,14 @@ export function NoCardPanel({ onAdd }: { onAdd: () => void }) {
   return (
     <div
       role="status"
-      className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[#c7cdd4] px-6 py-10 text-center"
+      className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border-default px-6 py-10 text-center"
     >
-      <p className="text-[17px] font-bold text-[#16202e]">{NO_CARD}</p>
-      <p className="max-w-[520px] text-[15px] text-[#8b93a0]">{NO_CARD_BODY}</p>
+      <p className="text-[17px] font-bold text-text-primary">{NO_CARD}</p>
+      <p className="max-w-[520px] text-[15px] text-text-muted">{NO_CARD_BODY}</p>
       <button
         type="button"
         onClick={onAdd}
-        className="mt-2 h-[44px] w-[220px] rounded-lg bg-[#4fc7c7] text-[15px] font-semibold text-white hover:opacity-90"
+        className="mt-2 h-[44px] w-[220px] rounded-lg bg-action-primary text-[15px] font-semibold text-white hover:opacity-90"
       >
         {ADD_A_PAYMENT_METHOD}
       </button>
@@ -482,13 +488,13 @@ export function PaymentMethodsPanel({
       className="flex cursor-pointer flex-col gap-4"
     >
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-[15px] font-bold text-[#16202e]">{PAYMENT_METHODS}</h2>
+        <h2 className="text-[15px] font-bold text-text-primary">{PAYMENT_METHODS}</h2>
         {/* What a click on the card does, for the keyboard - shown only while focused. */}
         <button
           type="button"
           onClick={onPick}
           aria-haspopup="dialog"
-          className="sr-only shrink-0 rounded-md text-[13px] font-semibold text-[#2e9b9b] underline underline-offset-4 focus-visible:not-sr-only focus-visible:px-2 focus-visible:py-1"
+          className="sr-only shrink-0 rounded-md text-[13px] font-semibold text-text-link underline underline-offset-4 focus-visible:not-sr-only focus-visible:px-2 focus-visible:py-1"
         >
           {CHOOSE_ACCOUNT}
         </button>
@@ -496,7 +502,7 @@ export function PaymentMethodsPanel({
           <button
             type="button"
             onClick={onAdd}
-            className="h-[38px] rounded-lg bg-[#4fc7c7] px-5 text-[13px] font-semibold text-white hover:opacity-90"
+            className="h-[38px] rounded-lg bg-action-primary px-5 text-[13px] font-semibold text-white hover:opacity-90"
           >
             {ADD_PAYMENT_METHOD}
           </button>
@@ -522,20 +528,20 @@ export function PaymentMethodsPanel({
             <button
               type="button"
               onClick={onToggle}
-              className="self-end text-[15px] text-[#6b7380] hover:underline"
+              className="self-end text-[15px] text-text-secondary hover:underline"
             >
               {expanded ? "Show less" : showMore}
             </button>
           )}
           {expanded && (
-            <p className="text-[13px] text-[#a0a8b2]">
+            <p className="text-[13px] text-text-muted">
               All {rows.length} saved cards. The default card is the one this account charges.
             </p>
           )}
         </>
       )}
       {actionError && (
-        <p role="alert" className="text-[13px] text-[#b42318]">
+        <p role="alert" className="text-[13px] text-status-danger-ink">
           {actionError}
         </p>
       )}
@@ -608,31 +614,34 @@ export function InvoiceHistoryTable({
   const downloading = pdfBusy !== null || breakdownBusy !== null;
   return (
     <section aria-label={INVOICE_HISTORY} className="flex flex-col gap-3">
-      <h2 className="text-[15px] font-bold text-[#16202e]">{INVOICE_HISTORY}</h2>
+      <h2 className="text-[15px] font-bold text-text-primary">{INVOICE_HISTORY}</h2>
       {invoices.length === 0 && paging.loading ? (
-        <p role="status" className="text-[15px] text-[#8b93a0]">
+        <p role="status" className="text-[15px] text-text-muted">
           {LOADING_INVOICES}
         </p>
       ) : loadError ? (
-        <div role="alert" className="flex flex-col items-start gap-3 text-[15px] text-[#b42318]">
+        <div
+          role="alert"
+          className="flex flex-col items-start gap-3 text-[15px] text-status-danger-ink"
+        >
           {loadError}
           <button
             type="button"
             onClick={onReload}
-            className="h-[44px] rounded-lg border border-[#d8dee4] bg-white px-4 text-[15px] font-semibold text-[#2e9b9b] hover:bg-[#f5f7fa]"
+            className="h-[44px] rounded-lg border border-border-default bg-white px-4 text-[15px] font-semibold text-text-link hover:bg-surface-sunk"
           >
             Try again
           </button>
         </div>
       ) : invoices.length === 0 ? (
-        <p className="text-[15px] text-[#8b93a0]">{NO_INVOICES}</p>
+        <p className="text-[15px] text-text-muted">{NO_INVOICES}</p>
       ) : (
         <table
           aria-busy={paging.loading || undefined}
           className={`w-full border-collapse text-left ${paging.loading ? "opacity-60" : ""}`}
         >
           <thead>
-            <tr className="text-[13px] font-semibold text-[#16202e]">
+            <tr className="text-[13px] font-semibold text-text-primary">
               <th scope="col" className="pb-2">
                 Inv#
               </th>
@@ -654,14 +663,14 @@ export function InvoiceHistoryTable({
               </th>
             </tr>
           </thead>
-          <tbody className="text-[13px] text-[#16202e]">
+          <tbody className="text-[13px] text-text-primary">
             {invoices.map((inv) => (
               // A declined charge is red across the row (08-K); the two downloads keep their own
               // colours - they are actions, not what went wrong.
               <tr
                 key={inv.id}
                 data-failed={inv.failed || undefined}
-                className={`border-b border-[#eef1f4] ${inv.failed ? "text-[#dc5a5a]" : ""}`}
+                className={`border-b border-border-subtle ${inv.failed ? "text-status-danger-ink" : ""}`}
               >
                 <td className="py-3">
                   {/* The Inv# opens the preview where there is a PDF to show. It keeps the row's
@@ -690,7 +699,7 @@ export function InvoiceHistoryTable({
                       disabled={downloading}
                       aria-busy={pdfBusy === inv.id || undefined}
                       aria-label={`Invoice ${inv.reference} (PDF)`}
-                      className="inline-flex cursor-pointer text-[#16202e] hover:text-[#2e9b9b] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex cursor-pointer text-text-primary hover:text-text-link disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
                         <path
@@ -703,7 +712,7 @@ export function InvoiceHistoryTable({
                       </svg>
                     </button>
                   ) : (
-                    <span className="text-[#c7cdd4]">—</span>
+                    <span className="text-text-disabled">—</span>
                   )}
                 </td>
                 <td className="py-3 text-center">
@@ -713,7 +722,7 @@ export function InvoiceHistoryTable({
                     disabled={downloading}
                     aria-busy={breakdownBusy === inv.id || undefined}
                     aria-label={`${DOWNLOAD_CSV}: the billing breakdown of invoice ${inv.reference}`}
-                    className="text-[13px] text-[#18c4c7] hover:underline hover:underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="text-[13px] text-text-link hover:underline hover:underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {breakdownBusy === inv.id ? PREPARING_CSV : DOWNLOAD_CSV}
                   </button>
@@ -728,7 +737,7 @@ export function InvoiceHistoryTable({
                       disabled={retrying !== null}
                       aria-busy={retrying === inv.id || undefined}
                       aria-label={`${RETRY_PAYMENT}: invoice ${inv.reference}`}
-                      className="h-[32px] whitespace-nowrap rounded-lg bg-[#dc5a5a] px-5 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-[32px] whitespace-nowrap rounded-lg bg-action-danger px-5 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {retrying === inv.id ? RETRYING : RETRY_PAYMENT}
                     </button>
@@ -740,19 +749,19 @@ export function InvoiceHistoryTable({
         </table>
       )}
       {pdfError && (
-        <p role="alert" className="text-[13px] text-[#b42318]">
+        <p role="alert" className="text-[13px] text-status-danger-ink">
           {pdfError}
         </p>
       )}
       {breakdownError && (
-        <p role="alert" className="text-[13px] text-[#b42318]">
+        <p role="alert" className="text-[13px] text-status-danger-ink">
           {breakdownError}
         </p>
       )}
       {retryNotice && (
         <p
           role={retryNotice.tone === "ok" ? "status" : "alert"}
-          className={`text-[13px] ${retryNotice.tone === "ok" ? "text-[#2e9b9b]" : "text-[#b42318]"}`}
+          className={`text-[13px] ${retryNotice.tone === "ok" ? "text-status-success-ink" : "text-status-danger-ink"}`}
         >
           {retryNotice.text}
         </p>
@@ -761,7 +770,7 @@ export function InvoiceHistoryTable({
         // The payer's pick of 10, 50 or 100 to a page, and the way through them.
         <nav
           aria-label="Invoice pages"
-          className="flex w-full flex-wrap items-center justify-between gap-3 text-[13px] text-[#6b7380]"
+          className="flex w-full flex-wrap items-center justify-between gap-3 text-[13px] text-text-secondary"
         >
           <div className="flex items-center gap-2">
             <label htmlFor={perPageId}>Rows per page</label>
@@ -772,7 +781,7 @@ export function InvoiceHistoryTable({
                 const size = Number(e.target.value);
                 if (isInvoicePageSize(size)) onPerPage(size);
               }}
-              className="h-8 rounded-md border border-[#d8dee4] bg-white px-2 text-[13px] text-[#16202e]"
+              className="h-8 rounded-md border border-border-default bg-white px-2 text-[13px] text-text-primary"
             >
               {INVOICE_PAGE_SIZES.map((size) => (
                 <option key={size} value={size}>
@@ -790,7 +799,7 @@ export function InvoiceHistoryTable({
               onClick={() => onPage(paging.page - 1)}
               disabled={paging.page <= 1}
               aria-label="Previous page"
-              className="h-8 w-8 rounded-md border border-[#d8dee4] bg-white text-[15px] text-[#16202e] hover:bg-[#f5f7fa] disabled:opacity-40"
+              className="h-8 w-8 rounded-md border border-border-default bg-white text-[15px] text-text-primary hover:bg-surface-sunk disabled:opacity-40"
             >
               ‹
             </button>
@@ -799,7 +808,7 @@ export function InvoiceHistoryTable({
               onClick={() => onPage(paging.page + 1)}
               disabled={paging.page >= paging.pages}
               aria-label="Next page"
-              className="h-8 w-8 rounded-md border border-[#d8dee4] bg-white text-[15px] text-[#16202e] hover:bg-[#f5f7fa] disabled:opacity-40"
+              className="h-8 w-8 rounded-md border border-border-default bg-white text-[15px] text-text-primary hover:bg-surface-sunk disabled:opacity-40"
             >
               ›
             </button>

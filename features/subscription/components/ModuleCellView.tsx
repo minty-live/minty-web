@@ -10,7 +10,12 @@ import type { ModuleCode } from "@/features/subscription/api/moduleSettings";
 import type { ModuleCell } from "@/features/subscription/lib/portalRows";
 
 const BADGE: Record<ModuleCode, { src: string; width: number; height: number; circle: string }> = {
-  PETTY_CASH: { src: "/portal/petty-cash-icon.svg", width: 42, height: 45, circle: "bg-[#f7efd9]" },
+  PETTY_CASH: {
+    src: "/portal/petty-cash-icon.svg",
+    width: 42,
+    height: 45,
+    circle: "bg-module-pettycash-wash",
+  },
   PAYMENT_REQUEST: {
     src: "/portal/payment-request-icon.svg",
     width: 76,
@@ -20,10 +25,10 @@ const BADGE: Record<ModuleCode, { src: string; width: number; height: number; ci
 };
 
 const TONE: Record<ModuleCell["tone"], string> = {
-  accent: "text-accent",
-  amber: "text-[#cc7f03]",
-  muted: "text-[#8c949e]",
-  teal: "text-[#2e9b9b]",
+  accent: "text-status-warning-ink",
+  amber: "text-status-warning-ink",
+  muted: "text-text-muted",
+  teal: "text-text-link",
   quiet: "text-quiet",
 };
 
@@ -75,13 +80,13 @@ export function ModuleCellView({
           type="button"
           onClick={() => onStartTrial(cell.code)}
           aria-label={`Start Trial · ${label}`}
-          className="h-11 rounded-full bg-secondary px-5 text-base font-bold text-white hover:opacity-90 lg:h-[54px] lg:px-6 lg:text-xl"
+          className="h-11 rounded-full bg-brand-primary px-5 text-base font-bold text-white hover:opacity-90 lg:h-[54px] lg:px-6 lg:text-xl"
         >
           Start Trial
         </button>
       ) : cell.kind === "subscribe" ? (
         <div className="font-bold leading-tight">
-          <p className="text-sm text-black">{cell.eyebrow}</p>
+          <p className="text-sm text-text-primary">{cell.eyebrow}</p>
           <button
             type="button"
             onClick={() => onSubscribe(cell.code)}
@@ -93,7 +98,7 @@ export function ModuleCellView({
         </div>
       ) : (
         <div className="font-bold leading-tight">
-          {cell.eyebrow && <p className="text-sm text-black">{cell.eyebrow}</p>}
+          {cell.eyebrow && <p className="text-sm text-text-primary">{cell.eyebrow}</p>}
           <p className={`text-xl ${TONE[cell.tone]}`}>{cell.text}</p>
         </div>
       )}

@@ -16,7 +16,7 @@
  * two steps, 08-B's "Open a billing account"). What they share - the form, 01-J, and not letting
  * the sheet close mid-save - is `useNewAccountSheet` + `newAccountFrame` + `NewAccountStage`.
  *
- * Kept from onboarding: the scrim (#16202E at 12% behind a 6px blur - the blur does the work),
+ * Kept from onboarding: the 6px blur behind the scrim (since 2026-11-18 the Part 13 overlay-scrim),
  * the shell, the drawn radio, the rows' shadow and ring, the teal link, the button pair, and the
  * ways out (the X, Escape and the backdrop close; on 01-J closing IS Done - the account exists).
  * Two changes, both toward safety: nothing closes the sheet while a save is in flight (onboarding
@@ -131,7 +131,7 @@ export function SheetFrame({
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onDismiss();
       }}
-      className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto overscroll-contain bg-[rgba(22,32,46,0.12)] p-5 backdrop-blur-[6px] transition-opacity duration-150 ease-out starting:opacity-0 motion-reduce:transition-none"
+      className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto overscroll-contain bg-overlay-scrim p-5 backdrop-blur-[6px] transition-opacity duration-150 ease-out starting:opacity-0 motion-reduce:transition-none"
     >
       <div
         role="dialog"
@@ -147,7 +147,7 @@ export function SheetFrame({
             <div className="min-w-0">
               {title && (
                 <h2
-                  className={`mb-1.5 leading-[normal] tracking-[-0.01em] text-[#16202e] ${
+                  className={`mb-1.5 leading-[normal] tracking-[-0.01em] text-text-primary ${
                     size === "list" ? "text-[16px] font-semibold" : "text-[20px] font-bold"
                   }`}
                 >
@@ -155,7 +155,9 @@ export function SheetFrame({
                 </h2>
               )}
               {sub && (
-                <p className="max-w-[434px] text-[13.5px] leading-[normal] text-[#6b7a80]">{sub}</p>
+                <p className="max-w-[434px] text-[13.5px] leading-[normal] text-text-secondary">
+                  {sub}
+                </p>
               )}
             </div>
             {onClose && (
@@ -165,7 +167,7 @@ export function SheetFrame({
                 aria-label="Close"
                 onClick={onClose}
                 disabled={busy}
-                className="ml-auto flex-none rounded-lg p-1 leading-none text-[#8a8d8b] hover:bg-[#f5f5f3] hover:text-[#4a4d4b] disabled:cursor-not-allowed disabled:opacity-50"
+                className="ml-auto flex-none rounded-lg p-1 leading-none text-text-muted hover:bg-surface-sunk hover:text-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <svg
                   width="14"
@@ -194,10 +196,10 @@ export function SheetFrame({
 type FlagTone = "red" | "amber" | "grey";
 
 const FLAG_TONE: Record<FlagTone, string> = {
-  red: "border-[#ffcccc] bg-[#fff1f1] text-[#b4231f]",
-  amber: "border-[#f2d59b] bg-[#fce6bd] text-[#9e690d]",
+  red: "border-transparent bg-status-danger-bg text-status-danger-ink",
+  amber: "border-transparent bg-status-warning-bg text-status-warning-ink",
   // Ours: onboarding has no neutral fact to flag ("Billed here now").
-  grey: "border-[#e3e7ec] bg-[#eff1f4] text-[#6b7380]",
+  grey: "border-transparent bg-status-neutral-bg text-status-neutral-ink",
 };
 
 /** `.billing-pm-flag` - a fact about the row, as a pill; only the colour family changes. */
@@ -216,7 +218,7 @@ function BrandChip({ card }: { card: SavedPaymentMethod | null }) {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex h-9 w-14 flex-none items-center justify-center rounded-[7px] border border-[#eff1f3] bg-white"
+      className="inline-flex h-9 w-14 flex-none items-center justify-center rounded-[7px] border border-border-subtle bg-white"
     >
       {card && (
         <CardBrand brand={card.brand} label={card.brand_label} className="h-[30px] w-[46px]" />
@@ -259,7 +261,7 @@ export function SheetRow({
       <label
         className={`flex min-h-[95px] items-center gap-[18px] rounded-xl bg-white px-5 py-3.5 outline-2 -outline-offset-2 transition-[box-shadow,outline-color] duration-150 max-[560px]:flex-wrap max-[560px]:gap-3.5 max-[560px]:px-4 ${
           checked
-            ? "shadow-[0_2px_10px_rgba(79,199,199,0.18)] outline-[#4fc7c7]"
+            ? "shadow-[0_2px_10px_rgba(79,199,199,0.18)] outline-border-selected"
             : "shadow-[0_2px_8px_rgba(0,0,0,0.1)] outline-transparent"
         } ${
           disabled
@@ -276,13 +278,15 @@ export function SheetRow({
           checked={checked}
           disabled={disabled}
           onChange={() => onSelect(value)}
-          className="size-5 flex-none cursor-pointer appearance-none rounded-full border-2 border-[#d7dee2] bg-white transition-[border-color,border-width] duration-150 checked:border-[6px] checked:border-[#2e9b9b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4fc7c7] disabled:cursor-not-allowed"
+          className="size-5 flex-none cursor-pointer appearance-none rounded-full border-2 border-border-default bg-white transition-[border-color,border-width] duration-150 checked:border-[6px] checked:border-border-selected focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus disabled:cursor-not-allowed"
         />
         {leading}
         <span className="flex min-w-0 flex-col gap-[5px]">
-          <span className="text-[14px] font-bold tracking-[-0.005em] text-[#16202e]">{title}</span>
-          {meta && <span className="text-[12px] text-[#16202e]">{meta}</span>}
-          {detail && <span className="text-[12.5px] text-[#8a8d8b]">{detail}</span>}
+          <span className="text-[14px] font-bold tracking-[-0.005em] text-text-primary">
+            {title}
+          </span>
+          {meta && <span className="text-[12px] text-text-primary">{meta}</span>}
+          {detail && <span className="text-[12.5px] text-text-muted">{detail}</span>}
         </span>
         {flags && (
           <span className="ml-auto flex flex-none flex-col items-end gap-1.5 max-[560px]:ml-0 max-[560px]:basis-full max-[560px]:flex-row max-[560px]:justify-start">
@@ -500,10 +504,10 @@ function AccountAdded({
     <div className="relative">
       {/* Heading and cat are one row, centred against each other; a column, cat on top, on a phone. */}
       <div className="flex items-center justify-between gap-3 max-[560px]:flex-col-reverse max-[560px]:gap-1.5">
-        <h2 className="text-[26px] font-bold leading-[1.2] tracking-[-0.02em] text-[#16202e] max-[560px]:text-center max-[560px]:text-[24px]">
+        <h2 className="text-[26px] font-bold leading-[1.2] tracking-[-0.02em] text-text-primary max-[560px]:text-center max-[560px]:text-[24px]">
           {CARD_ADDED}
           <br />
-          <span className="text-[#18c4c7]">{CARD_ADDED_TAIL}</span>
+          <span className="text-text-link">{CARD_ADDED_TAIL}</span>
         </h2>
         <Image
           src="/portal/billing-cat-celebrate.png"
@@ -515,12 +519,16 @@ function AccountAdded({
           className="pointer-events-none h-auto w-[106px] flex-none max-[560px]:w-[120px]"
         />
       </div>
-      <p className="pt-12 text-[15px] leading-[1.2] text-[#737a87]">
-        <span className="text-[#ea9713]">{shortCardName(card.brand_label, card.last4)}</span> is
-        added successfully.
+      <p className="pt-12 text-[15px] leading-[1.2] text-text-secondary">
+        <span className="font-semibold text-text-primary">
+          {shortCardName(card.brand_label, card.last4)}
+        </span>{" "}
+        is added successfully.
       </p>
       {isDefault && (
-        <p className="pt-[18px] text-[15px] leading-[1.2] text-[#737a87]">{CARD_ADDED_DEFAULT}</p>
+        <p className="pt-[18px] text-[15px] leading-[1.2] text-text-secondary">
+          {CARD_ADDED_DEFAULT}
+        </p>
       )}
       <div className="mt-12 flex justify-center max-[560px]:mt-8">
         <button

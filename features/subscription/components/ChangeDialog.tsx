@@ -33,8 +33,8 @@ export const REASON_EMPTY = "The reason is still empty. Tell us why you're leavi
 function Part({ part }: { part: ResultPart }) {
   if (part.style === "plain") return <>{part.text}</>;
   if (part.style === "strong")
-    return <strong className="font-bold text-[#16202e]">{part.text}</strong>;
-  if (part.style === "company") return <span className="text-[#219994]">{part.text}</span>;
+    return <strong className="font-bold text-text-primary">{part.text}</strong>;
+  if (part.style === "company") return <span className="text-text-link">{part.text}</span>;
   return <span className={`font-bold ${PLAN_TONE[part.style]}`}>{part.text}</span>;
 }
 
@@ -95,7 +95,7 @@ export function ChangeDialog({
             <>
               {/* the space keeps the accessible name "Remove Petty Cash?" across the line break */}{" "}
               <br />
-              <span className={bundle ? "text-[#18c4c7]" : PLAN_TONE[title.module.tone]}>
+              <span className={bundle ? "text-text-link" : PLAN_TONE[title.module.tone]}>
                 {title.module.name}
               </span>
             </>
@@ -121,7 +121,7 @@ export function ChangeDialog({
       ))}
       {askReason && (
         <div className="flex min-w-0 flex-col gap-2">
-          <label htmlFor={reasonId} className="text-[14px] font-semibold text-[#16202e]">
+          <label htmlFor={reasonId} className="text-[14px] font-semibold text-text-primary">
             Tell us why you&apos;re leaving <RequiredMark />
             <span className="sr-only"> (required)</span>
           </label>
@@ -136,10 +136,10 @@ export function ChangeDialog({
             aria-required
             aria-invalid={showError || undefined}
             aria-describedby={describedBy || undefined}
-            className={`min-h-[88px] w-full min-w-0 resize-y rounded-[12px] border bg-white px-4 py-3 text-[15px] leading-snug text-[#16202e] placeholder:text-[#737a87] focus:outline-none focus-visible:ring-2 disabled:opacity-60 ${
+            className={`min-h-[88px] w-full min-w-0 resize-y rounded-[12px] border bg-white px-4 py-3 text-[15px] leading-snug text-text-primary placeholder:text-text-secondary focus:outline-none focus-visible:ring-2 disabled:opacity-60 ${
               showError
                 ? "border-set-danger-line focus-visible:ring-set-danger-line/30"
-                : "border-[#737a87]/30 focus:border-[#18c4c7] focus-visible:ring-[#18c4c7]/40"
+                : "border-border-input focus:border-border-focus focus-visible:ring-border-focus/40"
             }`}
           />
           {showError && (
@@ -148,7 +148,7 @@ export function ChangeDialog({
             </p>
           )}
           {showCount && (
-            <p id={countId} className="text-right text-[12px] text-[#737a87]">
+            <p id={countId} className="text-right text-[12px] text-text-secondary">
               {reason.length} of {REASON_MAX} characters
             </p>
           )}

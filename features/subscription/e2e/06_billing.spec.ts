@@ -497,11 +497,11 @@ test.describe("billing", () => {
     });
     await handoff(page, creds(), "/subscription/billing", { entity_id: "" });
 
-    // The card the account charges is the one to fix while its payment fails: red, as drawn.
+    // The card the account charges is the one to fix while its payment fails: red (action-danger).
     const cards = body(page).getByRole("region", { name: "Payment Methods" });
     const charged = cards.getByRole("button", { name: "Update card · Visa ending in 4121" });
     await expect(charged).toHaveAttribute("data-attention", "true");
-    await expect(charged).toHaveCSS("border-top-color", "rgb(227, 161, 161)");
+    await expect(charged).toHaveCSS("border-top-color", "rgb(194, 54, 59)");
     await expect(
       cards.getByRole("button", { name: "Update card · Mastercard ending in 4651" }),
     ).not.toHaveAttribute("data-attention");
@@ -511,9 +511,9 @@ test.describe("billing", () => {
     const row = invoices.getByRole("row").filter({ hasText: "#11248800121" });
     await expect(row).toHaveAttribute("data-failed", "true");
     await expect(row).toContainText(/Failed \d{2} [A-Z][a-z]{2}/);
-    await expect(row.getByText("#11248800121")).toHaveCSS("color", "rgb(220, 90, 90)");
+    await expect(row.getByText("#11248800121")).toHaveCSS("color", "rgb(168, 42, 47)");
     const retry = row.getByRole("button", { name: "Retry payment: invoice #11248800121" });
-    await expect(retry).toHaveCSS("background-color", "rgb(220, 90, 90)");
+    await expect(retry).toHaveCSS("background-color", "rgb(194, 54, 59)");
 
     await retry.click();
     await expect(invoices.getByRole("status")).toHaveText(
