@@ -126,7 +126,6 @@ async function stub(page: Page, { connected = true, empty = false } = {}): Promi
               account_code: id.replace("e2e-", ""),
               account_name: "",
               account_type: "EXPENSE",
-              is_default: false,
               is_active,
               sort_order: 0,
             }
@@ -151,7 +150,6 @@ async function stub(page: Page, { connected = true, empty = false } = {}): Promi
           account_code: a.code,
           account_name: a.name,
           account_type: "EXPENSE",
-          is_default: false,
           is_active: a.active,
           sort_order: i,
         })),

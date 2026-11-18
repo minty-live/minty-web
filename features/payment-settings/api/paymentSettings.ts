@@ -15,7 +15,6 @@ export type EntityBillAccount = {
   account_code: string;
   account_name: string;
   account_type: string;
-  is_default: boolean;
   is_active: boolean;
   sort_order: number;
 };

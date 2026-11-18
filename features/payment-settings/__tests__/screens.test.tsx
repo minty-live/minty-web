@@ -46,7 +46,6 @@ const chart = (): EntityBillAccount[] =>
     account_code: a.code,
     account_name: a.name,
     account_type: "EXPENSE",
-    is_default: false,
     is_active: a.active,
     sort_order: i,
   }));
