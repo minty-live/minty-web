@@ -37,8 +37,8 @@ const PILL: Record<State, { text: string; className: string }> = {
   off: { text: "Not connected", className: "bg-set-pill text-set-ink-2" },
   connected: { text: "Connected", className: "bg-set-ok-bg text-set-ok-ink" },
   disconnected: { text: "Disconnected", className: "bg-set-pill text-set-ink-2" },
-  reconnect: { text: "Reconnect needed", className: "bg-set-warn-bg text-danger" },
-  matching: { text: "Matching", className: "bg-[#fff8ee] text-[#9a5b00]" },
+  reconnect: { text: "Reconnect needed", className: "bg-set-warn-bg text-set-danger-ink" },
+  matching: { text: "Matching", className: "bg-set-warning-bg text-set-warning-ink" },
 };
 
 export const XERO_COPY = {

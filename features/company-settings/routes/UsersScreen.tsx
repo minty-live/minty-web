@@ -80,7 +80,7 @@ export function UsersScreen({
               ) : null
             }
           >
-            <ul className="divide-y divide-gray-100" aria-label="Members">
+            <ul className="divide-y divide-set-line" aria-label="Members">
               {page.members.map((m) => (
                 <MemberRow
                   key={m.id}

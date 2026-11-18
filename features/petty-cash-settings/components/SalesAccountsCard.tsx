@@ -27,9 +27,9 @@ import {
 } from "@/features/petty-cash-settings/lib/settings";
 
 const BADGE: Record<SalesPart, string> = {
-  cash: "bg-[#e3f5ec] text-[#1f9a63]",
-  electronic: "bg-[#e4eefd] text-[#3b7dd8]",
-  delivery: "bg-[#feeedc] text-[#e8833a]",
+  cash: "bg-set-ok-bg text-set-ok-ink",
+  electronic: "bg-set-info-bg text-set-info-ink",
+  delivery: "bg-set-warning-bg text-set-warning-ink",
 };
 
 export function SalesAccountsCard({
@@ -80,7 +80,7 @@ export function SalesAccountsCard({
         role="group"
         aria-label="Sales accounts"
         aria-describedby={none ? "sales-accounts-none" : undefined}
-        className={`flex min-w-0 flex-col gap-2.5 rounded-[16px] ${none ? "ring-2 ring-danger" : ""}`}
+        className={`flex min-w-0 flex-col gap-2.5 rounded-[16px] ${none ? "ring-2 ring-set-danger-line" : ""}`}
       >
         {SALES_PARTS.map((key) => {
           const account = SALES_ACCOUNT[key];
@@ -137,7 +137,7 @@ export function SalesAccountsCard({
         })}
       </div>
       {none ? (
-        <p id="sales-accounts-none" role="alert" className="text-sm text-danger">
+        <p id="sales-accounts-none" role="alert" className="text-sm text-set-danger-ink">
           {NO_SALES_ACCOUNT}
         </p>
       ) : null}

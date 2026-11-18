@@ -21,10 +21,10 @@ export function PendingInvitations({
   onCancel: (invitation: Invitation) => void;
 }) {
   if (invitations.length === 0) {
-    return <p className="text-sm text-gray-500">No invitations waiting.</p>;
+    return <p className="text-sm text-set-mute">No invitations waiting.</p>;
   }
   return (
-    <ul className="divide-y divide-gray-100" aria-label="Pending invitations">
+    <ul className="divide-y divide-set-line" aria-label="Pending invitations">
       {invitations.map((inv) => {
         const wait = cooldowns[inv.id] ?? 0;
         const name = `${inv.first_name} ${inv.last_name}`.trim();
@@ -34,8 +34,8 @@ export function PendingInvitations({
             className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
-              <p className="truncate font-medium text-gray-900">{inv.email}</p>
-              <p className="truncate text-sm text-gray-500">
+              <p className="truncate font-medium text-set-ink">{inv.email}</p>
+              <p className="truncate text-sm text-set-mute">
                 {[name, inv.role_label ?? inv.role].filter(Boolean).join(" · ")}
               </p>
             </div>

@@ -147,7 +147,7 @@ function Row({
           onClick={onDelete}
           aria-label={`Delete ${title}`}
           title="Delete"
-          className={`${ROW_BUTTON} enabled:hover:bg-[#fdecec] enabled:hover:text-[#d9534f]`}
+          className={`${ROW_BUTTON} enabled:hover:bg-set-warn-bg enabled:hover:text-set-danger-line`}
         >
           <Icon name="delete" />
         </button>
@@ -485,7 +485,7 @@ export function AccountForm({
   const required = (label: string) => (
     <>
       {label}{" "}
-      <span className="text-danger" aria-hidden="true">
+      <span className="text-set-danger-ink" aria-hidden="true">
         *
       </span>
       <span className="sr-only"> (required)</span>
@@ -760,7 +760,7 @@ export function ContactForm({
       <form id="contact-form" noValidate onSubmit={submit} className="flex flex-col gap-2">
         <label htmlFor={id} className={SETTINGS_LABEL}>
           Name{" "}
-          <span className="text-danger" aria-hidden="true">
+          <span className="text-set-danger-ink" aria-hidden="true">
             *
           </span>
           <span className="sr-only"> (required)</span>

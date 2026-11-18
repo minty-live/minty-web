@@ -39,19 +39,25 @@
   --alert-border: #f3b6ad;
   --alert-icon: #d92d20;
   /* Settings (Figma 353:999, owner 2026-11-10): the page head, the underlined tab row, the white
-     cards and their buttons. Every settings tab reads these. */
-  --set-ink: #1b1d1c;
-  --set-ink-2: #4a4d4b;
-  --set-mute: #8a8d8b;
-  --set-line: #ececea;
-  --set-edge: #d9d9d6;
+     cards and their buttons. Every settings tab reads these. Red, status and grey are @minty/shared's
+     Part 13 values (owner, 2026-11-18); the teals (set-tab, set-tab-ink) stay as they are. */
+  --set-ink: #242828;
+  --set-ink-2: #535a5a;
+  --set-mute: #676f6f;
+  --set-line: #e8eaea;
+  --set-edge: #d9dcdb;
   --set-tab: #36c3b4;
   --set-tab-ink: #0f7a6e;
-  --set-pill: #f5f5f3;
-  --set-ok-bg: #e3f5ef;
-  --set-ok-ink: #0c6b4e;
-  --set-warn-bg: #fff5f5;
-  --set-danger-line: #d9534f;
+  --set-pill: #f3f4f4;
+  --set-ok-bg: #dff4ec;
+  --set-ok-ink: #0c5c42;
+  --set-warn-bg: #fcecec;
+  --set-danger-line: #c2363b;
+  --set-danger-ink: #a82a2f;
+  --set-warning-bg: #fdf0dc;
+  --set-warning-ink: #7e4e05;
+  --set-info-bg: #e7f4fe;
+  --set-info-ink: #1b57b4;
   /* The Primary CTA (CLAUDE.md, Minty Action): rest, hover, pressed. */
   --action: #3cbcc3;
   --action-hover: #35b2b9;
@@ -94,6 +100,11 @@
   --color-set-ok-ink: var(--set-ok-ink);
   --color-set-warn-bg: var(--set-warn-bg);
   --color-set-danger-line: var(--set-danger-line);
+  --color-set-danger-ink: var(--set-danger-ink);
+  --color-set-warning-bg: var(--set-warning-bg);
+  --color-set-warning-ink: var(--set-warning-ink);
+  --color-set-info-bg: var(--set-info-bg);
+  --color-set-info-ink: var(--set-info-ink);
   --color-action: var(--action);
   --color-action-hover: var(--action-hover);
   --color-action-pressed: var(--action-pressed);

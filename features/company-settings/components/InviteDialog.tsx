@@ -66,10 +66,10 @@ export function InviteDialog({
       dismissLabel="Close"
       className="max-w-[440px] rounded-[20px] bg-white p-6 shadow-xl sm:p-8"
     >
-      <h2 id={titleId} className="text-[22px] font-bold text-ink">
+      <h2 id={titleId} className="text-[22px] font-bold text-set-ink">
         Invite someone
       </h2>
-      <p className="mt-1 text-sm text-ink-soft">
+      <p className="mt-1 text-sm text-set-ink-2">
         They get an email with a link to join this company.
       </p>
       <form className="mt-5" onSubmit={(e) => void send(e)} noValidate>
@@ -87,7 +87,7 @@ export function InviteDialog({
             placeholder="jane@example.com"
           />
           {emailInput.rejected ? (
-            <p className="mt-1.5 text-[12.5px] text-danger">{EMAIL_ASCII_HINT}</p>
+            <p className="mt-1.5 text-[12.5px] text-set-danger-ink">{EMAIL_ASCII_HINT}</p>
           ) : null}
         </div>
         <div className={SHEET_FIELD}>

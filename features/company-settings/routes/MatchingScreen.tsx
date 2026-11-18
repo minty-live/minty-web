@@ -529,10 +529,10 @@ export function MatchingScreen({ company }: { company: { id: string; name: strin
           }
         >
           <p>{MATCH_COPY.failedBody}</p>
-          <ul className="mt-2 flex flex-col gap-1 rounded-[12px] border border-[#f3c7c6] p-3">
+          <ul className="mt-2 flex flex-col gap-1 rounded-[12px] border border-set-danger-line/40 p-3">
             {failed.map((name) => (
               <li key={name} className="flex items-center gap-2 text-set-ink">
-                <span className="size-2 shrink-0 rounded-full bg-danger" aria-hidden />
+                <span className="size-2 shrink-0 rounded-full bg-set-danger-line" aria-hidden />
                 {name}
               </li>
             ))}

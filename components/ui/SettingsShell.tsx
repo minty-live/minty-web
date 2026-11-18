@@ -122,7 +122,7 @@ export function LoadState({
     </p>
   ) : (
     <div className="mt-6 text-center" role="alert">
-      <p className="text-sm text-danger">{error}</p>
+      <p className="text-sm text-set-danger-ink">{error}</p>
       <button
         type="button"
         className="mt-2 min-h-11 text-sm text-set-ink-2 underline"

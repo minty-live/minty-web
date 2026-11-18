@@ -12,7 +12,7 @@ export function XeroNotConnected({ href }: { href: string }) {
     >
       {/* `!`: material-symbols' own CSS (unlayered) sets 24px over any utility. */}
       <span
-        className="material-symbols-outlined shrink-0 text-[18px]! leading-5! text-danger"
+        className="material-symbols-outlined shrink-0 text-[18px]! leading-5! text-set-danger-ink"
         aria-hidden
       >
         link_off

@@ -190,7 +190,7 @@ export function SalesMethodsList({
                       method.own ? `Delete ${method.name}` : `Remove ${method.name} from my list`
                     }
                     title={method.own ? "Delete" : "Remove from my list"}
-                    className={`${CHIP_BUTTON} enabled:hover:text-[#d9534f]`}
+                    className={`${CHIP_BUTTON} enabled:hover:text-set-danger-line`}
                   >
                     <Icon name="close" className="text-[18px]" />
                   </button>

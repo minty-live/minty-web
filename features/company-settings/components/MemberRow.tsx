@@ -10,7 +10,7 @@ import type { Member, RoleOption } from "@/features/company-settings/api/company
 const TAG =
   "inline-flex shrink-0 items-center rounded-full bg-[#eefbfb] px-2 py-0.5 text-xs font-medium text-[#1b9aa0]";
 export const ROLE_SELECT =
-  "h-11 min-w-0 rounded-lg border border-gray-300 bg-white px-3 text-sm text-ink focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/25 disabled:bg-gray-50";
+  "h-11 min-w-0 rounded-lg border border-set-edge bg-white px-3 text-sm text-set-ink focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/25 disabled:bg-set-pill";
 
 export function MemberRow({
   member,
@@ -41,7 +41,7 @@ export function MemberRow({
         </span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="truncate font-semibold text-gray-900">{name}</span>
+            <span className="truncate font-semibold text-set-ink">{name}</span>
             {member.is_you ? <span className={TAG}>You</span> : null}
             {member.subscriber ? (
               <span
@@ -52,7 +52,7 @@ export function MemberRow({
               </span>
             ) : null}
           </div>
-          <p className="truncate text-sm text-gray-500">{member.email}</p>
+          <p className="truncate text-sm text-set-mute">{member.email}</p>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2 pl-[52px] sm:pl-0">
@@ -79,7 +79,7 @@ export function MemberRow({
             onClick={onRemove}
             disabled={busy}
             aria-label={`Remove ${name}`}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-set-mute transition-colors hover:bg-set-warn-bg hover:text-set-danger-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             {/* Flask's Users tab's trash icon, as it was */}
             <svg

@@ -73,7 +73,7 @@ export function XeroConflictDialog({
         </p>
       )}
       {error ? (
-        <p role="alert" className="text-danger">
+        <p role="alert" className="text-set-danger-ink">
           {error}
         </p>
       ) : null}

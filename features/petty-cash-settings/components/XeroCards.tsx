@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
 import { RequiredMark } from "@/components/ui/RequiredMark";
+import { Tick } from "@/components/ui/Tick";
 import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
 import { SETTINGS_FIELD_ERROR, SETTINGS_LABEL } from "@/components/ui/settingsFields";
 import type { ApiRequest } from "@/lib/apiClient";
@@ -727,61 +728,12 @@ function CodesForm({
             Save Changes
           </button>
           {problem ? (
-            <p id={hintId} role="status" className="text-[13px] text-danger">
+            <p id={hintId} role="status" className="text-[13px] text-set-danger-ink">
               {problem}
             </p>
           ) : null}
         </div>
       ) : null}
     </form>
-  );
-}
-
-/** A tick box: the Minty Action fill with a white tick when on, a white bar when some are on. */
-function Tick({
-  checked,
-  indeterminate = false,
-  disabled,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  indeterminate?: boolean;
-  disabled: boolean;
-  label?: string;
-  onChange: (on: boolean) => void;
-}) {
-  const box = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (box.current) box.current.indeterminate = indeterminate;
-  }, [indeterminate]);
-  const GLYPH =
-    "pointer-events-none absolute inset-0 m-auto hidden h-3.5 w-3.5 fill-white peer-disabled:opacity-40";
-  return (
-    <span className="relative inline-flex h-5 w-5 shrink-0">
-      <input
-        ref={box}
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.checked)}
-        className="peer m-0 h-5 w-5 cursor-pointer appearance-none rounded-[6px] border border-set-edge bg-white checked:border-action checked:bg-action indeterminate:border-action indeterminate:bg-action focus:outline-none focus-visible:ring-2 focus-visible:ring-set-tab disabled:cursor-not-allowed disabled:opacity-40"
-      />
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className={`${GLYPH} ${indeterminate ? "" : "peer-checked:block"}`}
-      >
-        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-      </svg>
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className={`${GLYPH} ${indeterminate ? "block" : ""}`}
-      >
-        <path d="M6 11h12v2H6z" />
-      </svg>
-    </span>
   );
 }

@@ -111,7 +111,7 @@ export function PettyCashSettingsScreen({ company }: { company: { id: string; na
       {load.kind === "loading" ? <LoadState status="loading" onRetry={() => undefined} /> : null}
       {load.kind === "refused" ? (
         // a 403 is the API's answer for this person: trying again changes nothing
-        <p className="mt-6 text-center text-sm text-danger" role="alert">
+        <p className="mt-6 text-center text-sm text-set-danger-ink" role="alert">
           {load.message}
         </p>
       ) : null}

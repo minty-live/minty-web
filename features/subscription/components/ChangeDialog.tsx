@@ -138,7 +138,7 @@ export function ChangeDialog({
             aria-describedby={describedBy || undefined}
             className={`min-h-[88px] w-full min-w-0 resize-y rounded-[12px] border bg-white px-4 py-3 text-[15px] leading-snug text-[#16202e] placeholder:text-[#737a87] focus:outline-none focus-visible:ring-2 disabled:opacity-60 ${
               showError
-                ? "border-[#b4231f] focus-visible:ring-[#b4231f]/30"
+                ? "border-set-danger-line focus-visible:ring-set-danger-line/30"
                 : "border-[#737a87]/30 focus:border-[#18c4c7] focus-visible:ring-[#18c4c7]/40"
             }`}
           />

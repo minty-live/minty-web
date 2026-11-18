@@ -14,6 +14,6 @@ export const SETTINGS_PRIMARY = `${SETTINGS_BUTTON} bg-action text-white shadow-
 /** A quieter action beside it: Cancel, Resend. */
 export const SETTINGS_OUTLINE = `${SETTINGS_BUTTON} border border-set-edge bg-white text-set-ink-2 hover:bg-set-pill disabled:opacity-50 disabled:hover:bg-white`;
 /** Taking something away, as a quiet button: Disconnect from Xero, cancelling an invitation. */
-export const SETTINGS_DANGER = `${SETTINGS_BUTTON} border border-set-danger-line bg-white text-danger hover:bg-set-warn-bg disabled:opacity-50 disabled:hover:bg-white`;
+export const SETTINGS_DANGER = `${SETTINGS_BUTTON} border border-set-danger-line bg-white text-set-danger-ink hover:bg-set-warn-bg disabled:opacity-50 disabled:hover:bg-white`;
 /** A dialog's confirming danger action (SET-2b's Disconnect). */
-export const SETTINGS_DANGER_FILL = `${SETTINGS_BUTTON} bg-set-danger-line text-white hover:bg-danger disabled:opacity-50`;
+export const SETTINGS_DANGER_FILL = `${SETTINGS_BUTTON} bg-set-danger-line text-white hover:bg-set-danger-ink disabled:opacity-50`;

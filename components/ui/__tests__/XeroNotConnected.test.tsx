@@ -28,6 +28,6 @@ describe("XeroNotConnected", () => {
     expect(box.className).toContain("bg-set-warn-bg");
     expect(box.className).toContain("border-set-danger-line/40");
     expect(box.querySelector("[aria-hidden]")).toHaveTextContent("link_off");
-    expect(box.querySelector("[aria-hidden]")?.className).toContain("text-danger");
+    expect(box.querySelector("[aria-hidden]")?.className).toContain("text-set-danger-ink");
   });
 });

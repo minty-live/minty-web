@@ -167,7 +167,7 @@ export function DetailsForm({
           </div>
         </div>
         {error ? (
-          <p className="text-sm text-danger" role="alert">
+          <p className="text-sm text-set-danger-ink" role="alert">
             {error}
           </p>
         ) : null}

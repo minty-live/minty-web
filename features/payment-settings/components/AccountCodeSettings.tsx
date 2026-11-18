@@ -16,7 +16,7 @@
  * - Ticks not saved yet hold every way out of the page ("Leave without saving?").
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
@@ -24,6 +24,7 @@ import { LeaveDialog } from "@/components/ui/LeaveDialog";
 import { SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
 import { SETTINGS_INPUT, SETTINGS_INPUT_OK } from "@/components/ui/settingsFields";
 import { ReadOnlyNotice, SettingsCard } from "@/components/ui/SettingsShell";
+import { Tick } from "@/components/ui/Tick";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
 import { useLeaveGuard } from "@minty/shared/leaveGuard";
@@ -58,8 +59,6 @@ export const PAYMENT_SETTINGS_COPY = {
   titleReadOnly: "That task is reserved for our Accountants and Admins.",
 } as const;
 
-const CHECKBOX =
-  "h-5 w-5 shrink-0 cursor-pointer accent-set-tab disabled:cursor-not-allowed disabled:opacity-40";
 /** A whole row is the tap target (at least 44px), not only the box. */
 const ROW = "flex min-h-11 items-center justify-between gap-3 px-3 py-2.5 sm:px-4";
 
@@ -84,7 +83,6 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
   // Null until the status is known; false shows only the way to connect.
   const [xeroConnected, setXeroConnected] = useState<boolean | null>(null);
   const { showToast } = useToast();
-  const selectAllRef = useRef<HTMLInputElement>(null);
   const entityId = company.id;
 
   useEffect(() => {
@@ -199,11 +197,6 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
   const allFilteredSelected = filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id));
   const someFilteredSelected = filtered.some((r) => selectedIds.has(r.id)) && !allFilteredSelected;
 
-  useEffect(() => {
-    const el = selectAllRef.current;
-    if (el) el.indeterminate = someFilteredSelected;
-  }, [someFilteredSelected, expanded, loading]);
-
   const visibleIds = useMemo(() => new Set(filtered.map((r) => r.id)), [filtered]);
 
   const toggleRow = (id: string) => {
@@ -232,15 +225,13 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
       <span className="min-w-0 flex-1 text-right text-sm text-set-ink-2">
         {PAYMENT_SETTINGS_COPY.selectAll}
       </span>
-      <input
-        ref={selectAllRef}
-        type="checkbox"
+      <Tick
         checked={checked}
+        indeterminate={someFilteredSelected}
         onChange={toggleSelectAllFiltered}
         disabled={disabled}
-        className={CHECKBOX}
-        aria-label={PAYMENT_SETTINGS_COPY.selectAllLabel}
-        aria-busy={busy || undefined}
+        label={PAYMENT_SETTINGS_COPY.selectAllLabel}
+        busy={busy}
       />
     </label>
   );
@@ -331,7 +322,7 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
                     </div>
                   </div>
                 ) : loadFailed ? (
-                  <p role="alert" className="py-8 text-center text-sm text-danger">
+                  <p role="alert" className="py-8 text-center text-sm text-set-danger-ink">
                     {PAYMENT_SETTINGS_COPY.loadFailed}
                   </p>
                 ) : rows.length === 0 ? (
@@ -361,13 +352,11 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
                           <span className="min-w-0 flex-1 text-sm break-words text-set-ink">
                             {row.label}
                           </span>
-                          <input
-                            type="checkbox"
+                          <Tick
                             checked={selectedIds.has(row.id)}
                             onChange={() => toggleRow(row.id)}
                             disabled={readOnly}
-                            className={CHECKBOX}
-                            aria-label={`Include ${row.label} in payment account dropdown`}
+                            label={`Include ${row.label} in payment account dropdown`}
                           />
                         </label>
                       </li>
