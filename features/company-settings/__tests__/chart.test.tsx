@@ -134,7 +134,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("the two lists", () => {
   it("show Edit and Delete on every row, Minty's copies marked where they came from", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
       "GET /api/me/company/contacts": () => json(contacts()),
     });
     show();
@@ -153,6 +153,59 @@ describe("the two lists", () => {
     const people = card("Contacts");
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
     expect(people.getByRole("button", { name: "Delete Walk-in Customer" })).toBeInTheDocument();
+  });
+
+  it("while Xero is off, a row linked to Xero is marked so and offers no Edit or Delete (the API refuses them)", async () => {
+    const linked = {
+      id: "c-abc",
+      name: "ABC Supplies",
+      own: true,
+      source: "xero",
+      in_xero: true,
+      xero_id: "x-abc",
+      used: false,
+    };
+    api({
+      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/contacts": () =>
+        json(contacts({ contacts: [...contacts().contacts, linked] })),
+    });
+    show();
+    await loaded();
+
+    const chart = card("Chart of accounts");
+    expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
+    expect(chart.getByText("Linked to Xero")).toBeInTheDocument();
+    expect(chart.queryByText("In Xero")).toBeNull();
+    expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
+    expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
+    expect(
+      chart.getByText("Accounts linked to Xero can be changed while Xero is connected."),
+    ).toBeInTheDocument();
+    // the company's own rows that aren't in Xero keep both
+    expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
+
+    const people = card("Contacts");
+    expect(people.getByText("Linked to Xero")).toBeInTheDocument();
+    expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
+    expect(people.queryByRole("button", { name: "Delete ABC Supplies" })).toBeNull();
+    expect(
+      people.getByText("Contacts linked to Xero can be changed while Xero is connected."),
+    ).toBeInTheDocument();
+    expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
+  });
+
+  it("a company with nothing linked to Xero sees no Xero note", async () => {
+    const own = accounts().accounts.map((a) => ({ ...a, in_xero: false }));
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ accounts: own })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+    });
+    show();
+    await loaded();
+    expect(await screen.findByText("469 - Rent")).toBeInTheDocument();
+    expect(screen.queryByText(/linked to Xero/i)).toBeNull();
+    expect(screen.queryByText("In Xero")).toBeNull();
   });
 
   it("a view-only person sees the lists alone", async () => {
@@ -259,7 +312,7 @@ describe("an account", () => {
 
   it("a refused Save shows the API's field sentence under the field and keeps the form", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
       "GET /api/me/company/contacts": () => json(contacts()),
       "PATCH /api/me/company/accounts/a-rent": () =>
         json(
@@ -291,7 +344,7 @@ describe("an account", () => {
 
   it("delete asks first, saying the records keep it and Xero archives it", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
       "GET /api/me/company/contacts": () => json(contacts()),
       "DELETE /api/me/company/accounts/a-rent": () =>
         json({ archived: true, message: "Rent deleted." }),

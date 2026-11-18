@@ -398,7 +398,7 @@ function MappingForm({
               const problem =
                 problems[key] ??
                 (archivedName
-                  ? minty
+                  ? minty || offline
                     ? `${archivedName} is archived. Choose another ${another} to continue.`
                     : `${archivedName} is archived in Xero. Choose another ${another} to keep publishing.`
                   : undefined);
@@ -660,7 +660,7 @@ function CodesForm({
 
       {!hasCodes ? (
         <p className="py-8 text-center text-sm text-set-mute">
-          No account codes yet - I&apos;ll show them here once Xero&apos;s connected.
+          No account codes yet. Your company&apos;s accounts show here once they&apos;re added.
         </p>
       ) : (
         <>

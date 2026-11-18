@@ -266,6 +266,12 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 - **Delete asks first**: "Delete <name>?" - "This can't be undone.", plus "Records that already
   use it keep it, but it leaves every list." when it will be archived, and "It's archived in Xero
   too." when it is linked.
+- **A row linked to Xero while Xero is off** (disconnected, or part-way through matching; the
+  reads' `xero_live` is false, 2026-11-18): its badge reads "Linked to Xero" rather than "In Xero",
+  it has no Edit or Delete (the API refuses both, 409 "Reconnect Xero to change it"), and the card
+  says "Accounts linked to Xero can be changed while Xero is connected." ("Contacts ..." on the
+  contacts card). The form's "made in Xero too" lines and the delete's "archived in Xero too" are
+  therefore only ever shown while Xero is live.
 - **A view-only person** sees both lists and "You can see these, but only an Accountant or an
   Admin can change them."
 - Each list has a search; a long list scrolls in its own box (at most `min(28rem, 60vh)`), the

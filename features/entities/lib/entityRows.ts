@@ -16,8 +16,8 @@ export const NOT_OPENED_YET = "Not opened yet";
 export const XERO_CONNECTED = "Connected to Xero";
 export const NO_MATCH = "No companies found.";
 export const EMPTY_TITLE = "No Entity Found";
-export const EMPTY_TEXT =
-  "You don't have any entities created yet. Connect to Xero to get started and manage your business entities.";
+/** Xero is optional (2026-11-10): the empty page never sends a person to Xero first. */
+export const EMPTY_TEXT = "You don't have any companies yet. Create one to get started.";
 export const CREATE_ENTITY = "Create Entity";
 /** The floating "+" (back from the Minty cat's pop-up, owner 2026-11-11). */
 export const CREATE_COMPANY = "Create company";

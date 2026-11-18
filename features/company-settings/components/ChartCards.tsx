@@ -66,6 +66,26 @@ function Icon({ name }: { name: string }) {
   );
 }
 
+/**
+ * A row with a Xero id while Xero is off (disconnected, or part-way through matching): the API
+ * refuses its edit and delete (409, "Reconnect Xero to change it"), so neither is offered, and its
+ * badge says linked rather than in (Xero optional, 2026-11-10).
+ */
+const linkedOffline = (row: { in_xero: boolean }, live: boolean) => row.in_xero && !live;
+
+function XeroBadge({ live }: { live: boolean }) {
+  return <Badge>{live ? "In Xero" : "Linked to Xero"}</Badge>;
+}
+
+/** Under the search while Xero is off and a row is linked to it: why it has no Edit or Delete. */
+function LinkedNote({ what }: { what: string }) {
+  return (
+    <p className="text-[13px] text-set-ink-2">
+      {what} linked to Xero can be changed while Xero is connected.
+    </p>
+  );
+}
+
 const ROW_BUTTON =
   "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-set-mute transition-colors disabled:cursor-not-allowed";
 
@@ -270,6 +290,9 @@ export function AccountsCard({
     >
       {form}
       <Search label="Search accounts by name or code" value={query} onChange={setQuery} />
+      {read.accounts.some((a) => linkedOffline(a, read.xero_live)) ? (
+        <LinkedNote what="Accounts" />
+      ) : null}
       {groups.length === 0 ? (
         <p className="text-sm text-set-mute" role="status">
           {read.accounts.length ? "No accounts match your search." : "No accounts yet."}
@@ -289,12 +312,12 @@ export function AccountsCard({
                     detail={a.description || undefined}
                     badges={
                       <>
-                        {a.in_xero ? <Badge>In Xero</Badge> : null}
+                        {a.in_xero ? <XeroBadge live={read.xero_live} /> : null}
                         {a.source === "template" ? <Badge>Comes with Minty</Badge> : null}
                       </>
                     }
-                    canEdit={a.own && may.edit}
-                    canDelete={a.own && may.delete}
+                    canEdit={a.own && may.edit && !linkedOffline(a, read.xero_live)}
+                    canDelete={a.own && may.delete && !linkedOffline(a, read.xero_live)}
                     busy={busy}
                     onEdit={() => onEdit(a)}
                     onDelete={() => onDelete(a)}
@@ -644,6 +667,9 @@ export function ContactsCard({
     >
       {form}
       <Search label="Search contacts" value={query} onChange={setQuery} />
+      {read.contacts.some((c) => linkedOffline(c, read.xero_live)) ? (
+        <LinkedNote what="Contacts" />
+      ) : null}
       {shown.length === 0 ? (
         <p className="text-sm text-set-mute" role="status">
           {read.contacts.length ? "No contacts match your search." : "No contacts yet."}
@@ -656,12 +682,12 @@ export function ContactsCard({
               title={c.name}
               badges={
                 <>
-                  {c.in_xero ? <Badge>In Xero</Badge> : null}
+                  {c.in_xero ? <XeroBadge live={read.xero_live} /> : null}
                   {c.source === "template" ? <Badge>Comes with Minty</Badge> : null}
                 </>
               }
-              canEdit={c.own && may.edit}
-              canDelete={c.own && may.delete}
+              canEdit={c.own && may.edit && !linkedOffline(c, read.xero_live)}
+              canDelete={c.own && may.delete && !linkedOffline(c, read.xero_live)}
               busy={busy}
               onEdit={() => onEdit(c)}
               onDelete={() => onDelete(c)}

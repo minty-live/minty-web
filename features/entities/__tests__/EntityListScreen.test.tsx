@@ -135,6 +135,10 @@ describe("EntityListScreen", () => {
     show();
 
     expect(await screen.findByRole("heading", { name: "No Entity Found" })).toBeInTheDocument();
+    // Xero is optional (2026-11-10): the empty page never sends a person to Xero first
+    expect(
+      screen.getByText("You don't have any companies yet. Create one to get started."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create Entity" })).toHaveAttribute(
       "href",
       `${env.ACCOUNTS_API_URL}/entity/create`,

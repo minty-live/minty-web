@@ -97,6 +97,20 @@ describe("Minty on its own", () => {
   });
 });
 
+describe("no account codes yet", () => {
+  it("a company on its own is never told to connect Xero", () => {
+    render(
+      <AccountCodesCard {...props} load={{ kind: "ready", read: read({ account_codes: [] }) }} />,
+    );
+    expect(
+      screen.getByText(
+        "No account codes yet. Your company's accounts show here once they're added.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Xero/)).not.toBeInTheDocument();
+  });
+});
+
 describe("a company that banks all its sales (2026-11-10)", () => {
   it("labels the cash-sale account optional and never asks for it", () => {
     const base = read();
@@ -285,6 +299,21 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
     expect(
       screen.getByText("7-Eleven is archived in Xero. Choose another contact to keep publishing."),
     ).toBeInTheDocument();
+  });
+
+  it("while Xero is off, the note asks for another account without speaking of Xero or publishing", () => {
+    // a disconnected company keeps its Xero rows; nothing publishes until it reconnects
+    render(
+      <XeroMappingCard
+        {...props}
+        onAdded={vi.fn()}
+        load={{ kind: "ready", read: { ...archivedRead(), live: false } }}
+      />,
+    );
+    expect(
+      screen.getByText("Bank 1 is archived. Choose another account to continue."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
 
   it("an active account has no note", () => {
