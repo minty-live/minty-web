@@ -403,7 +403,7 @@ test.describe("the entity list", () => {
     await page.getByRole("button", { name: "Open navigation menu" }).click();
     const menu = page.getByRole("navigation", { name: "Main navigation" });
     await expect(menu.getByRole("button", { name: "Olive Vine, My Profile" })).toBeVisible();
-    await expect(menu.getByRole("link", { name: "Select Entity" })).toHaveAttribute(
+    await expect(menu.getByRole("link", { name: "Select Company" })).toHaveAttribute(
       "aria-current",
       "page",
     );

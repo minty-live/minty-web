@@ -157,7 +157,7 @@ describe("the sidebar", () => {
         <AppHeader title="Select Company" showLogo />
       </SidebarProvider>,
     );
-    expect(await screen.findByRole("link", { name: "Select Entity" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Select Company" })).toHaveAttribute(
       "href",
       "/entities",
     );

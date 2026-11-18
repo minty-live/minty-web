@@ -1,7 +1,7 @@
 // The side menu on every page (Figma 02 / 10-C), as the ≡ draws it WITHOUT a sidebar provider
 // around it (a screen on its own): the person first - a link to the entity list here, the
 // package's fallback when no profile sheet is in the slot (there is no /profile page) - then
-// Select Entity and Manage subscriptions; the company's sections and Settings only INSIDE a
+// Select Company and Manage subscriptions; the company's sections and Settings only INSIDE a
 // company, never on the entity list; the cat above Settings and Logout. The sidebar's two
 // views are Sidebar.test.tsx's.
 
@@ -35,7 +35,7 @@ const ADMIN = { name: "Olive Vine", initials: "OV", can_view_subscriptions: true
 describe("NavMenu", () => {
   afterEach(() => _setViewerLoaderForTests(null));
 
-  it("on the entity list: the person, Select Entity (here), Manage subscriptions - and no Settings", async () => {
+  it("on the entity list: the person, Select Company (here), Manage subscriptions - and no Settings", async () => {
     setAuth(TOKEN, "", "");
     at("/entities");
     _setViewerLoaderForTests(() => Promise.resolve(ADMIN));
@@ -45,7 +45,7 @@ describe("NavMenu", () => {
     // no sidebar around it, so no sheet to open: the person is plain text (@minty/shared v0.12)
     await waitFor(() => expect(menu.getByText("OV")).toBeInTheDocument());
     expect(menu.queryByRole("link", { name: /My Profile/ })).toBeNull();
-    expect(menu.getByRole("link", { name: "Select Entity" })).toHaveAttribute(
+    expect(menu.getByRole("link", { name: "Select Company" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -70,7 +70,7 @@ describe("NavMenu", () => {
     render(<NavMenu />);
     const menu = await openMenu();
     await waitFor(() => expect(menu.getByText("CC")).toBeInTheDocument());
-    expect(menu.getByRole("link", { name: "Select Entity" })).toBeInTheDocument();
+    expect(menu.getByRole("link", { name: "Select Company" })).toBeInTheDocument();
     expect(menu.queryByRole("link", { name: "Manage subscriptions" })).toBeNull();
   });
 
@@ -156,7 +156,7 @@ describe("NavMenu", () => {
 
     const menu = await openMenu();
     // the person is plain text here (no sheet to open), so focus lands on the first link
-    await waitFor(() => expect(menu.getByRole("link", { name: "Select Entity" })).toHaveFocus());
+    await waitFor(() => expect(menu.getByRole("link", { name: "Select Company" })).toHaveFocus());
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("navigation", { name: "Main navigation" })).toBeNull(); // hidden again
     expect(screen.getByRole("button", { name: "Open navigation menu" })).toHaveFocus();
@@ -182,7 +182,7 @@ describe("the header's avatar, without a sidebar around it", () => {
       />,
     );
 
-    const badge = await screen.findByRole("link", { name: "Select Entity" });
+    const badge = await screen.findByRole("link", { name: "Select Company" });
     expect(badge).toHaveTextContent("OV");
     expect(badge).toHaveAttribute("title", "Olive Vine");
     expect(badge).toHaveAttribute("href", "/entities");

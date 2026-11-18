@@ -3,7 +3,7 @@
  *
  * A feature knows its own paths (each has a `lib/paths.ts` behind its index) and nothing about
  * another's: the boundary rules forbid it. So whatever crosses between features - the side
- * menu's Select Entity / Manage subscriptions - asks here. Each feature's guard test asserts its own base path equals its entry, so
+ * menu's Select Company / Manage subscriptions - asks here. Each feature's guard test asserts its own base path equals its entry, so
  * the two spellings cannot drift. Extracting a feature deletes its line.
  */
 import { companyRef } from "@minty/shared/companyRef";
