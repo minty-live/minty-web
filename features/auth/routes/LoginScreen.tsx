@@ -34,6 +34,7 @@ import {
 import {
   AUTH_ERROR,
   AUTH_GHOST,
+  AUTH_FIELD,
   AUTH_INPUT,
   AUTH_LABEL,
   AUTH_LINK,
@@ -174,54 +175,56 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
       <form className="flex flex-col gap-3.5" onSubmit={(e) => void send(e)} noValidate>
         {signup ? (
           <>
-            <div>
-              <label htmlFor="signin-first-name" className={AUTH_LABEL}>
-                First name
-                <RequiredMark />
-              </label>
+            <div className={AUTH_FIELD}>
               <input
                 id="signin-first-name"
                 type="text"
                 autoComplete="given-name"
-                placeholder="Jane"
+                placeholder=" "
                 className={AUTH_INPUT}
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
               />
-            </div>
-            <div>
-              <label htmlFor="signin-last-name" className={AUTH_LABEL}>
-                Last name
+              <label htmlFor="signin-first-name" className={AUTH_LABEL}>
+                First name
                 <RequiredMark />
               </label>
+            </div>
+            <div className={AUTH_FIELD}>
               <input
                 id="signin-last-name"
                 type="text"
                 autoComplete="family-name"
-                placeholder="Doe"
+                placeholder=" "
                 className={AUTH_INPUT}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
               />
+              <label htmlFor="signin-last-name" className={AUTH_LABEL}>
+                Last name
+                <RequiredMark />
+              </label>
             </div>
           </>
         ) : null}
 
         <div>
-          <label htmlFor="signin-email" className={AUTH_LABEL}>
-            Email
-            <RequiredMark />
-          </label>
-          <input
-            id="signin-email"
-            {...emailInput.props}
-            placeholder="jane@example.com"
-            className={AUTH_INPUT}
-            value={email}
-            readOnly={emailLocked}
-            aria-readonly={emailLocked}
-            title={emailLocked ? "This invite was sent to this address" : undefined}
-          />
+          <div className={AUTH_FIELD}>
+            <input
+              id="signin-email"
+              {...emailInput.props}
+              placeholder=" "
+              className={AUTH_INPUT}
+              value={email}
+              readOnly={emailLocked}
+              aria-readonly={emailLocked}
+              title={emailLocked ? "This invite was sent to this address" : undefined}
+            />
+            <label htmlFor="signin-email" className={AUTH_LABEL}>
+              Email
+              <RequiredMark />
+            </label>
+          </div>
           {emailInput.rejected ? (
             <p className="mt-1.5 text-[12.5px] text-danger" role="status">
               {EMAIL_ASCII_HINT}

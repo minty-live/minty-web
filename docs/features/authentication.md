@@ -26,6 +26,11 @@ verify); the document it shows is **this app's own** since 2026-10-12
 from `lib/legal/`. `/login` and `/signup` are open paths: no cookie, no Terms gate. The invite token leaves the address bar on arrival; the handover to the code's page
 is sessionStorage (`features/auth/lib/handover.ts`). Recipe: `features/auth/README.md`.
 
+**The look (owner, 2026-11-18):** the heading and its line are centred; the fields stay
+left-aligned and have floating labels (`AuthShell`'s `AUTH_FIELD`/`AUTH_INPUT`/`AUTH_LABEL`) - an
+empty field shows its label inside, and clicked or filled the label sits on the box's top border
+at its upper left. No placeholders ("Jane", "Doe", "jane@example.com" are gone).
+
 ## The landing
 
 `/landing?code=<one-time code>&next=<path>&entity_id=<id>&entity_name=<name>`
