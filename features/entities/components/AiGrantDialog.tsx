@@ -1,0 +1,343 @@
+"use client";
+
+/**
+ * One company's AI allowance, from the entity list's "AI allowances" mode (owner, 2026-11-19: like
+ * "Archive companies", no page of its own): what is left, its grants newest first, the "Give a
+ * grant" form and its last reads. Superusers only (minty-accounts-api's `hub/ai_grants.py`). The
+ * app's form dialog (`ModalFrame`): full width on a phone, 640px from tablet. A given grant shows at
+ * once here and, through `onChanged`, on the company's row.
+ */
+
+import { ErrorSummary } from "@minty/shared/ui";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+
+import { ModalFrame } from "@/components/ui/ModalFrame";
+import {
+  SETTINGS_FIELD_ERROR,
+  SETTINGS_LABEL,
+  settingsInputClass,
+} from "@/components/ui/settingsFields";
+import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
+import { useToast } from "@/components/ui/Toast";
+import { ApiError, HOUSE_FALLBACK } from "@/lib/apiClient";
+
+import {
+  fetchAiCompany,
+  giveAiGrant,
+  type AiCompany,
+  type GrantInput,
+} from "@/features/entities/api/aiAllowances";
+import {
+  count,
+  day,
+  EMPTY_GRANT,
+  fieldProblems,
+  grantStatus,
+  grantUse,
+  submitProblems,
+  type GrantField,
+} from "@/features/entities/lib/aiGrant";
+
+export const AI_PILL =
+  "inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium";
+export const AI_PILL_TONE = {
+  Open: "bg-status-info-bg text-status-info-ink",
+  "Used up": "bg-status-warning-bg text-status-warning-ink",
+  Ended: "bg-status-neutral-bg text-status-neutral-ink",
+} as const;
+const MODULE_NAME = { petty_cash: "Petty Cash", payment_request: "Payment Request" } as const;
+const READ_STATUS = { ok: "Read", failed: "Failed", pending: "Reading" } as const;
+
+const message = (e: unknown) => (e instanceof ApiError ? e.message : HOUSE_FALLBACK);
+
+const FIELD_ID: Record<GrantField, string> = {
+  tokens: "ai-grant-tokens",
+  reads: "ai-grant-reads",
+  days: "ai-grant-days",
+  note: "ai-grant-note",
+};
+const ORDER: GrantField[] = ["tokens", "reads", "days", "note"];
+
+export function AiGrantDialog({
+  id,
+  onClose,
+  onChanged,
+}: {
+  id: string;
+  onClose: () => void;
+  onChanged: (company: AiCompany) => void;
+}) {
+  const { showToast } = useToast();
+  const [company, setCompany] = useState<AiCompany | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [input, setInput] = useState<GrantInput>(EMPTY_GRANT);
+  const [refused, setRefused] = useState<Partial<Record<GrantField, string>>>({});
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    const abort = new AbortController();
+    fetchAiCompany(id, abort.signal)
+      .then((answer) => {
+        setCompany(answer);
+        setTimeout(() => heading.current?.focus(), 0);
+      })
+      .catch((e) => {
+        if (!abort.signal.aborted) setLoadError(message(e));
+      });
+    return () => abort.abort();
+  }, [id]);
+
+  // as typed: each field's own problem; after a refused submit, also what the submit said
+  const live = fieldProblems(input);
+  const shown: Partial<Record<GrantField, string>> = { ...refused, ...live };
+
+  function change(field: GrantField, value: string) {
+    setInput((before) => ({ ...before, [field]: value }));
+    // a refused "give nothing" clears as soon as tokens or reads holds something
+    setRefused((before) => {
+      const next = { ...before };
+      delete next[field];
+      if (field === "reads" && value.trim()) delete next.tokens;
+      return next;
+    });
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy || !company) return;
+    const problems = submitProblems(input);
+    const keys = ORDER.filter((k) => problems[k]);
+    if (keys.length) {
+      setRefused(problems);
+      setAttempt((n) => n + 1);
+      if (keys.length === 1)
+        setTimeout(() => document.getElementById(FIELD_ID[keys[0]])?.focus(), 0);
+      return;
+    }
+    setBusy(true);
+    setFormError(null);
+    try {
+      const answer = await giveAiGrant(company.company.id, input);
+      setCompany(answer);
+      setInput(EMPTY_GRANT);
+      setRefused({});
+      onChanged(answer);
+      showToast(answer.message ?? `Grant given to ${answer.company.name}.`, "success");
+    } catch (err) {
+      const fields =
+        err instanceof ApiError && err.status === 422
+          ? ((err.body as { fields?: Partial<Record<GrantField, string>> } | null)?.fields ?? null)
+          : null;
+      if (fields) {
+        setRefused(fields);
+        setAttempt((n) => n + 1);
+      } else setFormError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const summary = ORDER.filter((k) => refused[k] && shown[k]).map((k) => ({
+    fieldId: FIELD_ID[k],
+    message: shown[k] as string,
+  }));
+
+  return (
+    <ModalFrame
+      labelledBy="ai-company-title"
+      busy={busy}
+      onDismiss={onClose}
+      dismissLabel="Close"
+      className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-[16px] bg-white p-4 shadow-xl sm:p-6 min-[640px]:max-w-[640px]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h2
+          id="ai-company-title"
+          ref={heading}
+          tabIndex={-1}
+          className="min-w-0 break-words text-lg font-semibold text-text-primary outline-none"
+        >
+          {company?.company.name ?? "AI allowance"}
+        </h2>
+        <button type="button" className={SETTINGS_OUTLINE} onClick={onClose} disabled={busy}>
+          Close
+        </button>
+      </div>
+
+      {!company && !loadError ? (
+        <p role="status" className="mt-4 text-sm text-text-secondary">
+          Loading the company…
+        </p>
+      ) : null}
+      {loadError ? (
+        <p role="alert" className="mt-4 text-sm text-status-danger-ink">
+          {loadError}
+        </p>
+      ) : null}
+
+      {company ? (
+        <>
+          <p className="mt-2 text-sm text-text-primary">
+            {company.allowance.blocked
+              ? company.allowance.resumes_at
+                ? `Paused until ${day(company.allowance.resumes_at)} by a limit over every company.`
+                : "Used up: its read buttons are off until it is given another grant."
+              : `${company.allowance.percent_left ?? 0}% of its AI allowance left.`}
+          </p>
+
+          <h3 className="mt-5 text-sm font-semibold text-text-primary">Grants</h3>
+          {company.grants.length === 0 ? (
+            <p className="mt-1 text-sm text-text-secondary">
+              None yet.{" "}
+              {company.default_grant?.tokens
+                ? `It gets ${count(company.default_grant.tokens)} tokens on its first read.`
+                : "It gets nothing automatically: give it a grant to let it read."}
+            </p>
+          ) : (
+            <ul aria-label="Grants" className="mt-2 flex flex-col gap-2">
+              {company.grants.map((grant) => {
+                const state = grantStatus(grant);
+                return (
+                  <li key={grant.id} className="rounded-[12px] border border-border-default p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-text-primary">
+                        {grant.source === "default" ? "Default grant" : "Grant"}
+                      </span>
+                      <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-text-primary">{grantUse(grant)}</p>
+                    <p className="text-sm text-text-secondary">
+                      Given {day(grant.created_at)}
+                      {grant.granted_by ? ` by ${grant.granted_by}` : ""}
+                      {grant.expires_at ? ` · ends ${day(grant.expires_at)}` : ""}
+                    </p>
+                    {grant.note ? (
+                      <p className="break-words text-sm text-text-secondary">{grant.note}</p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <form noValidate onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-text-primary">Give a grant</h3>
+            <p className="-mt-3 text-sm text-text-secondary">
+              It adds to what the company has left. A receipt takes about 3,500–6,000 tokens.
+            </p>
+            {summary.length > 1 ? (
+              <ErrorSummary items={summary} attempt={attempt} look="classic" />
+            ) : null}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <GrantNumber
+                field="tokens"
+                label="Tokens"
+                value={input.tokens}
+                problem={shown.tokens}
+                onChange={change}
+              />
+              <GrantNumber
+                field="reads"
+                label="Reads (optional)"
+                value={input.reads}
+                problem={shown.reads}
+                onChange={change}
+              />
+              <GrantNumber
+                field="days"
+                label="Ends after days (optional)"
+                value={input.days}
+                problem={shown.days}
+                onChange={change}
+              />
+            </div>
+            <div>
+              <label htmlFor={FIELD_ID.note} className={SETTINGS_LABEL}>
+                Note (optional)
+              </label>
+              <input
+                id={FIELD_ID.note}
+                type="text"
+                value={input.note}
+                onChange={(e) => change("note", e.target.value)}
+                aria-invalid={shown.note ? true : undefined}
+                aria-describedby={shown.note ? `${FIELD_ID.note}-msg` : undefined}
+                className={settingsInputClass(!!shown.note)}
+              />
+              {shown.note ? (
+                <p id={`${FIELD_ID.note}-msg`} className={SETTINGS_FIELD_ERROR}>
+                  {shown.note}
+                </p>
+              ) : null}
+            </div>
+            {formError ? (
+              <p role="alert" className="text-sm text-status-danger-ink">
+                {formError}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button type="submit" className={SETTINGS_PRIMARY} disabled={busy}>
+                {busy ? "Giving…" : "Give grant"}
+              </button>
+            </div>
+          </form>
+
+          <h3 className="mt-6 text-sm font-semibold text-text-primary">Last reads</h3>
+          {company.reads.length === 0 ? (
+            <p className="mt-1 text-sm text-text-secondary">No reads yet.</p>
+          ) : (
+            <ul aria-label="Last reads" className="mt-2 flex flex-col gap-1">
+              {company.reads.map((r, i) => (
+                <li key={`${r.created_at}-${i}`} className="text-sm text-text-primary">
+                  {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} ·{" "}
+                  {count(r.tokens)} tokens
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : null}
+    </ModalFrame>
+  );
+}
+
+function GrantNumber({
+  field,
+  label,
+  value,
+  problem,
+  onChange,
+}: {
+  field: GrantField;
+  label: string;
+  value: string;
+  problem: string | undefined;
+  onChange: (field: GrantField, value: string) => void;
+}) {
+  const id = FIELD_ID[field];
+  return (
+    <div>
+      <label htmlFor={id} className={SETTINGS_LABEL}>
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(field, e.target.value)}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? `${id}-msg` : undefined}
+        className={settingsInputClass(!!problem)}
+      />
+      {problem ? (
+        <p id={`${id}-msg`} className={SETTINGS_FIELD_ERROR}>
+          {problem}
+        </p>
+      ) : null}
+    </div>
+  );
+}

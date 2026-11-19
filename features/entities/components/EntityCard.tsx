@@ -17,9 +17,11 @@
 
 import Image from "next/image";
 
+import type { AiCompanyRow } from "@/features/entities/api/aiAllowances";
 import type { EntityRow } from "@/features/entities/api/entities";
+import { AI_PILL, AI_PILL_TONE } from "@/features/entities/components/AiGrantDialog";
+import { rowAllowance, rowReads } from "@/features/entities/lib/aiGrant";
 import {
-  ARCHIVE,
   ARCHIVE_COMPANY,
   ARCHIVED,
   canArchive,
@@ -146,21 +148,142 @@ function LastOpened({ row }: { row: EntityRow }) {
   );
 }
 
+/**
+ * A company's badges - free trial, its modules, Xero, last opened - the same on the browsing row
+ * and on Archive companies' row (owner, 2026-11-19), so they never drift apart.
+ */
+/** "Setup in progress", hung over the row's top edge - on the browsing row and in both modes. */
+function SetupPill({ row }: { row: EntityRow }) {
+  return isSettingUp(row) ? (
+    <span className="absolute -top-2 left-3 z-10 rounded-full bg-status-progress-bg px-2.5 py-0.5 text-[11px] font-medium text-status-progress-ink shadow-sm">
+      {SETUP_IN_PROGRESS}
+    </span>
+  ) : null;
+}
+
+function CompanyBadges({ row }: { row: EntityRow }) {
+  const trial = trialLabel(row);
+  return (
+    <>
+      {trial ? <TrialBadge label={trial} /> : null}
+      {row.modules.includes("PETTY_CASH") ? (
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-module-pettycash-wash"
+          role="img"
+          title="Petty Cash"
+          aria-label="Petty Cash module"
+        >
+          <Image
+            className="h-4 w-4 object-contain"
+            src="/entities/cash_reg.webp"
+            alt=""
+            width={678}
+            height={569}
+            unoptimized
+          />
+        </span>
+      ) : null}
+      {row.modules.includes("PAYMENT_REQUEST") ? (
+        // The sidebar's Payment Request icon (@minty/shared SideMenu), its own disc included.
+        <span className="inline-flex h-7 w-7" role="img" title="Bills" aria-label="Bills module">
+          <Image
+            className="h-7 w-7"
+            src="/menu/payment-request.svg"
+            alt=""
+            width={76}
+            height={76}
+            unoptimized
+          />
+        </span>
+      ) : null}
+      <XeroBadge row={row} />
+      <LastOpened row={row} />
+    </>
+  );
+}
+
 function ManageCard({ row, onArchive }: { row: EntityRow; onArchive?: (row: EntityRow) => void }) {
   return (
     <li className="relative">
+      <SetupPill row={row} />
       <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-primary shadow-md">
-        <span className="min-w-0 flex-1 truncate text-[17px]">{row.name}</span>
+        {/* The browsing row's layout (owner, 2026-11-19): the name, then its badges - which move
+            up when the name needs the width - and Archive at the end. */}
+        <span className="flex min-w-0 flex-1 flex-wrap-reverse items-center gap-x-2 gap-y-1">
+          <span className="min-w-0 break-words text-[17px]">{row.name}</span>
+          <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <CompanyBadges row={row} />
+          </span>
+        </span>
         {onArchive && canArchive(row) ? (
           <button
             type="button"
             onClick={() => onArchive(row)}
             aria-label={`${ARCHIVE_COMPANY} ${row.name}`}
-            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-action-danger/30 px-4 text-sm font-semibold text-status-danger-ink transition-colors hover:bg-status-danger-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+            title={ARCHIVE_COMPANY}
+            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-action-danger/30 text-status-danger-ink transition-colors hover:bg-status-danger-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
           >
-            {ARCHIVE}
+            <span className="material-symbols-outlined" aria-hidden>
+              archive
+            </span>
           </button>
         ) : null}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * The "AI allowances" mode's row (owner, 2026-11-19): the name and its badges (as browsing), what
+ * is left of the company's AI grants and its reads, a Used up pill when it can't read, and Manage
+ * (the company's dialog).
+ */
+function AiCard({
+  row,
+  ai,
+  onManage,
+}: {
+  row: EntityRow;
+  /** Undefined while it is asked for. */
+  ai: AiCompanyRow | undefined;
+  onManage: (row: EntityRow) => void;
+}) {
+  return (
+    <li className="relative">
+      <SetupPill row={row} />
+      <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 text-text-primary shadow-md">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap-reverse items-center gap-x-2 gap-y-1">
+            <span className="min-w-0 break-words text-[17px] font-semibold">{row.name}</span>
+            <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <CompanyBadges row={row} />
+            </span>
+          </div>
+          {ai ? (
+            <>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                {ai.blocked ? (
+                  <span className={`${AI_PILL} ${AI_PILL_TONE["Used up"]}`}>Used up</span>
+                ) : null}
+                <span>{rowAllowance(ai)}</span>
+              </p>
+              <p className="text-sm text-text-secondary">{rowReads(ai)}</p>
+            </>
+          ) : (
+            <p className="mt-1 text-sm text-text-secondary">Checking its AI allowance…</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onManage(row)}
+          aria-label={`Manage the AI allowance of ${row.name}`}
+          title="Manage AI allowance"
+          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border border-border-default bg-white text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+        >
+          <span className="material-symbols-outlined" aria-hidden>
+            tune
+          </span>
+        </button>
       </div>
     </li>
   );
@@ -175,8 +298,17 @@ function ArchivedCard({
 }) {
   return (
     <li className="relative" data-archived="">
-      <span className="absolute -top-2 left-3 z-10 rounded-full bg-status-neutral-bg px-2.5 py-0.5 text-[12px] font-medium text-status-neutral-ink shadow-sm">
-        {ARCHIVED}
+      {/* Archived, and Setup in progress beside it for a company archived mid-onboarding
+          (owner, 2026-11-19) */}
+      <span className="absolute -top-2 left-3 z-10 flex flex-wrap gap-1.5">
+        <span className="rounded-full bg-status-neutral-bg px-2.5 py-0.5 text-[12px] font-medium text-status-neutral-ink shadow-sm">
+          {ARCHIVED}
+        </span>
+        {row.status === "onboarding" ? (
+          <span className="rounded-full bg-status-progress-bg px-2.5 py-0.5 text-[11px] font-medium text-status-progress-ink shadow-sm">
+            {SETUP_IN_PROGRESS}
+          </span>
+        ) : null}
       </span>
       <div className="flex min-h-[56px] w-full flex-wrap items-center justify-between gap-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-muted shadow-md">
         <span className="min-w-0 flex-1 truncate text-[17px]">{row.name}</span>
@@ -200,6 +332,7 @@ export function EntityCard({
   onRestore,
   managing = false,
   onArchive,
+  ai,
 }: {
   row: EntityRow;
   /** A superuser's Restore on an archived row; without it an archived row offers nothing. */
@@ -207,18 +340,16 @@ export function EntityCard({
   /** The list's manage mode: the row is its name and, for an admin, Archive. */
   managing?: boolean;
   onArchive?: (row: EntityRow) => void;
+  /** The list's AI allowances mode (superusers): the row is the company's allowance and Manage. */
+  ai?: { row: AiCompanyRow | undefined; onManage: (row: EntityRow) => void };
 }) {
   if (isArchived(row)) return <ArchivedCard row={row} onRestore={onRestore} />;
+  if (ai) return <AiCard row={row} ai={ai.row} onManage={ai.onManage} />;
   if (managing) return <ManageCard row={row} onArchive={onArchive} />;
-  const trial = trialLabel(row);
   return (
     // The pill hangs off this wrapper, not the link, so it is hidden with the card it labels.
     <li className="relative">
-      {isSettingUp(row) ? (
-        <span className="absolute -top-2 left-3 z-10 rounded-full bg-status-progress-bg px-2.5 py-0.5 text-[11px] font-medium text-status-progress-ink shadow-sm">
-          {SETUP_IN_PROGRESS}
-        </span>
-      ) : null}
+      <SetupPill row={row} />
       <a
         href={enterHref(row)}
         className="grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 rounded-[12px] border border-border-subtle bg-white px-4 py-3 font-semibold text-text-primary shadow-md transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:bg-surface-sunk hover:shadow-lg"
@@ -230,44 +361,7 @@ export function EntityCard({
         <span className="flex min-w-0 flex-wrap-reverse items-center gap-x-2 gap-y-1">
           <span className="min-w-0 break-words text-[17px]">{row.name}</span>
           <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-            {trial ? <TrialBadge label={trial} /> : null}
-            {row.modules.includes("PETTY_CASH") ? (
-              <span
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-module-pettycash-wash"
-                role="img"
-                title="Petty Cash"
-                aria-label="Petty Cash module"
-              >
-                <Image
-                  className="h-4 w-4 object-contain"
-                  src="/entities/cash_reg.webp"
-                  alt=""
-                  width={678}
-                  height={569}
-                  unoptimized
-                />
-              </span>
-            ) : null}
-            {row.modules.includes("PAYMENT_REQUEST") ? (
-              // The sidebar's Payment Request icon (@minty/shared SideMenu), its own disc included.
-              <span
-                className="inline-flex h-7 w-7"
-                role="img"
-                title="Bills"
-                aria-label="Bills module"
-              >
-                <Image
-                  className="h-7 w-7"
-                  src="/menu/payment-request.svg"
-                  alt=""
-                  width={76}
-                  height={76}
-                  unoptimized
-                />
-              </span>
-            ) : null}
-            <XeroBadge row={row} />
-            <LastOpened row={row} />
+            <CompanyBadges row={row} />
           </span>
         </span>
         {/* As tall as the badges, at the bottom: beside a one-row card's middle, by a stacked

@@ -249,6 +249,9 @@ describe("EntityListScreen", () => {
       ).toBeNull();
       // managing, a row is not a way in
       expect(list().queryAllByRole("link")).toHaveLength(0);
+      // ...but it keeps its badges (owner, 2026-11-19), the same as browsing
+      expect(list().getAllByRole("img", { name: / module$/ }).length).toBeGreaterThan(0);
+      expect(list().getByText("Setup in progress")).toBeInTheDocument();
 
       await userEvent.click(screen.getByRole("button", { name: "Done" }));
       expect(screen.queryByRole("button", { name: /^Archive company / })).toBeNull();
@@ -317,6 +320,14 @@ describe("EntityListScreen", () => {
   });
 
   describe("a superuser", () => {
+    it("an archived company still in onboarding says so beside Archived (2026-11-19)", async () => {
+      serve({ ...SUPERUSER, entities: [{ ...ARCHIVED_ROW, status: "onboarding" }] });
+      show();
+      const row = within(await screen.findByRole("listitem"));
+      expect(row.getByText("Archived")).toBeInTheDocument();
+      expect(row.getByText("Setup in progress")).toBeInTheDocument();
+    });
+
     it("sees archived companies last, with a pill and Restore instead of a way in", async () => {
       serve(SUPERUSER);
       show();

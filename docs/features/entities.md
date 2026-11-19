@@ -66,18 +66,52 @@ state's _Create Entity_ go to Minty's `/entity/create` (the onboarding wizard).
 signs the person in first - no token in the address since gap 4, 2026-11-09), and the module selector checks the membership, records the visit on the clock and picks
 the module (or resumes the wizard for a company still in onboarding).
 
+## AI allowances (2026-11-18, a list mode since 2026-11-19)
+
+**AI allowances is a mode of this list, like Archive, for superusers only** (owner, 2026-11-19: no
+page of its own; every superuser may give grants). Beside **Archive companies** under the search, a
+superuser gets **AI allowances** (`aria-pressed`); one mode at a time, its button reading **Done**.
+It asks minty-accounts-api for exactly the companies listed and not archived
+(`GET /api/me/ai/companies?ids=...`, at most 500) and turns each row into that company's AI
+allowance (`AiCard` in `components/EntityCard.tsx`): the name and its badges (as browsing), a
+**Used up** pill when it can't read, "75% left · 5,000 of 20,000 tokens used", its reads and last read ("No reads yet · gets the
+default grant on its first read" for a company never given anything), its "Setup in progress" pill
+while onboarding, and **Manage** - a 44px icon button (`tune`, named "Manage the AI allowance of
+<name>", tooltip "Manage AI allowance"; not a link into the company while the mode is on). An archived company
+keeps its archived row.
+
+**Manage** opens the company (`components/AiGrantDialog.tsx`, the app's form dialog: full width on
+a phone, 640px from tablet): what is left, its grants newest first (Default grant / Grant, an Open /
+Used up / Ended pill, used of given, who gave it and when, its end date and note), the **Give a
+grant** form and its last 20 reads. The form - Tokens, Reads (optional), Ends after days
+(optional), Note (optional) - checks each field as it is typed (tokens 1-10,000,000, reads
+1-10,000, days 1-3,650, note 255; commas allowed); "The grant gives nothing yet. Add tokens, reads
+or both to continue." only on a refused submit; one problem moves focus to its field, two or more
+show the error summary. `POST /api/me/ai/companies/<id>/grants` checks again (422 per field). A
+given grant shows at once in the dialog and on the row, with a toast. The models, the default grant
+and the extra caps are not here (owner: grants only). API: minty-accounts-api's
+`docs/features/ai-allowances.md`. Code: `api/aiAllowances.ts`, `lib/aiGrant.ts`, the hook's
+`aiMode`. Tests: `__tests__/EntityListAi.test.tsx`, `__tests__/aiGrant.test.ts`,
+`e2e/12_ai_allowances.spec.ts` (360, 768, 1440).
+
 ## Archived companies (2026-11-10)
 
 **Archive is on this list, in its manage mode, for superusers only** (owner, 2026-11-10 - not in
 Settings, not for a company's admins, and not on the browsing rows, where a phone needs the whole
 width for the name). Under the search, a superuser (`is_superuser` on the answer) gets **Archive
-companies** (`aria-pressed`); it turns the list into manage mode: every row is its name only (not a
-link), and each company not archived yet (`canArchive`) offers **Archive**. **Done** leaves it, and
+companies** (`aria-pressed`); it turns the list into manage mode: every row is its name and its
+badges (`CompanyBadges`, the browsing row's - trial, modules, Xero, last opened; owner, 2026-11-19),
+not a link, with its "Setup in progress" pill while onboarding, and each company not archived yet
+(`canArchive`) offers **Archive** - a 44px icon button (`archive`, named "Archive company <name>",
+its tooltip "Archive company"; owner, 2026-11-19). **Done** leaves it, and
 it also ends once no listed company is left to archive. Archive asks first (`ConfirmDialog`, red,
 "Archive <name>?" / "It disappears for everyone. Only Minty support can bring it back."), then
 `POST /api/me/entities/<id>/archive`, a toast with the API's sentence and a fresh read. A refusal -
 409 while the company still has a paid subscription - stays in the dialog. Everyone else, admins
 included, never sees the button.
+
+An archived company still in onboarding shows **Setup in progress** beside its **Archived** pill
+(owner, 2026-11-19).
 
 An archived company (`entities.archived_at` set) is left out of everyone's list by
 minty-accounts-api. **A superuser is still sent them**, with `is_superuser: true` on the answer and

@@ -19,6 +19,10 @@
  *   superuser is sent archived companies: their list carries an All / Active / Archived filter
  *   (asked of the API, so a long list is never filtered here) and a Restore on each archived row,
  *   asked first. Either way the list is read again afterwards.
+ * - AI allowances (owner, 2026-11-18; a list mode like "Archive companies", 2026-11-19): a
+ *   superuser turns on "AI allowances" and each company's row shows what is left of its AI grants,
+ *   asked of minty-accounts-api for exactly the rows listed (`?ids=`); "Manage" opens the company
+ *   (`components/AiGrantDialog.tsx`), whose given grant updates the row. One mode at a time.
  */
 
 import { useRouter } from "next/navigation";
@@ -29,6 +33,11 @@ import { ApiError } from "@/lib/apiClient";
 import { isEntityScoped } from "@/lib/auth";
 import { redirectToHandoff } from "@/lib/handoff";
 
+import {
+  fetchAiCompanies,
+  type AiCompany,
+  type AiCompanyRow,
+} from "@/features/entities/api/aiAllowances";
 import {
   archiveEntity,
   fetchEntities,
@@ -88,6 +97,12 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   const [query, setQuery] = useState("");
   const [archived, setArchivedState] = useState<ArchivedFilter>("all");
   const [managing, setManaging] = useState(false);
+  const [aiMode, setAiMode] = useState(false);
+  const [ai, setAi] = useState<{ rows: Record<string, AiCompanyRow>; error: string | null } | null>(
+    null,
+  );
+  const [aiOpen, setAiOpen] = useState<EntityRow | null>(null);
+  const [aiAttempt, setAiAttempt] = useState(0);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [pendingBusy, setPendingBusy] = useState(false);
   const [pendingError, setPendingError] = useState("");
@@ -147,6 +162,56 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   const isSuperuser = Boolean(loaded?.answer?.is_superuser);
   // Only a superuser archives (owner, 2026-11-10), so only they get manage mode.
   const canManage = isSuperuser && all.some(canArchive);
+  const aiOn = aiMode && isSuperuser;
+  // the companies AI mode asks about: every one listed that is not archived (the API's limit: 500)
+  const aiIds = useMemo(
+    () =>
+      aiOn
+        ? all
+            .filter(canArchive)
+            .map((r) => r.id)
+            .slice(0, 500)
+        : [],
+    [aiOn, all],
+  );
+  const aiKey = aiIds.join(",");
+
+  useEffect(() => {
+    if (!aiKey) return;
+    const controller = new AbortController();
+    fetchAiCompanies(aiKey.split(","), controller.signal)
+      .then((answer) => {
+        if (controller.signal.aborted) return;
+        setAi({ rows: Object.fromEntries(answer.companies.map((c) => [c.id, c])), error: null });
+      })
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setAi({ rows: {}, error: failure(err) });
+      });
+    return () => controller.abort();
+  }, [aiKey, aiAttempt]);
+
+  /** A grant given in the dialog: the company's row shows it at once. */
+  const aiChanged = useCallback((company: AiCompany) => {
+    const open = company.grants.filter((g) => g.open && g.tokens_total !== null);
+    setAi((before) => {
+      const row = before?.rows[company.company.id];
+      if (!before || !row) return before;
+      return {
+        ...before,
+        rows: {
+          ...before.rows,
+          [row.id]: {
+            ...row,
+            percent_left: company.allowance.percent_left,
+            blocked: company.allowance.blocked,
+            has_grant: company.grants.length > 0,
+            tokens_used: open.length ? open.reduce((n, g) => n + g.tokens_used, 0) : null,
+            tokens_given: open.length ? open.reduce((n, g) => n + (g.tokens_total ?? 0), 0) : null,
+          },
+        },
+      };
+    });
+  }, []);
 
   return {
     status,
@@ -163,7 +228,29 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
     /** Manage mode: a superuser's, while a listed company is not archived yet. */
     canManage,
     managing: managing && canManage,
-    toggleManaging: useCallback(() => setManaging((on) => !on), []),
+    toggleManaging: useCallback(() => {
+      setAiMode(false);
+      setManaging((on) => !on);
+    }, []),
+    /** AI allowances mode: a superuser's; each row shows what is left of the company's AI grants. */
+    aiMode: aiOn,
+    toggleAiMode: useCallback(() => {
+      setManaging(false);
+      setAi(null);
+      setAiMode((on) => !on);
+    }, []),
+    /** Each listed company's allowance by id; null while it is asked for. */
+    aiRows: ai?.rows ?? null,
+    aiError: ai?.error ?? null,
+    retryAi: useCallback(() => {
+      setAi(null);
+      setAiAttempt((n) => n + 1);
+    }, []),
+    /** The company whose AI allowance is open in its dialog. */
+    aiOpen,
+    openAi: useCallback((row: EntityRow) => setAiOpen(row), []),
+    closeAi: useCallback(() => setAiOpen(null), []),
+    aiChanged,
     /** The Archive or Restore being asked, with its dialog's state. */
     pending,
     pendingBusy,

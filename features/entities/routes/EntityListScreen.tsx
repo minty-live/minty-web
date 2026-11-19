@@ -17,10 +17,17 @@
  * list's manage mode, where each company offers Archive, asked first ("Done" leaves it) - the
  * All / Active / Archived switch above the search, and each archived company's Restore, asked
  * first. Nobody else sees any of it.
+ *
+ * AI allowances (owner, 2026-11-18; a list mode like Archive since 2026-11-19, no page of its own):
+ * a superuser's "AI allowances" beside "Archive companies" turns each row into the company's AI
+ * allowance - what is left of its grants, its reads - with Manage opening the company: its grants,
+ * the "Give a grant" form and its last reads (`components/AiGrantDialog.tsx`). One mode at a time;
+ * its button reads Done.
  */
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
+import { AiGrantDialog } from "@/features/entities/components/AiGrantDialog";
 import { EntityCard } from "@/features/entities/components/EntityCard";
 import {
   AddEntityButton,
@@ -38,12 +45,16 @@ import {
   ARCHIVE_COMPANY,
   ARCHIVE_TEXT,
   ARCHIVE_TITLE,
+  MANAGE_AI,
   MANAGE_ARCHIVE,
   MANAGE_DONE,
   RESTORE,
   RESTORE_TEXT,
   RESTORE_TITLE,
 } from "@/features/entities/lib/entityRows";
+
+const MODE_BUTTON =
+  "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border border-border-default bg-white px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus";
 
 export function EntityListScreen(args: UseEntityListArgs) {
   const list = useEntityList(args);
@@ -63,15 +74,35 @@ export function EntityListScreen(args: UseEntityListArgs) {
                 <ArchivedFilterSwitch value={list.archived} onChange={list.setArchived} />
               ) : null}
               <CompanySearch value={list.query} onChange={list.setQuery} />
-              {list.status === "ready" && list.canManage ? (
-                <div className="-mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={list.toggleManaging}
-                    aria-pressed={list.managing}
-                    className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border border-border-default bg-white px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
-                  >
-                    {list.managing ? MANAGE_DONE : MANAGE_ARCHIVE}
+              {list.status === "ready" && list.isSuperuser ? (
+                <div className="-mt-2 flex flex-wrap justify-end gap-2">
+                  {!list.managing && list.canManage ? (
+                    <button
+                      type="button"
+                      onClick={list.toggleAiMode}
+                      aria-pressed={list.aiMode}
+                      className={MODE_BUTTON}
+                    >
+                      {list.aiMode ? MANAGE_DONE : MANAGE_AI}
+                    </button>
+                  ) : null}
+                  {!list.aiMode && list.canManage ? (
+                    <button
+                      type="button"
+                      onClick={list.toggleManaging}
+                      aria-pressed={list.managing}
+                      className={MODE_BUTTON}
+                    >
+                      {list.managing ? MANAGE_DONE : MANAGE_ARCHIVE}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {list.aiMode && list.aiError ? (
+                <div role="alert" className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-status-danger-ink">{list.aiError}</p>
+                  <button type="button" onClick={list.retryAi} className={MODE_BUTTON}>
+                    Try again
                   </button>
                 </div>
               ) : null}
@@ -88,6 +119,11 @@ export function EntityListScreen(args: UseEntityListArgs) {
                       onRestore={list.isSuperuser ? list.askRestore : undefined}
                       managing={list.managing}
                       onArchive={list.askArchive}
+                      ai={
+                        list.aiMode
+                          ? { row: list.aiRows?.[row.id], onManage: list.openAi }
+                          : undefined
+                      }
                     />
                   ))}
                 </ul>
@@ -98,6 +134,9 @@ export function EntityListScreen(args: UseEntityListArgs) {
         </main>
       </div>
       {empty ? null : <AddEntityButton />}
+      {list.aiOpen ? (
+        <AiGrantDialog id={list.aiOpen.id} onClose={list.closeAi} onChanged={list.aiChanged} />
+      ) : null}
       {list.pending ? (
         <ConfirmDialog
           title={
