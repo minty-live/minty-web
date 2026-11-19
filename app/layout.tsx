@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { ProfilePanel } from "@/features/profile";
 import { SubscriptionsOverviewCard } from "@/features/subscription";
 
+import { SessionExpiredHost } from "@minty/shared/ui";
 import "./globals.css";
 
 // The same face minty-payment-request-web sets (app/layout.tsx there): a page here must read as one of
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ContactLauncher />
           </SidebarProvider>
         </ToastProvider>
+        <SessionExpiredHost />
       </body>
     </html>
   );

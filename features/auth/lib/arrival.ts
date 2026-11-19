@@ -9,7 +9,9 @@
  * - `invite` + `email` (+ `fn`, `ln`) - an invitation: the address is the invited one and
  *   cannot be changed; a new invitee's account is made from the inviter's names;
  * - `next` - the Flask page the person was on its way to (sign-in returns there);
- * - `flash` - Flask's messages from the way here, signed (read back from Flask).
+ * - `flash` - Flask's messages from the way here, signed (read back from Flask);
+ * - `expired=1` - accounts-api's door met a sign-in that had ended (60 minutes without activity,
+ *   or signed out): the page opens with "Your session has expired" (2026-11-19).
  *
  * Read ONCE, then the page clears its address bar: `invite` is a secret (whoever holds it joins
  * the company) and must not sit in the history.
@@ -26,6 +28,8 @@ export type Arrival = {
   /** A path on Flask, or "" - Flask checks it again; this only refuses the obviously foreign. */
   next: string;
   flash: string;
+  /** The sign-in behind the way here had ended: say so first (`SessionExpiredDialog`). */
+  expired: boolean;
 };
 
 /** A path on the same site: "/x", never "//host" or "/\host" (Flask's safe_internal_path rule). */
@@ -48,5 +52,6 @@ export function readArrival(params: URLSearchParams, opts: { signup?: boolean } 
     lastName: (params.get("ln") ?? "").trim(),
     next: sitePath(params.get("next")),
     flash: params.get("flash") ?? "",
+    expired: params.get("expired") === "1",
   };
 }

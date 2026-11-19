@@ -22,6 +22,7 @@ import { RequiredMark } from "@/components/ui/RequiredMark";
 import { TermsModal } from "@/components/ui/TermsModal";
 import { ApiError } from "@/lib/apiClient";
 import { EMAIL_ASCII_HINT, isEmail, useEmailInput } from "@minty/shared/emailInput";
+import { SessionExpiredDialog } from "@minty/shared/ui";
 import type { LegalDocumentBody } from "@/lib/legal/document";
 import { LEGAL_PATHS } from "@/lib/legal/paths";
 
@@ -68,6 +69,8 @@ const serverNoOrigin = (): string | undefined => undefined;
 export function LoginScreen({ arrival }: { arrival: Arrival }) {
   const router = useRouter();
   useSignInNotices(arrival.flash);
+  // "Your session has expired" (2026-11-19): the person is already where OK would take them.
+  const [expiredOpen, setExpiredOpen] = useState(arrival.expired);
 
   // `invite` is a secret: once read, it leaves the address bar (and the history).
   useEffect(() => {
@@ -326,6 +329,7 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
           onCancel={() => setTermsOpen(false)}
         />
       ) : null}
+      <SessionExpiredDialog open={expiredOpen} onOk={() => setExpiredOpen(false)} />
     </AuthShell>
   );
 }

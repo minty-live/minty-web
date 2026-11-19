@@ -242,4 +242,18 @@ describe("LoginScreen", () => {
     expect(readArrival(new URLSearchParams("next=https%3A%2F%2Fevil.example")).next).toBe("");
     expect(readArrival(new URLSearchParams("next=%2Fentities")).next).toBe("/entities");
   });
+
+  it("opens with 'Your session has expired' after accounts-api's door met an ended sign-in", async () => {
+    show("expired=1&next=%2Fentity");
+    const dialog = screen.getByRole("alertdialog", { name: "Your session has expired" });
+    expect(dialog).toHaveTextContent("Sign in again to carry on.");
+    await userEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+  });
+
+  it("says nothing about an expired session on an ordinary visit", () => {
+    show("next=%2Fentity");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
 });
