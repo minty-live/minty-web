@@ -9,9 +9,10 @@
  * outlives the 30-minute token; without one it shows the login first and then does the same.
  */
 
-import { clearAuth } from "@/lib/auth";
+import { clearAuth, getAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { HUB_HOME } from "@/lib/hubPaths";
+import { sessionExpiredShown, showSessionExpired } from "@/lib/sessionExpired";
 import { safeNextPath } from "@minty/shared/safeNext";
 
 /** A path this app may land on after the handoff (lib/safeNext.ts has the rule). */
@@ -54,11 +55,30 @@ let redirecting = false;
  * already under way is how a redirect turns into a flicker.
  */
 export function redirectToHandoff(next?: string, entityId?: string) {
-  if (redirecting || typeof window === "undefined") return;
+  if (redirecting || sessionExpiredShown() || typeof window === "undefined") return;
   redirecting = true;
   clearAuth();
   const target = next ?? window.location.pathname + window.location.search;
   navigate(handoffUrl(target, entityId));
+}
+
+/**
+ * The hub's sign-in page (this app's `/login`) when the sign-in behind the token has ENDED
+ * (lib/sessionExpired.ts, 2026-11-19), with `next` = the re-hand-off (a path on accounts-api)
+ * that brings the person back to this page, for the company the cookie names, once signed in.
+ */
+export function sessionExpiredLoginUrl(entityId?: string): string {
+  const company = entityId ?? (getAuth()?.entityId || undefined);
+  const back = new URL(handoffUrl(window.location.pathname + window.location.search, company));
+  return `/login?${new URLSearchParams({ next: back.pathname + back.search }).toString()}`;
+}
+
+/** "Your session has expired": the cookie cleared, then `showSessionExpired` - once. */
+export function sessionExpired(entityId?: string) {
+  if (sessionExpiredShown() || typeof window === "undefined") return;
+  const url = sessionExpiredLoginUrl(entityId);
+  clearAuth();
+  showSessionExpired(url);
 }
 
 /** Send the browser somewhere outside the app - Stripe's card form - through the same seam. */

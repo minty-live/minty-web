@@ -115,7 +115,7 @@ function api(routes: Record<string, Handler>) {
 function show() {
   render(
     <ToastProvider>
-      <ChartSection entityId={COMPANY.id} />
+      <ChartSection entityId={COMPANY.id} entityName={COMPANY.name} />
     </ToastProvider>,
   );
 }
@@ -132,7 +132,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("the two lists", () => {
-  it("show Edit and Delete on every row, Minty's copies marked where they came from", async () => {
+  it("show Edit, Delete and Merge on the company's rows; an account linked to Xero is changed in Xero only", async () => {
     api({
       "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
       "GET /api/me/company/contacts": () => json(contacts()),
@@ -142,9 +142,14 @@ describe("the two lists", () => {
 
     const chart = card("Chart of accounts");
     expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
-    expect(chart.getByRole("button", { name: "Edit 469 - Rent" })).toBeInTheDocument();
-    expect(chart.getByRole("button", { name: "Delete 469 - Rent" })).toBeInTheDocument();
+    // linked to Xero: changed in Xero only (the user, 2026-11-19, with doc A1); still mergeable (M1)
+    expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
+    expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
+    expect(chart.getByRole("button", { name: "Merge 469 - Rent" })).toBeInTheDocument();
     expect(chart.getByText("In Xero")).toBeInTheDocument();
+    expect(
+      chart.getByText("Accounts linked to Xero are changed in Xero, and Minty follows."),
+    ).toBeInTheDocument();
     // a copy of Minty's is the company's own too (owner, 2026-11-12), marked where it came from
     expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
     expect(chart.getByRole("button", { name: "Delete 477 - Wages" })).toBeInTheDocument();
@@ -180,7 +185,7 @@ describe("the two lists", () => {
     expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
     expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
     expect(
-      chart.getByText("Accounts linked to Xero can be changed while Xero is connected."),
+      chart.getByText("Accounts linked to Xero are changed in Xero, and Minty follows."),
     ).toBeInTheDocument();
     // the company's own rows that aren't in Xero keep both
     expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
@@ -190,7 +195,7 @@ describe("the two lists", () => {
     expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
     expect(people.queryByRole("button", { name: "Delete ABC Supplies" })).toBeNull();
     expect(
-      people.getByText("Contacts linked to Xero can be changed while Xero is connected."),
+      people.getByText("Contacts linked to Xero are changed in Xero, and Minty follows."),
     ).toBeInTheDocument();
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
   });
@@ -314,40 +319,34 @@ describe("an account", () => {
     api({
       "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
       "GET /api/me/company/contacts": () => json(contacts()),
-      "PATCH /api/me/company/accounts/a-rent": () =>
+      "PATCH /api/me/company/accounts/a-wages": () =>
         json(
           {
-            error: "Xero didn't accept that: Please enter a unique Code. Change it and try again.",
-            fields: {
-              code: "Xero didn't accept that: Please enter a unique Code. Change it and try again.",
-            },
+            error: "The code 477 is already used by Tea. Choose another code.",
+            fields: { code: "The code 477 is already used by Tea. Choose another code." },
           },
-          422,
+          409,
         ),
     });
     show();
     await loaded();
     const user = userEvent.setup();
     await user.click(
-      await card("Chart of accounts").findByRole("button", { name: "Edit 469 - Rent" }),
+      await card("Chart of accounts").findByRole("button", { name: "Edit 477 - Wages" }),
     );
-    const dialog = within(screen.getByRole("group", { name: "Edit Rent" }));
-    expect(dialog.getByText("Your change is made in Xero too.")).toBeInTheDocument();
+    const dialog = within(screen.getByRole("group", { name: "Edit Wages" }));
     await user.click(dialog.getByRole("button", { name: "Save" }));
     expect(
-      await dialog.findByText(
-        "Xero didn't accept that: Please enter a unique Code. Change it and try again.",
-      ),
+      await dialog.findByText("The code 477 is already used by Tea. Choose another code."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Edit Rent" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Edit Wages" })).toBeInTheDocument();
   });
 
-  it("delete asks first, saying the records keep it and Xero archives it", async () => {
+  it("a used account can't be deleted: the bin says why, sends nothing and offers Merge (owner, 2026-11-18)", async () => {
+    const own = accounts().accounts.map((a) => ({ ...a, in_xero: false }));
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true, accounts: own })),
       "GET /api/me/company/contacts": () => json(contacts()),
-      "DELETE /api/me/company/accounts/a-rent": () =>
-        json({ archived: true, message: "Rent deleted." }),
     });
     show();
     await loaded();
@@ -355,18 +354,151 @@ describe("an account", () => {
     await user.click(
       await card("Chart of accounts").findByRole("button", { name: "Delete 469 - Rent" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Delete Rent?" });
+    const dialog = screen.getByRole("dialog", { name: "Rent can't be deleted" });
     expect(dialog).toHaveTextContent(
-      "This can't be undone. Records that already use it keep it, but it leaves every list. It's archived in Xero too.",
+      "Rent is already used in your records or Petty Cash Settings, so it can't be deleted.",
     );
+    expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull();
+    // D3 (owner's decisions doc): the way out is a merge
+    expect(within(dialog).getByRole("button", { name: "Merge instead" })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
+  it("an unused one asks first, then is deleted", async () => {
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+      "DELETE /api/me/company/accounts/a-wages": () => json({ message: "Wages deleted." }),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Delete 477 - Wages" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete Wages?" });
+    expect(dialog).toHaveTextContent("This can't be undone.");
     await user.click(within(dialog).getByRole("button", { name: "Go back" }));
     expect(sent).toEqual([]);
-    await user.click(card("Chart of accounts").getByRole("button", { name: "Delete 469 - Rent" }));
+    await user.click(card("Chart of accounts").getByRole("button", { name: "Delete 477 - Wages" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
-    expect(await screen.findByText("Rent deleted.")).toBeInTheDocument();
+    expect(await screen.findByText("Wages deleted.")).toBeInTheDocument();
     expect(sent).toEqual([
-      { method: "DELETE", path: "/api/me/company/accounts/a-rent", body: null },
+      { method: "DELETE", path: "/api/me/company/accounts/a-wages", body: null },
     ]);
+  });
+});
+
+describe("merging and Xero (owner's decisions doc M1-M4, A3, 2026-11-19)", () => {
+  it("an account gone from Xero says so and links to its one-account matching", async () => {
+    const gone = accounts().accounts.map((a) =>
+      a.id === "a-rent" ? { ...a, gone_from_xero: true } : a,
+    );
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true, accounts: gone })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+    });
+    show();
+    await loaded();
+    const chart = card("Chart of accounts");
+    expect(await chart.findByText("Archived in Xero")).toBeInTheDocument();
+    expect(
+      chart.getByText(
+        /This account is archived in Xero. Please check it in Xero, then map this account/,
+      ),
+    ).toBeInTheDocument();
+    const map = chart.getByRole("link", { name: "Map Rent to a Xero account" });
+    expect(map.getAttribute("href")).toMatch(/\/settings\/integration\/match\?account=a-rent$/);
+  });
+
+  it("a contact linked to Xero is changed in Xero only: no Edit or Delete, still Merge (the user, 2026-11-19)", async () => {
+    const linked = {
+      id: "c-abc",
+      name: "ABC Supplies",
+      own: true,
+      source: "xero",
+      in_xero: true,
+      xero_id: "x-abc",
+      used: false,
+    };
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/contacts": () =>
+        json(contacts({ xero_live: true, contacts: [...contacts().contacts, linked] })),
+    });
+    show();
+    await loaded();
+    const people = card("Contacts");
+    expect(await people.findByText("ABC Supplies")).toBeInTheDocument();
+    expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
+    expect(people.queryByRole("button", { name: "Delete ABC Supplies" })).toBeNull();
+    expect(people.getByRole("button", { name: "Merge ABC Supplies" })).toBeInTheDocument();
+    expect(
+      people.getByText("Contacts linked to Xero are changed in Xero, and Minty follows."),
+    ).toBeInTheDocument();
+    expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
+  });
+
+  it("merging asks which one is kept, then confirms, then sends it", async () => {
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+      "POST /api/me/company/accounts/a-wages/merge": () =>
+        json({ message: "Wages merged into Rent.", moved: { report_expense: 3 } }),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Merge 477 - Wages" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Merge Wages" });
+    expect(within(dialog).getByRole("button", { name: "Merge" })).toBeDisabled();
+    expect(within(dialog).getByText("Choose the account to merge Wages with.")).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText("Merge with"), "a-rent");
+    await user.click(within(dialog).getByRole("radio", { name: "Keep Rent" }));
+    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
+
+    const confirm = screen.getByRole("dialog", { name: /Merge Wages into Rent\?/ });
+    expect(confirm).toHaveTextContent(
+      "Wages's records move to Rent, and Wages leaves every list. Xero isn't changed. This can't be undone.",
+    );
+    expect(sent).toEqual([]);
+    await user.click(within(confirm).getByRole("button", { name: "Merge" }));
+    expect(await screen.findByText("Wages merged into Rent.")).toBeInTheDocument();
+    expect(sent).toEqual([
+      { method: "POST", path: "/api/me/company/accounts/a-wages/merge", body: { into: "a-rent" } },
+    ]);
+  });
+
+  it("only accounts of the same kind are offered to merge with", async () => {
+    const mixed = [
+      ...accounts().accounts,
+      {
+        ...accounts().accounts[0],
+        id: "a-bank",
+        code: "090",
+        name: "HSBC",
+        type: "bank",
+        type_label: "Bank",
+      },
+    ];
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true, accounts: mixed })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Merge 477 - Wages" }),
+    );
+    const options = within(screen.getByRole("dialog", { name: "Merge Wages" }))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(options).toEqual(["Choose an account", "469 - Rent"]);
   });
 });
 

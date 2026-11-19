@@ -59,7 +59,8 @@ export function mintModuleToken(
       role: "admin",
       system_role: "normal",
       module: "billing",
-      sid: "e2e",
+      // No sid: a made-up one names no Minty sign-in, and every API now refuses it (Phase 9).
+      sid: "",
       billing_enabled: true,
       petty_cash_enabled: true,
       exp: now + 1800,

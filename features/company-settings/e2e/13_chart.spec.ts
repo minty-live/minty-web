@@ -69,8 +69,10 @@ async function arrive(page: Page): Promise<Sent[]> {
   const sent: Sent[] = [];
   const state = {
     accounts: [
-      account("a-rent", "469", "Rent"),
+      account("a-rent", "469", "Rent", { used: true }),
       account("a-wages", "477", "Wages", { source: "template" }),
+      // gone from Xero (owner's decisions doc A3): the line under it and Map it
+      account("a-old", "468", "Old Rent", { in_xero: true, gone_from_xero: true, used: true }),
     ],
     contacts: [
       {
@@ -141,7 +143,7 @@ async function arrive(page: Page): Promise<Sent[]> {
     }
     if (req.method() === "DELETE" && path === "/contacts/c-kee") {
       state.contacts = state.contacts.filter((c) => c.id !== "c-kee");
-      return route.fulfill({ json: { archived: false, message: "Kee Wah Bakery deleted." } });
+      return route.fulfill({ json: { message: "Kee Wah Bakery deleted." } });
     }
     return route.fulfill({ status: 404, json: { error: "not_found" } });
   });
@@ -186,6 +188,17 @@ test.describe("accounts and contacts", () => {
     const chart = page.getByRole("region", { name: "Chart of accounts" });
     await expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeVisible();
     await expect(chart.getByText("Comes with Minty")).toBeVisible();
+
+    // a used account can't be deleted (owner, 2026-11-18): its bin says why and sends nothing
+    await chart.getByRole("button", { name: "Delete 469 - Rent" }).click();
+    const stays = page.getByRole("dialog", { name: "Rent can't be deleted" });
+    await expect(stays).toContainText(
+      "Rent is already used in your records or Petty Cash Settings, so it can't be deleted.",
+    );
+    await expect(stays.getByRole("button", { name: "Delete" })).toHaveCount(0);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await stays.getByRole("button", { name: "Close" }).click();
+    await expect(stays).toHaveCount(0);
 
     await chart.getByRole("button", { name: /Add an account/ }).click();
     const form = page.getByRole("group", { name: "Add an account" });
@@ -241,5 +254,18 @@ for (const width of [360, 768, 1440]) {
     await page.getByRole("button", { name: /Add a contact/ }).click();
     await expect(page.getByRole("group", { name: "Add a contact" })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.getByRole("button", { name: "Delete 469 - Rent" }).click();
+    await expect(page.getByRole("dialog", { name: "Rent can't be deleted" })).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page
+      .getByRole("dialog", { name: "Rent can't be deleted" })
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
+    // an account gone from Xero says so; the merge dialog fits too (doc A3, M1)
+    await expect(page.getByRole("link", { name: "Map Old Rent to a Xero account" })).toBeVisible();
+    await page.getByRole("button", { name: "Merge 477 - Wages" }).click();
+    await expect(page.getByRole("dialog", { name: "Merge Wages" })).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: `test-results/13_chart_merge_${width}.png`, fullPage: true });
   });
 }

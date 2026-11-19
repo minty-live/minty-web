@@ -263,9 +263,12 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   the form is open; Cancel or Escape closes it.
 - **Deleted, then added again** (the same account code, name and type, or the same contact name):
   the deleted one comes back - in Xero too - with "<name> is back.", never a second one.
-- **Delete asks first**: "Delete <name>?" - "This can't be undone.", plus "Records that already
-  use it keep it, but it leaves every list." when it will be archived, and "It's archived in Xero
+- **Delete asks first**: "Delete <name>?" - "This can't be undone.", plus "It's archived in Xero
   too." when it is linked.
+- **A used account or contact can't be deleted** (owner, 2026-11-18; the read's `used`): its bin
+  opens "<name> can't be deleted" - "<name> is already used in your records or Petty Cash
+  Settings, so it can't be deleted." - with only Close, and sends nothing. The API refuses it too
+  (409, the same sentence, shown as a toast when the list was out of date).
 - **A row linked to Xero while Xero is off** (disconnected, or part-way through matching; the
   reads' `xero_live` is false, 2026-11-18): its badge reads "Linked to Xero" rather than "In Xero",
   it has no Edit or Delete (the API refuses both, 409 "Reconnect Xero to change it"), and the card
@@ -282,3 +285,23 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
 failed read); e2e `13_chart.spec.ts`.
+
+## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
+
+- **Merge (M1-M4, D3)**: every company-made account and contact row has **Merge** (`call_merge`). The
+  dialog picks the other one (accounts: the same class only) and which one is kept, then `ConfirmDialog`
+  ("<merged>'s records move to <kept>, and <merged> leaves every list. Xero isn't changed. This can't be
+  undone."), then `POST /api/me/company/{accounts|contacts}/<id>/merge {into}`. The "<name> can't be
+  deleted" box has **Merge instead**.
+- **An account or contact linked to Xero is changed in Xero only** (the user, 2026-11-19): no Edit or
+  Delete on it (Merge stays), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
+  and Minty follows."
+- **An account gone from Xero (A3)**: badge "Archived in Xero", the doc's sentence and **Map it** - the
+  matching page for that one account (`.../settings/integration/match?account=<id>`, `MatchingScreen`'s
+  `OneAccount`): the account as a matching row, the Xero accounts of its kind, Save. A Xero account another
+  account holds says "merge instead" and opens the merge on General (`?merge=<id>&into=<id>`).
+- Tests: `__tests__/chart.test.tsx`, `__tests__/matching.test.tsx`.
+
+**Disconnect during matching (the user, 2026-11-19)**: the Xero card's "Matching isn't finished" state
+offers **Disconnect from Xero** beside Continue matching; accounts-api closes the matching (and, for a
+first matching never finished, drops the organisation).

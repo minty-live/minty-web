@@ -51,7 +51,7 @@ export function GeneralScreen({ company }: { company: { id: string; name: string
             error={tab.saveError}
             onSave={(changes) => void tab.save(changes)}
           />
-          <ChartSection entityId={shown.id} />
+          <ChartSection entityId={shown.id} entityName={shown.name} />
         </>
       )}
 

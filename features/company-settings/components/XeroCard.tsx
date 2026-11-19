@@ -14,7 +14,7 @@
  *   Reconnect, and Disconnect stays possible.
  * - **Matching not finished** (Settings Phase 2, 2026-11-11): a company that kept its books in Minty
  *   signed in to Xero, and its accounts (or, after Finish, some suppliers) aren't matched yet.
- *   Continue matching. Its Connect first asks (SET-1b, `onConnect`): its accounts need matching.
+ *   Continue matching, or Disconnect from Xero (2026-11-19). Its Connect first asks (SET-1b, `onConnect`): its accounts need matching.
  *   Phase 3 (2026-11-12): the line names why - a new organisation, accounts added while
  *   disconnected - and a change of the matches is "Changing your matches" (publishing goes on).
  *   A connected company's card offers **Change matches** (`onChangeMatches`).
@@ -138,7 +138,10 @@ export function XeroCard({
             : [XERO_COPY.offTitle, XERO_COPY.offLine];
   const canConnect = page.can_edit && state !== "connected" && state !== "matching";
   const asksFirst = onConnect !== undefined && connectNeedsMatching(page);
-  const canDisconnect = page.can_edit && (state === "connected" || state === "reconnect");
+  // Disconnect stays possible while a matching is open (the user, 2026-11-19): it closes the
+  // matching; a first one never finished drops the organisation too (accounts-api's disconnect)
+  const canDisconnect =
+    page.can_edit && (state === "connected" || state === "reconnect" || state === "matching");
   const canChange = page.can_edit && state === "connected" && onChangeMatches !== undefined;
 
   return (

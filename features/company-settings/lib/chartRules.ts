@@ -73,10 +73,45 @@ export function contactProblem(name: string, others: Contact[], submitted: boole
     : null;
 }
 
-/** The sentence a delete's confirm adds: kept for its records, and archived in Xero too. */
-export function deleteNote(row: { used: boolean; in_xero: boolean }): string {
+/** The sentence a delete's confirm adds: archived in Xero too. */
+export function deleteNote(row: { in_xero: boolean }): string {
   const parts = ["This can't be undone."];
-  if (row.used) parts.push("Records that already use it keep it, but it leaves every list.");
   if (row.in_xero) parts.push("It's archived in Xero too.");
   return parts.join(" ");
+}
+
+/** Why a used row stays: a used account or contact can't be deleted (owner, 2026-11-18). The
+ * API's own sentence, which it also sends if the list was out of date. */
+export function usedNote(name: string): string {
+  return `${name} is already used in your records or Petty Cash Settings, so it can't be deleted.`;
+}
+
+/** An account type's class (minty-db's generated `class`): only accounts of one class merge. */
+const CLASS: Record<string, string> = {
+  bank: "asset",
+  current: "asset",
+  fixed: "asset",
+  inventory: "asset",
+  noncurrent: "asset",
+  prepayment: "asset",
+  current_liability: "liability",
+  liability: "liability",
+  term_liability: "liability",
+  equity: "equity",
+  sales: "revenue",
+  revenue: "revenue",
+  other_income: "revenue",
+};
+
+export function accountClass(type: string): string {
+  return CLASS[type] ?? "expense";
+}
+
+/** The owner's decisions doc A3 (2026-11-19), word for word. */
+export const GONE_FROM_XERO =
+  "This account is archived in Xero. Please check it in Xero, then map this account to the one you want to use.";
+
+/** The merge's confirm (M1, M4): where the records go, and that it can't be undone. */
+export function mergeNote(merged: string, kept: string): string {
+  return `${merged}'s records move to ${kept}, and ${merged} leaves every list. Xero isn't changed. This can't be undone.`;
 }

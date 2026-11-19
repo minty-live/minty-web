@@ -250,7 +250,8 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
     );
     return { ...base, mapping };
   };
-  const NOTE = "Bank 1 is archived in Xero. Choose another account to keep publishing.";
+  const NOTE =
+    "Bank 1 is archived in Xero. Please check it in Xero, then map this account to the one you want to use, or choose another account here.";
 
   it("says the chosen account is archived, tied to its box", () => {
     render(
@@ -297,7 +298,9 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
       />,
     );
     expect(
-      screen.getByText("7-Eleven is archived in Xero. Choose another contact to keep publishing."),
+      screen.getByText(
+        "7-Eleven is archived in Xero. Restore it in Xero, or choose another contact here.",
+      ),
     ).toBeInTheDocument();
   });
 

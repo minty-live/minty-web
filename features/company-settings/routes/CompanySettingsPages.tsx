@@ -65,12 +65,22 @@ export function CompanyGeneralPage() {
   );
 }
 
+function MatchingContent() {
+  // `?account=<id>`: one account mapped again (owner's decisions doc A3, 2026-11-19)
+  const account = useSearchParams().get("account");
+  return (
+    <CompanyFromAddress pathOf={matchingPath} label="matching">
+      {(company) => <MatchingScreen company={company} account={account} />}
+    </CompanyFromAddress>
+  );
+}
+
 /** Match your accounts to Xero (Settings Phase 2, 2026-11-11). */
 export function CompanyMatchingPage() {
   return (
-    <CompanyFromAddress pathOf={matchingPath} label="matching">
-      {(company) => <MatchingScreen company={company} />}
-    </CompanyFromAddress>
+    <Suspense>
+      <MatchingContent />
+    </Suspense>
   );
 }
 

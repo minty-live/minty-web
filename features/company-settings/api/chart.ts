@@ -23,6 +23,8 @@ export type Account = {
   source: string;
   in_xero: boolean;
   used: boolean;
+  /** Linked to a Xero account Xero archived or removed (owner's decisions doc A3): map it again. */
+  gone_from_xero?: boolean;
 };
 
 export type AccountType = { value: string; label: string };
@@ -84,10 +86,10 @@ export const editAccount = (entityId: string, id: string, input: AccountInput) =
   );
 
 export const deleteAccount = (entityId: string, id: string) =>
-  mintyFetch<{ archived: boolean; message: string }>(
-    `/api/me/company/accounts/${encodeURIComponent(id)}`,
-    { method: "DELETE", query: on(entityId) },
-  );
+  mintyFetch<{ message: string }>(`/api/me/company/accounts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    query: on(entityId),
+  });
 
 export const addContact = (entityId: string, name: string) =>
   mintyFetch<{ contact: Contact; message: string }>("/api/me/company/contacts", {
@@ -103,7 +105,25 @@ export const renameContact = (entityId: string, id: string, name: string) =>
   );
 
 export const deleteContact = (entityId: string, id: string) =>
-  mintyFetch<{ archived: boolean; message: string }>(
-    `/api/me/company/contacts/${encodeURIComponent(id)}`,
-    { method: "DELETE", query: on(entityId) },
-  );
+  mintyFetch<{ message: string }>(`/api/me/company/contacts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    query: on(entityId),
+  });
+
+/** Merge two accounts or two contacts (owner's decisions doc M1-M4): every record of `id` moves to
+ * `into`, `id` leaves every list; no new record, Xero not touched. accounts-api's own route. */
+export type MergeAnswer = { message: string; moved: Record<string, number> };
+
+export const mergeAccount = (entityId: string, id: string, into: string) =>
+  mintyFetch<MergeAnswer>(`/api/me/company/accounts/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    json: { into },
+    query: on(entityId),
+  });
+
+export const mergeContact = (entityId: string, id: string, into: string) =>
+  mintyFetch<MergeAnswer>(`/api/me/company/contacts/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    json: { into },
+    query: on(entityId),
+  });

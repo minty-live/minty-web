@@ -26,16 +26,19 @@ import { ApiError } from "@/lib/apiClient";
 
 import {
   cancelChangeMatches,
+  fetchMatchOne,
   fetchMatching,
   finishMatching,
+  mapMatchOne,
   pickMatch,
   refreshMatching,
   retryContacts,
+  type MatchOnePage,
   type MatchOption,
   type MatchRow,
   type MatchingPage,
 } from "@/features/company-settings/api/companySettings";
-import { integrationPath } from "@/features/company-settings/lib/paths";
+import { generalPath, integrationPath } from "@/features/company-settings/lib/paths";
 
 export const MATCH_COPY = {
   title: "Match your accounts to Xero",
@@ -210,7 +213,22 @@ function Row({
   );
 }
 
-export function MatchingScreen({ company }: { company: { id: string; name: string } }) {
+/** The matching page, or - with `account` - one account mapped again (A3). */
+export function MatchingScreen({
+  company,
+  account = null,
+}: {
+  company: { id: string; name: string };
+  account?: string | null;
+}) {
+  return account ? (
+    <OneAccount company={company} accountId={account} />
+  ) : (
+    <FullMatching company={company} />
+  );
+}
+
+function FullMatching({ company }: { company: { id: string; name: string } }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [page, setPage] = useState<MatchingPage | null>(null);
@@ -557,5 +575,131 @@ function Frame({ back, children }: { back: string; children: React.ReactNode }) 
         </div>
       </main>
     </div>
+  );
+}
+
+/**
+ * One account mapped again (the owner's decisions doc A3, 2026-11-19): its Xero account was archived
+ * or removed, so the person picks the one to use - the matching page's own row, the account's
+ * kind only. Only that account's link changes: no records move. A Xero account another account
+ * already holds is refused with "merge instead", which opens the merge on General.
+ */
+function OneAccount({
+  company,
+  accountId,
+}: {
+  company: { id: string; name: string };
+  accountId: string;
+}) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [page, setPage] = useState<MatchOnePage | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [pick, setPick] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [mergeInto, setMergeInto] = useState<{ id: string; name: string; sentence: string } | null>(
+    null,
+  );
+  const general = generalPath(company.id, company.name);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMatchOne(company.id, accountId, controller.signal).then(
+      (answer) => {
+        setError("");
+        setPage(answer);
+      },
+      (err: unknown) => {
+        if (!controller.signal.aborted) setError(refusal(err));
+      },
+    );
+    return () => controller.abort();
+  }, [company.id, accountId, attempt]);
+
+  if (!page) {
+    return (
+      <Frame back={general}>
+        <LoadState
+          status={error ? "error" : "loading"}
+          error={error}
+          onRetry={() => {
+            setError("");
+            setAttempt((n) => n + 1);
+          }}
+        />
+      </Frame>
+    );
+  }
+
+  const save = async () => {
+    if (!pick) return;
+    setBusy(true);
+    try {
+      const answer = await mapMatchOne(company.id, accountId, pick);
+      showToast(answer.message, "success");
+      router.push(general);
+    } catch (err) {
+      const body =
+        err instanceof ApiError
+          ? (err.body as { merge_into?: { id: string; name: string } })
+          : null;
+      if (body?.merge_into) {
+        setMergeInto({ ...body.merge_into, sentence: refusal(err) });
+      } else {
+        showToast(refusal(err), "error");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const row = { ...page.row, pick: pick ? { xero_account_id: pick, auto: false } : null };
+  return (
+    <Frame back={general}>
+      <header className="flex min-w-0 flex-col gap-2">
+        <h1 className="text-[22px] font-semibold text-set-ink [overflow-wrap:anywhere]">
+          Map {page.row.name} to a Xero account
+        </h1>
+        {page.message ? <p className="text-[14px] text-set-ink-2">{page.message}</p> : null}
+      </header>
+      <ul className="m-0 list-none rounded-[12px] border border-set-line p-0">
+        <Row row={row} options={page.options} busy={busy} onPick={setPick} />
+      </ul>
+      {mergeInto ? (
+        <div
+          className="flex min-w-0 flex-col gap-3 rounded-[12px] border border-set-line p-4"
+          role="alert"
+        >
+          <p className="text-[14px] text-set-ink">{mergeInto.sentence}</p>
+          <div>
+            <button
+              type="button"
+              className={SETTINGS_PRIMARY}
+              onClick={() =>
+                router.push(
+                  `${general}?merge=${encodeURIComponent(accountId)}&into=${encodeURIComponent(mergeInto.id)}`,
+                )
+              }
+            >
+              Merge into {mergeInto.name}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className={SETTINGS_PRIMARY}
+          disabled={busy || !pick}
+          onClick={() => void save()}
+        >
+          Save
+        </button>
+        {!pick ? (
+          <span className="text-[12.5px] text-set-mute">Choose the Xero account to use.</span>
+        ) : null}
+      </div>
+    </Frame>
   );
 }

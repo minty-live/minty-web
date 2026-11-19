@@ -9,6 +9,7 @@ import {
   accountProblems,
   contactProblem,
   deleteNote,
+  usedNote,
 } from "@/features/company-settings/lib/chartRules";
 
 const rent: Account = {
@@ -96,10 +97,14 @@ describe("a contact's name", () => {
 });
 
 describe("delete's confirm", () => {
-  it("says what happens to records and to Xero", () => {
-    expect(deleteNote({ used: false, in_xero: false })).toBe("This can't be undone.");
-    expect(deleteNote({ used: true, in_xero: true })).toBe(
-      "This can't be undone. Records that already use it keep it, but it leaves every list. It's archived in Xero too.",
+  it("says it can't be undone, and that Xero archives it", () => {
+    expect(deleteNote({ in_xero: false })).toBe("This can't be undone.");
+    expect(deleteNote({ in_xero: true })).toBe("This can't be undone. It's archived in Xero too.");
+  });
+
+  it("a used row says why it stays (the API's sentence)", () => {
+    expect(usedNote("Rent")).toBe(
+      "Rent is already used in your records or Petty Cash Settings, so it can't be deleted.",
     );
   });
 });

@@ -281,3 +281,39 @@ export function releaseXero(entityId: string, holderId: string): Promise<{ messa
     json: { entity_id: holderId },
   });
 }
+
+// ---- One account mapped again (owner's decisions doc A3, 2026-11-19; accounts-api matching.map_one) ----
+
+export type MatchOnePage = {
+  organisation: string | null;
+  /** Its Xero account was archived or removed: the doc's sentence is in `message`. */
+  gone_from_xero: boolean;
+  message: string | null;
+  row: MatchRow;
+  options: MatchOption[];
+};
+
+export function fetchMatchOne(
+  entityId: string,
+  accountId: string,
+  signal?: AbortSignal,
+): Promise<MatchOnePage> {
+  return mintyFetch<MatchOnePage>(`${MATCHING}/account`, {
+    query: q(entityId, { account: accountId }),
+    signal,
+  });
+}
+
+/** Link the account to the Xero account picked. A 409 whose body has `merge_into` means another
+ * account already holds it: merge instead. */
+export function mapMatchOne(
+  entityId: string,
+  accountId: string,
+  xeroAccountId: string,
+): Promise<{ message: string; account_id: string }> {
+  return mintyFetch<{ message: string; account_id: string }>(`${MATCHING}/account`, {
+    method: "POST",
+    json: { account_id: accountId, xero_account_id: xeroAccountId },
+    query: q(entityId),
+  });
+}

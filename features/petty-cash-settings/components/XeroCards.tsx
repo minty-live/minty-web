@@ -401,7 +401,11 @@ function MappingForm({
                 (archivedName
                   ? minty || offline
                     ? `${archivedName} is archived. Choose another ${another} to continue.`
-                    : `${archivedName} is archived in Xero. Choose another ${another} to keep publishing.`
+                    : another === "account"
+                      ? // the owner's decisions doc A3 (2026-11-19): check it in Xero, then map it again
+                        `${archivedName} is archived in Xero. Please check it in Xero, then map this account to the one you want to use, or choose another account here.`
+                      : // C4: Minty never restores in Xero - restore it there, or choose another
+                        `${archivedName} is archived in Xero. Restore it in Xero, or choose another contact here.`
                   : undefined);
               const problemId = `${id}-problem`;
               if (adding?.key === key) {

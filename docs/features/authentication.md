@@ -68,8 +68,16 @@ Flask mint the payer's token, back through `/landing`. This app still mints noth
 **The cookie.** Every page but `/landing` and `/maintenance` (`OPEN_PATHS`, `lib/hubPaths.ts`)
 needs `minty_token`. Without it: `307` to `ACCOUNTS_API_URL/handoff/minty-web?next=<page>` —
 Flask's login-gated route (Minty's `/handoff/minty-web`, landed 2026-09-21) that mints the same token and comes back to
-`/landing`. Silent while the Flask session (24 h) is alive; when it is not, Flask's
+`/landing`. Silent while the Minty session (accounts-api; signed out after 60 minutes without
+activity since Phase 9) is alive; when it is not, Flask's
 `login_required` sends the browser to this app's `/login` with that route as `next`.
+
+**"Your session has expired" (owner, 2026-11-19).** A 401 whose body carries `"reason": "session_expired"` - every API adds it when the Minty sign-in behind the token has ENDED (signed out, or 60 minutes without activity; minty-accounts-api `docs/features/authentication.md` 3.3) - is not renewed quietly: `lib/sessionExpired.ts` reads it (`isSessionExpired(body)`) and calls ONE local `showSessionExpired(loginUrl)`, once however many calls fail together, and the quiet hand-off then stays put. Today that call only goes to the sign-in page; the pop-up ("Your session has expired", one OK) is to come from `@minty/shared` as one component for every app and will sit behind the same call. `loginUrl` = this app's `/login?next=` the re-hand-off (`lib/handoff.ts::sessionExpiredLoginUrl`,
+a path on accounts-api) for the page the person was on and the cookie's company; the cookie is
+cleared first. Every call goes through it (`lib/apiClient.ts`, `onUnauthorized: "reject"` too).
+Tests: `lib/__tests__/sessionExpired.test.ts`. accounts-api also sends `/login?expired=1` when a
+hand-off finds the hub sign-in ended (the token's cookie gone with it); the page does not show the
+pop-up for it yet (it waits for the shared component).
 
 **`return_origin` (branch preview sets, 2026-10-13).** Every trip to Flask - the re-handoff
 (`lib/handoff.ts::handoffUrl`, the request's origin in the proxy), the code sign-in's hand-off and

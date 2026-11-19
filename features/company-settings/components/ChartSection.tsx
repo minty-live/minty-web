@@ -8,8 +8,9 @@
  * are read again. General's view-only line covers it: the same roles change both.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LoadState } from "@/components/ui/SettingsShell";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
@@ -20,6 +21,8 @@ import {
   deleteAccount,
   deleteContact,
   editAccount,
+  mergeAccount,
+  mergeContact,
   readAccounts,
   readContacts,
   renameContact,
@@ -34,8 +37,14 @@ import {
   ContactForm,
   ContactsCard,
   DeleteDialog,
+  MergeDialog,
+  mergeableAccounts,
+  mergeableContacts,
+  type MergeSide,
   type Outcome,
 } from "@/features/company-settings/components/ChartCards";
+import { mergeNote } from "@/features/company-settings/lib/chartRules";
+import { matchingPath } from "@/features/company-settings/lib/paths";
 
 const UNREACHABLE = "I couldn't reach your accounts just now. Mind trying again in a moment?";
 
@@ -49,6 +58,9 @@ type Open =
   | { kind: "contact"; editing: Contact | null }
   | { kind: "delete-account"; row: Account }
   | { kind: "delete-contact"; row: Contact }
+  | { kind: "merge-account"; row: Account; into?: string }
+  | { kind: "merge-contact"; row: Contact }
+  | { kind: "merge-confirm"; what: "account" | "contact"; merged: MergeSide; kept: MergeSide }
   | null;
 
 function sentence(err: unknown): string {
@@ -61,17 +73,28 @@ function fieldsOf(err: unknown): Record<string, string> | undefined {
   return fields && typeof fields === "object" ? (fields as Record<string, string>) : undefined;
 }
 
-export function ChartSection({ entityId }: { entityId: string }) {
+export function ChartSection({ entityId, entityName }: { entityId: string; entityName: string }) {
   const { showToast } = useToast();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState(false);
+  const askedToMerge = useRef(false);
 
   useEffect(() => {
     let live = true;
     Promise.all([readAccounts(entityId), readContacts(entityId)]).then(
-      ([accounts, contacts]) => live && setLoad({ kind: "ready", accounts, contacts }),
+      ([accounts, contacts]) => {
+        if (!live) return;
+        setLoad({ kind: "ready", accounts, contacts });
+        // The matching page's "merge instead" (A3's clash, the user's rule): `?merge=<id>&into=<id>`
+        // opens the merge for that account, the other one picked - once, on the first read.
+        if (askedToMerge.current) return;
+        askedToMerge.current = true;
+        const params = new URLSearchParams(window.location.search);
+        const row = accounts.accounts.find((a) => a.id === params.get("merge"));
+        if (row) setOpen({ kind: "merge-account", row, into: params.get("into") ?? undefined });
+      },
       (err: unknown) => live && setLoad({ kind: "error", message: sentence(err) }),
     );
     return () => {
@@ -133,6 +156,10 @@ export function ChartSection({ entityId }: { entityId: string }) {
             onAdd={() => setOpen({ kind: "account", editing: null })}
             onEdit={(row) => setOpen({ kind: "account", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-account", row })}
+            onMerge={(row) => setOpen({ kind: "merge-account", row })}
+            mapHref={(row) =>
+              `${matchingPath(entityId, entityName)}?account=${encodeURIComponent(row.id)}`
+            }
           />
           <ContactsCard
             read={load.contacts}
@@ -158,6 +185,7 @@ export function ChartSection({ entityId }: { entityId: string }) {
             onAdd={() => setOpen({ kind: "contact", editing: null })}
             onEdit={(row) => setOpen({ kind: "contact", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-contact", row })}
+            onMerge={(row) => setOpen({ kind: "merge-contact", row })}
           />
           {open?.kind === "delete-account" ? (
             <DeleteDialog
@@ -165,6 +193,11 @@ export function ChartSection({ entityId }: { entityId: string }) {
               busy={busy}
               onClose={() => setOpen(null)}
               onConfirm={() => void change(() => deleteAccount(entityId, open.row.id))}
+              onMerge={
+                load.accounts.permissions.delete && open.row.own
+                  ? () => setOpen({ kind: "merge-account", row: open.row })
+                  : undefined
+              }
             />
           ) : null}
           {open?.kind === "delete-contact" ? (
@@ -173,7 +206,59 @@ export function ChartSection({ entityId }: { entityId: string }) {
               busy={busy}
               onClose={() => setOpen(null)}
               onConfirm={() => void change(() => deleteContact(entityId, open.row.id))}
+              onMerge={
+                load.contacts.permissions.delete && open.row.own
+                  ? () => setOpen({ kind: "merge-contact", row: open.row })
+                  : undefined
+              }
             />
+          ) : null}
+          {open?.kind === "merge-account" ? (
+            <MergeDialog
+              kind="account"
+              row={open.row}
+              others={mergeableAccounts(load.accounts, open.row)}
+              into={open.into}
+              busy={busy}
+              onClose={() => setOpen(null)}
+              onNext={(merged, kept) =>
+                setOpen({ kind: "merge-confirm", what: "account", merged, kept })
+              }
+            />
+          ) : null}
+          {open?.kind === "merge-contact" ? (
+            <MergeDialog
+              kind="contact"
+              row={open.row}
+              others={mergeableContacts(load.contacts, open.row)}
+              busy={busy}
+              onClose={() => setOpen(null)}
+              onNext={(merged, kept) =>
+                setOpen({ kind: "merge-confirm", what: "contact", merged, kept })
+              }
+            />
+          ) : null}
+          {open?.kind === "merge-confirm" ? (
+            <ConfirmDialog
+              title={`Merge ${open.merged.name} into ${open.kept.name}?`}
+              image="surprised"
+              entityName={entityName}
+              busy={busy}
+              confirmLabel="Merge"
+              confirmTone="orange"
+              onConfirm={() =>
+                void change(() =>
+                  open.what === "account"
+                    ? mergeAccount(entityId, open.merged.id, open.kept.id)
+                    : mergeContact(entityId, open.merged.id, open.kept.id),
+                )
+              }
+              onBack={() => setOpen(null)}
+            >
+              <p className="mt-6 text-[15px] leading-snug">
+                {mergeNote(open.merged.name, open.kept.name)}
+              </p>
+            </ConfirmDialog>
           ) : null}
         </>
       )}

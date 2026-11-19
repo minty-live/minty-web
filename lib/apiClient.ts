@@ -11,7 +11,10 @@
  *   token may be unscoped when the page is reached from the portal - the header is how the API
  *   learns which company; minty-payment-request-web does the same with minty-payment-request-api).
  * - A 401 means the token has lapsed (or was never valid): the browser goes back through Flask's
- *   re-handoff (lib/handoff.ts) and the call rejects. Nothing retries, nothing refreshes.
+ *   re-handoff (lib/handoff.ts) and the call rejects. Nothing retries, nothing refreshes. A 401
+ *   carrying `reason: "session_expired"` (the hub sign-in behind the token has ended, 2026-11-19)
+ *   goes to `sessionExpired` instead: "Your session has expired", then the sign-in page with
+ *   the way back to this page (lib/sessionExpired.ts).
  * - Every other non-2xx rejects with an `ApiError` carrying the status and the body's `error`
  *   sentence - the API answers `{"error": "<sentence>"}` with Flask's status codes (a declined
  *   card is 402, missing consent 403, a company not on your account 404, a double buy 409), and
@@ -20,7 +23,8 @@
 
 import { getAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { redirectToHandoff } from "@/lib/handoff";
+import { redirectToHandoff, sessionExpired } from "@/lib/handoff";
+import { isSessionExpired } from "@/lib/sessionExpired";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -127,7 +131,12 @@ async function request(
   });
 
   if (res.status === 401) {
-    if (backend.onUnauthorized === "handoff") redirectToHandoff(undefined, backend.handoffEntityId);
+    // The sign-in behind the token has ended (`reason: session_expired`, 2026-11-19): say so and
+    // go to sign in - whatever the caller asked a 401 to mean. Any other 401: a fresh token.
+    if (isSessionExpired(await readBody(res).catch(() => null)))
+      sessionExpired(backend.handoffEntityId);
+    else if (backend.onUnauthorized === "handoff")
+      redirectToHandoff(undefined, backend.handoffEntityId);
     throw new ApiError(401, SESSION_ENDED);
   }
   if (!res.ok) {

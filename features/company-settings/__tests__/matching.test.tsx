@@ -159,7 +159,7 @@ describe("Matching a Minty company's accounts to Xero", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("an unfinished match says so and offers Continue matching", async () => {
+  it("an unfinished match says so and offers Continue matching, and Disconnect (2026-11-19)", async () => {
     api({
       "GET /api/me/company/integration": () =>
         json({ ...MINTY, matching: { accounts: true, contacts: false } }),
@@ -173,6 +173,7 @@ describe("Matching a Minty company's accounts to Xero", () => {
       expect.stringContaining("/settings/integration/match"),
     );
     expect(screen.queryByRole("button", { name: "Connect to Xero" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Disconnect from Xero" })).toBeInTheDocument();
   });
 
   it("frame 3/3b: picks save at once, Finish waits for the used accounts, the suggestion leads the list", async () => {
@@ -403,5 +404,89 @@ describe("Phase 3: a new organisation, new accounts, changing the matches (owner
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
     const confirm = screen.getByRole("dialog", { name: MATCH_COPY.confirmTitle });
     expect(within(confirm).getByText(MATCH_COPY.confirmNewOrg("Olive Ltd"))).toBeInTheDocument();
+  });
+});
+
+describe("one account mapped again (owner's decisions doc A3, 2026-11-19)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+    router.push.mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ONE = {
+    organisation: "Olive Shop Ltd",
+    gone_from_xero: true,
+    message:
+      "This account is archived in Xero. Please check it in Xero, then map this account to the one you want to use.",
+    row: row("a-rent", "469", "Rent", { used: true }),
+    options: [
+      { id: "x-clean", code: "420", name: "Cleaning", kind: "expense" },
+      { id: "x-bank", code: "090", name: "HSBC", kind: "bank" },
+    ],
+  };
+
+  function showOne() {
+    render(
+      <ToastProvider>
+        <MatchingScreen company={COMPANY} account="a-rent" />
+      </ToastProvider>,
+    );
+  }
+
+  it("says why, offers the Xero accounts of its kind and saves the pick", async () => {
+    let body: unknown = null;
+    api({
+      "GET /api/me/company/xero/matching/account": (url) => {
+        expect(url.searchParams.get("account")).toBe("a-rent");
+        return json(ONE);
+      },
+      "POST /api/me/company/xero/matching/account": (_url, init) => {
+        body = JSON.parse(String(init.body));
+        return json({ message: "Rent now uses Cleaning in Xero.", account_id: "a-rent" });
+      },
+    });
+    showOne();
+    expect(await screen.findByText("Map Rent to a Xero account")).toBeInTheDocument();
+    expect(screen.getByText(ONE.message)).toBeInTheDocument();
+    const user = userEvent.setup();
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    const select = screen.getByRole("combobox");
+    expect(within(select).queryByRole("option", { name: /HSBC/ })).toBeNull();
+    await user.selectOptions(select, "x-clean");
+    await user.click(save);
+    expect(await screen.findByText("Rent now uses Cleaning in Xero.")).toBeInTheDocument();
+    expect(body).toEqual({ account_id: "a-rent", xero_account_id: "x-clean" });
+    expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/\/settings\/general$/));
+  });
+
+  it("a Xero account another account holds says merge instead, and opens the merge on General", async () => {
+    api({
+      "GET /api/me/company/xero/matching/account": () => json(ONE),
+      "POST /api/me/company/xero/matching/account": () =>
+        json(
+          {
+            error: "Wages is already linked to that Xero account. Merge Rent into Wages instead.",
+            merge_into: { id: "a-wages", name: "Wages" },
+          },
+          409,
+        ),
+    });
+    showOne();
+    const user = userEvent.setup();
+    await user.selectOptions(await screen.findByRole("combobox"), "x-clean");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(
+        "Wages is already linked to that Xero account. Merge Rent into Wages instead.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Merge into Wages" }));
+    expect(router.push).toHaveBeenLastCalledWith(
+      expect.stringMatching(/\/settings\/general\?merge=a-rent&into=a-wages$/),
+    );
   });
 });
