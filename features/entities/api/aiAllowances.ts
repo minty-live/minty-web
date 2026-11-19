@@ -50,6 +50,7 @@ export type AiGrant = {
 };
 
 export type AiRead = {
+  id: string;
   created_at: string;
   module: "petty_cash" | "payment_request";
   status: "pending" | "ok" | "failed";
@@ -69,7 +70,9 @@ export type AiCompany = {
   };
   default_grant: { tokens: number | null; reads: number | null; days: number | null } | null;
   grants: AiGrant[];
+  /** The 20 newest; `reads_more` when older ones are left ("Show more reads"). */
   reads: AiRead[];
+  reads_more: boolean;
   /** After a grant is given. */
   message?: string;
 };
@@ -86,6 +89,18 @@ export function fetchAiCompanies(ids: string[], signal?: AbortSignal): Promise<A
 
 export function fetchAiCompany(id: string, signal?: AbortSignal): Promise<AiCompany> {
   return mintyFetch<AiCompany>(`/api/me/ai/companies/${encodeURIComponent(id)}`, { signal });
+}
+
+/** The next 20 reads older than `before` (a read of this company), and whether more are left. */
+export function fetchAiReads(
+  id: string,
+  before: string,
+  signal?: AbortSignal,
+): Promise<{ reads: AiRead[]; more: boolean }> {
+  return mintyFetch<{ reads: AiRead[]; more: boolean }>(
+    `/api/me/ai/companies/${encodeURIComponent(id)}/reads`,
+    { query: { before }, signal },
+  );
 }
 
 /** Give the company a grant; the API answers the company again, with `message`. */

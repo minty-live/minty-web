@@ -23,6 +23,7 @@ import { ApiError, HOUSE_FALLBACK } from "@/lib/apiClient";
 
 import {
   fetchAiCompany,
+  fetchAiReads,
   giveAiGrant,
   type AiCompany,
   type GrantInput,
@@ -57,6 +58,8 @@ const FIELD_ID: Record<GrantField, string> = {
   note: "ai-grant-note",
 };
 const ORDER: GrantField[] = ["tokens", "reads", "days", "note"];
+/** Last reads: the newest five, then "Show more reads" (owner, 2026-11-19). */
+const FIRST_READS = 5;
 
 export function AiGrantDialog({
   id,
@@ -76,6 +79,13 @@ export function AiGrantDialog({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  // "Show more reads" (owner, 2026-11-19): the 5 newest first; a press shows the rest already
+  // loaded (the API sends 20), then each press asks for 20 older ones
+  const [readsShown, setReadsShown] = useState(FIRST_READS);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [focusRead, setFocusRead] = useState<string | null>(null);
+  const readsList = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -89,6 +99,38 @@ export function AiGrantDialog({
       });
     return () => abort.abort();
   }, [id]);
+
+  // the reads Show more brought: focus the first one, so the place isn't lost when the button goes
+  useEffect(() => {
+    if (!focusRead) return;
+    readsList.current?.querySelector<HTMLElement>(`[data-read="${focusRead}"]`)?.focus();
+  }, [focusRead, company]);
+
+  async function showMoreReads() {
+    if (!company || moreBusy) return;
+    if (readsShown < company.reads.length) {
+      // the rest of what is already here first - nothing asked
+      setFocusRead(company.reads[readsShown].id);
+      setReadsShown(company.reads.length);
+      return;
+    }
+    const last = company.reads[company.reads.length - 1];
+    if (!last) return;
+    setMoreBusy(true);
+    setMoreError(null);
+    try {
+      const page = await fetchAiReads(company.company.id, last.id);
+      setCompany((now) =>
+        now ? { ...now, reads: [...now.reads, ...page.reads], reads_more: page.more } : now,
+      );
+      setReadsShown((n) => n + page.reads.length);
+      setFocusRead(page.reads[0]?.id ?? null);
+    } catch (e) {
+      setMoreError(message(e));
+    } finally {
+      setMoreBusy(false);
+    }
+  }
 
   // as typed: each field's own problem; after a refused submit, also what the submit said
   const live = fieldProblems(input);
@@ -289,15 +331,37 @@ export function AiGrantDialog({
           {company.reads.length === 0 ? (
             <p className="mt-1 text-sm text-text-secondary">No reads yet.</p>
           ) : (
-            <ul aria-label="Last reads" className="mt-2 flex flex-col gap-1">
-              {company.reads.map((r, i) => (
-                <li key={`${r.created_at}-${i}`} className="text-sm text-text-primary">
+            <ul ref={readsList} aria-label="Last reads" className="mt-2 flex flex-col gap-1">
+              {company.reads.slice(0, readsShown).map((r) => (
+                <li
+                  key={r.id}
+                  data-read={r.id}
+                  tabIndex={-1}
+                  className="text-sm text-text-primary outline-none"
+                >
                   {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} ·{" "}
                   {count(r.tokens)} tokens
                 </li>
               ))}
             </ul>
           )}
+          {moreError ? (
+            <p role="alert" className="mt-2 text-sm text-status-danger-ink">
+              {moreError}
+            </p>
+          ) : null}
+          {company.reads_more || readsShown < company.reads.length ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                className={SETTINGS_OUTLINE}
+                onClick={() => void showMoreReads()}
+                disabled={moreBusy}
+              >
+                {moreBusy ? "Loading…" : "Show more reads"}
+              </button>
+            </div>
+          ) : null}
         </>
       ) : null}
     </ModalFrame>

@@ -83,7 +83,10 @@ keeps its archived row.
 **Manage** opens the company (`components/AiGrantDialog.tsx`, the app's form dialog: full width on
 a phone, 640px from tablet): what is left, its grants newest first (Default grant / Grant, an Open /
 Used up / Ended pill, used of given, who gave it and when, its end date and note), the **Give a
-grant** form and its last 20 reads. The form - Tokens, Reads (optional), Ends after days
+grant** form and its reads, the 5 newest first, with **Show more reads** (owner, 2026-11-19): a
+press shows the rest of the 20 the company's answer brought, then each press asks `GET
+/api/me/ai/companies/<id>/reads?before=` for 20 older ones, until none are left - focus moves to
+the first read it showed. The form - Tokens, Reads (optional), Ends after days
 (optional), Note (optional) - checks each field as it is typed (tokens 1-10,000,000, reads
 1-10,000, days 1-3,650, note 255; commas allowed); "The grant gives nothing yet. Add tokens, reads
 or both to continue." only on a refused submit; one problem moves focus to its field, two or more

@@ -66,6 +66,7 @@ const COMPANY: AiCompany = {
   ],
   reads: [
     {
+      id: "r1",
       created_at: "2026-11-18T08:00:00Z",
       module: "payment_request",
       status: "ok",
@@ -74,6 +75,23 @@ const COMPANY: AiCompany = {
       tokens: 5200,
     },
   ],
+  reads_more: false,
+};
+
+/** Older reads, for "Show more reads" (owner, 2026-11-19). */
+const OLDER = {
+  reads: [
+    {
+      id: "r0",
+      created_at: "2026-11-17T08:00:00Z",
+      module: "petty_cash",
+      status: "failed",
+      model: null,
+      attempts: "gemini-3.8-flash:timeout",
+      tokens: 0,
+    },
+  ],
+  more: false,
 };
 
 const GIVEN: AiCompany = {
@@ -100,8 +118,8 @@ const GIVEN: AiCompany = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-function serve(list: EntityListAnswer, give?: () => Response) {
-  const asked = { ids: [] as string[], posts: [] as unknown[] };
+function serve(list: EntityListAnswer, give?: () => Response, company: AiCompany = COMPANY) {
+  const asked = { ids: [] as string[], posts: [] as unknown[], before: [] as string[] };
   fetchMock.mockImplementation(async (input, init) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith("/api/me/entities")) return json(list);
@@ -127,7 +145,11 @@ function serve(list: EntityListAnswer, give?: () => Response) {
       );
       return json({ companies, page: 1, page_size: companies.length, total: companies.length });
     }
-    if (url.pathname.includes("/api/me/ai/companies/")) return json(COMPANY);
+    if (url.pathname.endsWith("/reads")) {
+      asked.before.push(url.searchParams.get("before") ?? "");
+      return json(OLDER);
+    }
+    if (url.pathname.includes("/api/me/ai/companies/")) return json(company);
     return json({});
   });
   return asked;
@@ -234,6 +256,65 @@ describe("AI allowances on Select Company", () => {
     expect(
       dialog().getByText("18 Nov 2026 · Payment Request · Read · 5,200 tokens"),
     ).toBeInTheDocument();
+  });
+
+  it("Show more reads adds the older reads under the last one, and goes when there are no more", async () => {
+    const asked = serve(SUPERUSER, undefined, { ...COMPANY, reads_more: true });
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+    const more = await dialog().findByRole("button", { name: "Show more reads" });
+    await userEvent.click(more);
+
+    const older = await dialog().findByText("17 Nov 2026 · Petty Cash · Failed · 0 tokens");
+    expect(asked.before).toEqual(["r1"]);
+    const reads = within(dialog().getByRole("list", { name: "Last reads" }));
+    expect(reads.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "18 Nov 2026 · Payment Request · Read · 5,200 tokens",
+      "17 Nov 2026 · Petty Cash · Failed · 0 tokens",
+    ]);
+    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
+    // the button went: focus lands on the first read it brought
+    expect(older.closest("li")).toHaveFocus();
+  });
+
+  it("no older reads: no Show more", async () => {
+    serve(SUPERUSER);
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+    await dialog().findByText("18 Nov 2026 · Payment Request · Read · 5,200 tokens");
+    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
+  });
+
+  it("shows the 5 newest reads; Show more reads shows the rest it has before asking for older ones", async () => {
+    // owner, 2026-11-19: five rows, then Show more for the rest
+    const seven = Array.from({ length: 7 }, (_, i) => ({
+      ...COMPANY.reads[0],
+      id: `r${7 - i}`,
+      created_at: `2026-11-${17 - i}T08:00:00Z`,
+      tokens: 1000 + i,
+    }));
+    const asked = serve(SUPERUSER, undefined, { ...COMPANY, reads: seven, reads_more: false });
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+    const list = await dialog().findByRole("list", { name: "Last reads" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("1,000 tokens"); // newest first
+
+    await userEvent.click(dialog().getByRole("button", { name: "Show more reads" }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
+    expect(asked.before).toEqual([]); // the rest was already here: nothing asked
+    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
+    // focus lands on the first read it showed
+    expect(within(list).getAllByRole("listitem")[5]).toHaveFocus();
   });
 
   it("checks each field as it is typed, and only a submit says the grant gives nothing", async () => {

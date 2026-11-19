@@ -44,6 +44,7 @@ const COMPANY = {
   ],
   reads: [
     {
+      id: "r1",
       created_at: "2026-11-18T08:00:00Z",
       module: "petty_cash",
       status: "ok",
@@ -52,6 +53,7 @@ const COMPANY = {
       tokens: 5200,
     },
   ],
+  reads_more: true,
 };
 
 async function stub(page: Page): Promise<unknown[]> {
@@ -92,6 +94,23 @@ async function stub(page: Page): Promise<unknown[]> {
         ),
       );
     }
+    if (url.pathname.endsWith("/reads"))
+      return route.fulfill(
+        json({
+          reads: [
+            {
+              id: "r0",
+              created_at: "2026-11-17T08:00:00Z",
+              module: "payment_request",
+              status: "failed",
+              model: null,
+              attempts: "gemini-3.5-flash-lite:timeout",
+              tokens: 0,
+            },
+          ],
+          more: false,
+        }),
+      );
     if (url.pathname.endsWith("/companies")) {
       const ids = (url.searchParams.get("ids") ?? "").split(",");
       const companies = ids.map((id) => ({
@@ -157,6 +176,15 @@ test.describe("AI allowances on Select Company", () => {
     await expect(
       dialog.getByText("Used up: its read buttons are off until it is given another grant."),
     ).toBeVisible();
+    // owner, 2026-11-19: older reads come on "Show more reads", not a fixed 20
+    const more = dialog.getByRole("button", { name: "Show more reads" });
+    expect((await more.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await more.click();
+    await expect(
+      dialog.getByText("17 Nov 2026 · Payment Request · Failed · 0 tokens"),
+    ).toBeVisible();
+    await expect(more).toHaveCount(0);
+    expect(await noSideScroll(page)).toBe(true);
     const tokens = dialog.getByRole("textbox", { name: "Tokens" });
     await tokens.fill("lots");
     await expect(tokens).toHaveAccessibleDescription(
