@@ -13,7 +13,7 @@
  * e2e job compares the two running services; this is the earlier, cheaper half of that check.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PRIVACY, TERMS } from "@/lib/legal/document";
 import {
@@ -66,6 +66,33 @@ describe("the registry", () => {
     expect(verifyPinnedHashes()).toEqual([
       "privacy/beta-1: UNPINNED (draft) - pin it before anyone agrees to it in production",
     ]);
+  });
+
+  describe("the draft banner follows APP_ENV alone (owner, 2026-11-20)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    });
+
+    async function privacyDraftWith(appEnv: string | undefined, legacySwitch: string) {
+      vi.resetModules();
+      vi.stubEnv("APP_ENV", appEnv);
+      vi.stubEnv("LEGAL_SHOW_DRAFT_BANNER", legacySwitch); // the old switch: ignored
+      const registry = await import("@/lib/legal/registry.server");
+      return registry.getDocument(PRIVACY, "beta-1")!;
+    }
+
+    it.each([
+      ["development", "0", true],
+      [" Development ", "0", true],
+      ["production", "1", false],
+      ["", "1", false],
+      [undefined, "1", false],
+    ])("APP_ENV=%j shows the unpinned draft's banner: %s", async (appEnv, legacy, shown) => {
+      const draft = await privacyDraftWith(appEnv, legacy);
+      expect(draft.is_pinned).toBe(false);
+      expect(draft.show_draft_notice).toBe(shown);
+    });
   });
 
   it("keeps terms/beta-1 pinned, final and byte-for-byte what Minty pinned", () => {

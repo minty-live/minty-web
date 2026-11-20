@@ -58,15 +58,13 @@ export const CURRENT_TERMS_VERSION = process.env.CURRENT_TERMS_VERSION?.trim() |
 export const CURRENT_PRIVACY_VERSION = process.env.CURRENT_PRIVACY_VERSION?.trim() || "beta-1";
 
 /**
- * Whether an unpinned (draft) document shows its "this wording is not final" banner.
- *
- * DEFAULTS TO ON, and should stay on anywhere real people are asked to agree. The opt-out exists
- * so a draft can be hidden for demos and screenshots without PINNING its hash, which would
- * assert the wording is final.
+ * Whether an unpinned (draft) document shows its "this wording is not final" banner: in development
+ * only. `APP_ENV=development` is the one switch for every development-only feature (owner,
+ * 2026-11-20; it replaced `LEGAL_SHOW_DRAFT_BANNER`) - Vercel's development builds and a local
+ * `.env.local` set it; production, and anything that does not say development, hides the banner.
+ * accounts-api's acceptance panel follows the same rule (`hub/registry.py`).
  */
-export const SHOW_DRAFT_BANNER = !["0", "false", "no", "off"].includes(
-  (process.env.LEGAL_SHOW_DRAFT_BANNER ?? "1").trim().toLowerCase(),
-);
+export const SHOW_DRAFT_BANNER = (process.env.APP_ENV ?? "").trim().toLowerCase() === "development";
 
 /**
  * Publication date per version, exactly as printed in the document header (every surface renders
