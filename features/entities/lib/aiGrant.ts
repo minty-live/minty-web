@@ -93,9 +93,30 @@ export function grantUse(grant: AiGrant): string {
   return parts.join(" · ");
 }
 
-/** The grant's status pill: Open, Used up or Ended (expired). */
+/** The grant's status pill: Open, Used up or Ended (expired, or ended by support). */
 export function grantStatus(grant: AiGrant, now = new Date()): "Open" | "Used up" | "Ended" {
+  if (grant.ended_at) return "Ended";
   if (grant.open) return "Open";
   if (grant.expires_at && new Date(grant.expires_at) <= now) return "Ended";
   return "Used up";
+}
+
+// ---- ending a grant (owner, 2026-11-20) ----------------------------------------------------------
+
+export const END_GRANT = "End grant";
+export const END_GRANT_LABEL = "End this grant";
+export const END_TITLE = "End this grant?";
+export const END_TEXT = "Its unused tokens and reads can't be used anymore. This can't be undone.";
+export const GRANT_ENDED = "Grant ended.";
+
+/** Still running (open or used up): not ended by support and not past its end date. */
+export function canEnd(grant: AiGrant, now = new Date()): boolean {
+  if (grant.ended_at) return false;
+  return !(grant.expires_at && new Date(grant.expires_at) <= now);
+}
+
+/** "Ended 20 Nov 2026 by boss@test.com" - only for a grant support ended. */
+export function endedLine(grant: AiGrant): string | null {
+  if (!grant.ended_at) return null;
+  return `Ended ${day(grant.ended_at)}${grant.ended_by ? ` by ${grant.ended_by}` : ""}`;
 }

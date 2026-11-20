@@ -86,7 +86,7 @@ Used up / Ended pill, used of given, who gave it and when, its end date and note
 grant** form and its reads, the 5 newest first, with **Show more reads** (owner, 2026-11-19): a
 press shows the rest of the 20 the company's answer brought, then each press asks `GET
 /api/me/ai/companies/<id>/reads?before=` for 20 older ones, until none are left - focus moves to
-the first read it showed. The form - Tokens, Reads (optional), Ends after days
+the first read it showed. A grant still running (Open or Used up) has **End grant** (owner, 2026-11-20): it asks in `ConfirmDialog` - "End this grant?" / "Its unused tokens and reads can't be used anymore. This can't be undone." / End grant (red) or Go back, the company dialog holding still meanwhile - and `POST /api/me/ai/companies/<id>/grants/<grant id>/end` ends it: the dialog and the row update, a toast says "Grant ended.", and the grant reads Ended with "Ended 20 Nov 2026 by <email>" and no button (`canEnd`, `endedLine` in `lib/aiGrant.ts`). The company does not get the default grant again. The form - Tokens, Reads (optional), Ends after days
 (optional), Note (optional) - checks each field as it is typed (tokens 1-10,000,000, reads
 1-10,000, days 1-3,650, note 255; commas allowed); "The grant gives nothing yet. Add tokens, reads
 or both to continue." only on a refused submit; one problem moves focus to its field, two or more

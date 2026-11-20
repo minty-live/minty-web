@@ -5,34 +5,50 @@
  * "Archive companies", no page of its own): what is left, its grants newest first, the "Give a
  * grant" form and its last reads. Superusers only (minty-accounts-api's `hub/ai_grants.py`). The
  * app's form dialog (`ModalFrame`): full width on a phone, 640px from tablet. A given grant shows at
- * once here and, through `onChanged`, on the company's row.
+ * once here and, through `onChanged`, on the company's row. A running grant can be ended (owner,
+ * 2026-11-20): "End grant" asks first in minty-web's `ConfirmDialog` (the question-modal rule), and
+ * the company dialog stays still while it asks (its Escape and backdrop wait).
  */
 
 import { ErrorSummary } from "@minty/shared/ui";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ModalFrame } from "@/components/ui/ModalFrame";
 import {
   SETTINGS_FIELD_ERROR,
   SETTINGS_LABEL,
   settingsInputClass,
 } from "@/components/ui/settingsFields";
-import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
+import {
+  SETTINGS_DANGER,
+  SETTINGS_OUTLINE,
+  SETTINGS_PRIMARY,
+} from "@/components/ui/settingsButtons";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError, HOUSE_FALLBACK } from "@/lib/apiClient";
 
 import {
+  endAiGrant,
   fetchAiCompany,
   fetchAiReads,
   giveAiGrant,
   type AiCompany,
+  type AiGrant,
   type GrantInput,
 } from "@/features/entities/api/aiAllowances";
 import {
+  canEnd,
   count,
   day,
   EMPTY_GRANT,
+  END_GRANT,
+  END_GRANT_LABEL,
+  END_TEXT,
+  END_TITLE,
+  endedLine,
   fieldProblems,
+  GRANT_ENDED,
   grantStatus,
   grantUse,
   submitProblems,
@@ -86,6 +102,10 @@ export function AiGrantDialog({
   const [moreError, setMoreError] = useState<string | null>(null);
   const [focusRead, setFocusRead] = useState<string | null>(null);
   const readsList = useRef<HTMLUListElement>(null);
+  // "End grant" (owner, 2026-11-20): the grant being asked about, and that question's progress
+  const [ending, setEnding] = useState<AiGrant | null>(null);
+  const [endBusy, setEndBusy] = useState(false);
+  const [endError, setEndError] = useState<string | null>(null);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -147,6 +167,23 @@ export function AiGrantDialog({
     });
   }
 
+  async function endGrant() {
+    if (!company || !ending || endBusy) return;
+    setEndBusy(true);
+    setEndError(null);
+    try {
+      const answer = await endAiGrant(company.company.id, ending.id);
+      setCompany(answer);
+      onChanged(answer);
+      setEnding(null);
+      showToast(answer.message ?? GRANT_ENDED, "success");
+    } catch (err) {
+      setEndError(message(err));
+    } finally {
+      setEndBusy(false);
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy || !company) return;
@@ -188,183 +225,225 @@ export function AiGrantDialog({
   }));
 
   return (
-    <ModalFrame
-      labelledBy="ai-company-title"
-      busy={busy}
-      onDismiss={onClose}
-      dismissLabel="Close"
-      className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-[16px] bg-white p-4 shadow-xl sm:p-6 min-[640px]:max-w-[640px]"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h2
-          id="ai-company-title"
-          ref={heading}
-          tabIndex={-1}
-          className="min-w-0 break-words text-lg font-semibold text-text-primary outline-none"
-        >
-          {company?.company.name ?? "AI allowance"}
-        </h2>
-        <button type="button" className={SETTINGS_OUTLINE} onClick={onClose} disabled={busy}>
-          Close
-        </button>
-      </div>
+    <>
+      <ModalFrame
+        labelledBy="ai-company-title"
+        busy={busy || ending !== null}
+        onDismiss={onClose}
+        dismissLabel="Close"
+        className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-[16px] bg-white p-4 shadow-xl sm:p-6 min-[640px]:max-w-[640px]"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2
+            id="ai-company-title"
+            ref={heading}
+            tabIndex={-1}
+            className="min-w-0 break-words text-lg font-semibold text-text-primary outline-none"
+          >
+            {company?.company.name ?? "AI allowance"}
+          </h2>
+          <button type="button" className={SETTINGS_OUTLINE} onClick={onClose} disabled={busy}>
+            Close
+          </button>
+        </div>
 
-      {!company && !loadError ? (
-        <p role="status" className="mt-4 text-sm text-text-secondary">
-          Loading the company…
-        </p>
-      ) : null}
-      {loadError ? (
-        <p role="alert" className="mt-4 text-sm text-status-danger-ink">
-          {loadError}
-        </p>
-      ) : null}
-
-      {company ? (
-        <>
-          <p className="mt-2 text-sm text-text-primary">
-            {company.allowance.blocked
-              ? company.allowance.resumes_at
-                ? `Paused until ${day(company.allowance.resumes_at)} by a limit over every company.`
-                : "Used up: its read buttons are off until it is given another grant."
-              : `${company.allowance.percent_left ?? 0}% of its AI allowance left.`}
+        {!company && !loadError ? (
+          <p role="status" className="mt-4 text-sm text-text-secondary">
+            Loading the company…
           </p>
+        ) : null}
+        {loadError ? (
+          <p role="alert" className="mt-4 text-sm text-status-danger-ink">
+            {loadError}
+          </p>
+        ) : null}
 
-          <h3 className="mt-5 text-sm font-semibold text-text-primary">Grants</h3>
-          {company.grants.length === 0 ? (
-            <p className="mt-1 text-sm text-text-secondary">
-              None yet.{" "}
-              {company.default_grant?.tokens
-                ? `It gets ${count(company.default_grant.tokens)} tokens on its first read.`
-                : "It gets nothing automatically: give it a grant to let it read."}
+        {company ? (
+          <>
+            <p className="mt-2 text-sm text-text-primary">
+              {company.allowance.blocked
+                ? company.allowance.resumes_at
+                  ? `Paused until ${day(company.allowance.resumes_at)} by a limit over every company.`
+                  : "Used up: its read buttons are off until it is given another grant."
+                : `${company.allowance.percent_left ?? 0}% of its AI allowance left.`}
             </p>
-          ) : (
-            <ul aria-label="Grants" className="mt-2 flex flex-col gap-2">
-              {company.grants.map((grant) => {
-                const state = grantStatus(grant);
-                return (
-                  <li key={grant.id} className="rounded-[12px] border border-border-default p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-text-primary">
-                        {grant.source === "default" ? "Default grant" : "Grant"}
-                      </span>
-                      <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-text-primary">{grantUse(grant)}</p>
-                    <p className="text-sm text-text-secondary">
-                      Given {day(grant.created_at)}
-                      {grant.granted_by ? ` by ${grant.granted_by}` : ""}
-                      {grant.expires_at ? ` · ends ${day(grant.expires_at)}` : ""}
-                    </p>
-                    {grant.note ? (
-                      <p className="break-words text-sm text-text-secondary">{grant.note}</p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
 
-          <form noValidate onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
-            <h3 className="text-sm font-semibold text-text-primary">Give a grant</h3>
-            <p className="-mt-3 text-sm text-text-secondary">
-              It adds to what the company has left. A receipt takes about 3,500–6,000 tokens.
-            </p>
-            {summary.length > 1 ? (
-              <ErrorSummary items={summary} attempt={attempt} look="classic" />
-            ) : null}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <GrantNumber
-                field="tokens"
-                label="Tokens"
-                value={input.tokens}
-                problem={shown.tokens}
-                onChange={change}
-              />
-              <GrantNumber
-                field="reads"
-                label="Reads (optional)"
-                value={input.reads}
-                problem={shown.reads}
-                onChange={change}
-              />
-              <GrantNumber
-                field="days"
-                label="Ends after days (optional)"
-                value={input.days}
-                problem={shown.days}
-                onChange={change}
-              />
-            </div>
-            <div>
-              <label htmlFor={FIELD_ID.note} className={SETTINGS_LABEL}>
-                Note (optional)
-              </label>
-              <input
-                id={FIELD_ID.note}
-                type="text"
-                value={input.note}
-                onChange={(e) => change("note", e.target.value)}
-                aria-invalid={shown.note ? true : undefined}
-                aria-describedby={shown.note ? `${FIELD_ID.note}-msg` : undefined}
-                className={settingsInputClass(!!shown.note)}
-              />
-              {shown.note ? (
-                <p id={`${FIELD_ID.note}-msg`} className={SETTINGS_FIELD_ERROR}>
-                  {shown.note}
+            <h3 className="mt-5 text-sm font-semibold text-text-primary">Grants</h3>
+            {company.grants.length === 0 ? (
+              <p className="mt-1 text-sm text-text-secondary">
+                None yet.{" "}
+                {company.default_grant?.tokens
+                  ? `It gets ${count(company.default_grant.tokens)} tokens on its first read.`
+                  : "It gets nothing automatically: give it a grant to let it read."}
+              </p>
+            ) : (
+              <ul aria-label="Grants" className="mt-2 flex flex-col gap-2">
+                {company.grants.map((grant) => {
+                  const state = grantStatus(grant);
+                  return (
+                    <li key={grant.id} className="rounded-[12px] border border-border-default p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-text-primary">
+                          {grant.source === "default" ? "Default grant" : "Grant"}
+                        </span>
+                        <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-text-primary">{grantUse(grant)}</p>
+                      <p className="text-sm text-text-secondary">
+                        Given {day(grant.created_at)}
+                        {grant.granted_by ? ` by ${grant.granted_by}` : ""}
+                        {grant.expires_at && !grant.ended_at
+                          ? ` · ends ${day(grant.expires_at)}`
+                          : ""}
+                      </p>
+                      {endedLine(grant) ? (
+                        <p className="break-words text-sm text-text-secondary">
+                          {endedLine(grant)}
+                        </p>
+                      ) : null}
+                      {grant.note ? (
+                        <p className="break-words text-sm text-text-secondary">{grant.note}</p>
+                      ) : null}
+                      {canEnd(grant) ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className={SETTINGS_DANGER}
+                            aria-label={END_GRANT_LABEL}
+                            onClick={() => {
+                              setEndError(null);
+                              setEnding(grant);
+                            }}
+                          >
+                            {END_GRANT}
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <form noValidate onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
+              <h3 className="text-sm font-semibold text-text-primary">Give a grant</h3>
+              <p className="-mt-3 text-sm text-text-secondary">
+                It adds to what the company has left. A receipt takes about 3,500–6,000 tokens.
+              </p>
+              {summary.length > 1 ? (
+                <ErrorSummary items={summary} attempt={attempt} look="classic" />
+              ) : null}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <GrantNumber
+                  field="tokens"
+                  label="Tokens"
+                  value={input.tokens}
+                  problem={shown.tokens}
+                  onChange={change}
+                />
+                <GrantNumber
+                  field="reads"
+                  label="Reads (optional)"
+                  value={input.reads}
+                  problem={shown.reads}
+                  onChange={change}
+                />
+                <GrantNumber
+                  field="days"
+                  label="Ends after days (optional)"
+                  value={input.days}
+                  problem={shown.days}
+                  onChange={change}
+                />
+              </div>
+              <div>
+                <label htmlFor={FIELD_ID.note} className={SETTINGS_LABEL}>
+                  Note (optional)
+                </label>
+                <input
+                  id={FIELD_ID.note}
+                  type="text"
+                  value={input.note}
+                  onChange={(e) => change("note", e.target.value)}
+                  aria-invalid={shown.note ? true : undefined}
+                  aria-describedby={shown.note ? `${FIELD_ID.note}-msg` : undefined}
+                  className={settingsInputClass(!!shown.note)}
+                />
+                {shown.note ? (
+                  <p id={`${FIELD_ID.note}-msg`} className={SETTINGS_FIELD_ERROR}>
+                    {shown.note}
+                  </p>
+                ) : null}
+              </div>
+              {formError ? (
+                <p role="alert" className="text-sm text-status-danger-ink">
+                  {formError}
                 </p>
               ) : null}
-            </div>
-            {formError ? (
-              <p role="alert" className="text-sm text-status-danger-ink">
-                {formError}
+              <div className="flex flex-wrap justify-end gap-3">
+                <button type="submit" className={SETTINGS_PRIMARY} disabled={busy}>
+                  {busy ? "Giving…" : "Give grant"}
+                </button>
+              </div>
+            </form>
+
+            <h3 className="mt-6 text-sm font-semibold text-text-primary">Last reads</h3>
+            {company.reads.length === 0 ? (
+              <p className="mt-1 text-sm text-text-secondary">No reads yet.</p>
+            ) : (
+              <ul ref={readsList} aria-label="Last reads" className="mt-2 flex flex-col gap-1">
+                {company.reads.slice(0, readsShown).map((r) => (
+                  <li
+                    key={r.id}
+                    data-read={r.id}
+                    tabIndex={-1}
+                    className="text-sm text-text-primary outline-none"
+                  >
+                    {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} ·{" "}
+                    {count(r.tokens)} tokens
+                  </li>
+                ))}
+              </ul>
+            )}
+            {moreError ? (
+              <p role="alert" className="mt-2 text-sm text-status-danger-ink">
+                {moreError}
               </p>
             ) : null}
-            <div className="flex flex-wrap justify-end gap-3">
-              <button type="submit" className={SETTINGS_PRIMARY} disabled={busy}>
-                {busy ? "Giving…" : "Give grant"}
-              </button>
-            </div>
-          </form>
-
-          <h3 className="mt-6 text-sm font-semibold text-text-primary">Last reads</h3>
-          {company.reads.length === 0 ? (
-            <p className="mt-1 text-sm text-text-secondary">No reads yet.</p>
-          ) : (
-            <ul ref={readsList} aria-label="Last reads" className="mt-2 flex flex-col gap-1">
-              {company.reads.slice(0, readsShown).map((r) => (
-                <li
-                  key={r.id}
-                  data-read={r.id}
-                  tabIndex={-1}
-                  className="text-sm text-text-primary outline-none"
+            {company.reads_more || readsShown < company.reads.length ? (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  className={SETTINGS_OUTLINE}
+                  onClick={() => void showMoreReads()}
+                  disabled={moreBusy}
                 >
-                  {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} ·{" "}
-                  {count(r.tokens)} tokens
-                </li>
-              ))}
-            </ul>
-          )}
-          {moreError ? (
-            <p role="alert" className="mt-2 text-sm text-status-danger-ink">
-              {moreError}
+                  {moreBusy ? "Loading…" : "Show more reads"}
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </ModalFrame>
+      {ending ? (
+        <ConfirmDialog
+          title={END_TITLE}
+          image="sad"
+          busy={endBusy}
+          confirmLabel={END_GRANT}
+          confirmTone="red"
+          onConfirm={() => void endGrant()}
+          onBack={() => setEnding(null)}
+        >
+          <p>{END_TEXT}</p>
+          {endError ? (
+            <p role="alert" className="text-status-danger-ink">
+              {endError}
             </p>
           ) : null}
-          {company.reads_more || readsShown < company.reads.length ? (
-            <div className="mt-3">
-              <button
-                type="button"
-                className={SETTINGS_OUTLINE}
-                onClick={() => void showMoreReads()}
-                disabled={moreBusy}
-              >
-                {moreBusy ? "Loading…" : "Show more reads"}
-              </button>
-            </div>
-          ) : null}
-        </>
+        </ConfirmDialog>
       ) : null}
-    </ModalFrame>
+    </>
   );
 }
 

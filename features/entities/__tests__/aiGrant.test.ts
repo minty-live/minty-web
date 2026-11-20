@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AiCompanyRow, AiGrant } from "@/features/entities/api/aiAllowances";
 import {
+  canEnd,
   EMPTY_GRANT,
+  endedLine,
   FIELD_MESSAGE,
   fieldProblems,
   grantStatus,
@@ -90,5 +92,23 @@ describe("the mode's words", () => {
     expect(grantStatus(grant())).toBe("Open");
     expect(grantStatus(grant({ open: false }))).toBe("Used up");
     expect(grantStatus(grant({ open: false, expires_at: "2026-01-01T00:00:00Z" }))).toBe("Ended");
+  });
+});
+
+describe("ending a grant (owner, 2026-11-20)", () => {
+  const now = new Date("2026-11-20T10:00:00Z");
+
+  it("an open or used-up grant can be ended; an ended or expired one can't", () => {
+    expect(canEnd(grant(), now)).toBe(true);
+    expect(canEnd(grant({ open: false }), now)).toBe(true); // used up
+    expect(canEnd(grant({ ended_at: "2026-11-20T09:00:00Z", ended_by: "x@y.z" }), now)).toBe(false);
+    expect(canEnd(grant({ open: false, expires_at: "2026-11-19T00:00:00Z" }), now)).toBe(false);
+  });
+
+  it("says when and who", () => {
+    expect(endedLine(grant({ ended_at: "2026-11-20T09:00:00Z", ended_by: "boss@test.com" }))).toBe(
+      "Ended 20 Nov 2026 by boss@test.com",
+    );
+    expect(endedLine(grant())).toBeNull();
   });
 });

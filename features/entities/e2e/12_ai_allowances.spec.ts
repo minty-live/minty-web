@@ -68,6 +68,22 @@ async function stub(page: Page): Promise<unknown[]> {
   );
   await page.route(`${ACCOUNTS_API_URL}/api/me/ai/companies**`, (route) => {
     const url = new URL(route.request().url());
+    if (route.request().method() === "POST" && url.pathname.endsWith("/end"))
+      // owner, 2026-11-20: support ends the default grant
+      return route.fulfill(
+        json({
+          ...COMPANY,
+          grants: [
+            {
+              ...COMPANY.grants[0],
+              expires_at: "2026-11-20T09:00:00Z",
+              ended_at: "2026-11-20T09:00:00Z",
+              ended_by: "boss@dailyminty.com",
+            },
+          ],
+          message: "Grant ended.",
+        }),
+      );
     if (route.request().method() === "POST") {
       given.push(route.request().postDataJSON());
       const grant = {
@@ -221,4 +237,34 @@ test.describe("AI allowances on Select Company", () => {
     if (process.env.E2E_SHOTS)
       await page.screenshot({ path: `${process.env.E2E_SHOTS}/archive-mode-360.png` });
   });
+
+  // owner, 2026-11-20: support can end a running grant; it asks first and then says when and who
+  for (const width of [360, 768, 1440]) {
+    test(`ending a grant asks first, then the grant shows when and who (${width}px)`, async ({
+      page,
+    }) => {
+      await stub(page);
+      await page.setViewportSize({ width, height: 800 });
+      await handoff(page, creds(), "/entities");
+      const main = page.getByRole("main");
+      await main.getByRole("button", { name: "AI allowances" }).click();
+      await main.getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }).click();
+
+      const end = page.getByRole("button", { name: "End this grant" });
+      const box = (await end.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await end.click();
+      await expect(page.getByText("End this grant?")).toBeVisible();
+      expect(await noSideScroll(page)).toBe(true);
+      if (process.env.E2E_SHOTS)
+        await page.screenshot({ path: `${process.env.E2E_SHOTS}/ai-end-ask-${width}.png` });
+      await page.getByRole("button", { name: "End grant", exact: true }).click();
+
+      await expect(page.getByText("Ended 20 Nov 2026 by boss@dailyminty.com")).toBeVisible();
+      await expect(page.getByRole("button", { name: "End this grant" })).toHaveCount(0);
+      expect(await noSideScroll(page)).toBe(true);
+      if (process.env.E2E_SHOTS)
+        await page.screenshot({ path: `${process.env.E2E_SHOTS}/ai-end-done-${width}.png` });
+    });
+  }
 });

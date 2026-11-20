@@ -94,6 +94,20 @@ const OLDER = {
   more: false,
 };
 
+/** After "End grant" (owner, 2026-11-20): the default grant ended by support. */
+const ENDED: AiCompany = {
+  ...COMPANY,
+  grants: [
+    {
+      ...COMPANY.grants[0],
+      expires_at: "2026-11-20T09:00:00Z",
+      ended_at: "2026-11-20T09:00:00Z",
+      ended_by: "boss@test.com",
+    },
+  ],
+  message: "Grant ended.",
+};
+
 const GIVEN: AiCompany = {
   ...COMPANY,
   allowance: { ...COMPANY.allowance, percent_left: 100, blocked: false },
@@ -119,10 +133,19 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 function serve(list: EntityListAnswer, give?: () => Response, company: AiCompany = COMPANY) {
-  const asked = { ids: [] as string[], posts: [] as unknown[], before: [] as string[] };
+  const asked = {
+    ids: [] as string[],
+    posts: [] as unknown[],
+    before: [] as string[],
+    ends: [] as string[],
+  };
   fetchMock.mockImplementation(async (input, init) => {
     const url = new URL(String(input));
     if (url.pathname.endsWith("/api/me/entities")) return json(list);
+    if (url.pathname.endsWith("/end")) {
+      asked.ends.push(url.pathname);
+      return json(ENDED);
+    }
     if (url.pathname.endsWith("/grants")) {
       asked.posts.push(JSON.parse(String(init?.body)));
       return give ? give() : json(GIVEN, 201);
@@ -395,5 +418,46 @@ describe("AI allowances on Select Company", () => {
     await userEvent.click(dialog().getByRole("button", { name: "Give grant" }));
 
     expect(await dialog().findByText(/Enter the days as a whole number/)).toBeInTheDocument();
+  });
+});
+
+describe("ending a grant (owner, 2026-11-20)", () => {
+  async function openFive() {
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+    return within(await dialog().findByRole("list", { name: "Grants" }));
+  }
+
+  it("asks first; Go back sends nothing", async () => {
+    const asked = serve(SUPERUSER);
+    const grants = await openFive();
+    await userEvent.click(grants.getByRole("button", { name: "End this grant" }));
+    expect(await screen.findByText("End this grant?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Its unused tokens and reads can't be used anymore. This can't be undone."),
+    ).toBeInTheDocument();
+    // the visible button (the backdrop carries the same name for a screen reader)
+    await userEvent.click(screen.getByText("Go back", { selector: "button" }));
+    expect(screen.queryByText("End this grant?")).toBeNull();
+    expect(asked.ends).toEqual([]);
+    // the company dialog is still open
+    expect(dialog().getByRole("list", { name: "Grants" })).toBeInTheDocument();
+  });
+
+  it("End grant ends it once, then the grant says when and who, with no button", async () => {
+    const asked = serve(SUPERUSER);
+    const grants = await openFive();
+    await userEvent.click(grants.getByRole("button", { name: "End this grant" }));
+    await userEvent.click(await screen.findByRole("button", { name: "End grant" }));
+
+    expect(await screen.findByText("Ended 20 Nov 2026 by boss@test.com")).toBeInTheDocument();
+    expect(asked.ends).toEqual([`/api/me/ai/companies/${FIVE.id}/grants/g1/end`]);
+    const list = within(dialog().getByRole("list", { name: "Grants" }));
+    expect(list.getByText("Ended")).toBeInTheDocument();
+    expect(list.queryByRole("button", { name: "End this grant" })).toBeNull();
+    expect(await screen.findByText("Grant ended.")).toBeInTheDocument(); // the toast
   });
 });

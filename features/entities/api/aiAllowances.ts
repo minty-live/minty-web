@@ -47,6 +47,9 @@ export type AiGrant = {
   granted_by: string | null;
   note: string | null;
   created_at: string;
+  /** Ended early by Minty support (owner, 2026-11-20): when, and who. Absent from an older API. */
+  ended_at?: string | null;
+  ended_by?: string | null;
 };
 
 export type AiRead = {
@@ -100,6 +103,14 @@ export function fetchAiReads(
   return mintyFetch<{ reads: AiRead[]; more: boolean }>(
     `/api/me/ai/companies/${encodeURIComponent(id)}/reads`,
     { query: { before }, signal },
+  );
+}
+
+/** End one of the company's grants now (owner, 2026-11-20); the API answers the company again. */
+export function endAiGrant(id: string, grantId: string): Promise<AiCompany> {
+  return mintyFetch<AiCompany>(
+    `/api/me/ai/companies/${encodeURIComponent(id)}/grants/${encodeURIComponent(grantId)}/end`,
+    { method: "POST" },
   );
 }
 
