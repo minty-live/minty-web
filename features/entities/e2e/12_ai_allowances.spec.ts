@@ -198,15 +198,25 @@ test.describe("AI allowances on Select Company", () => {
     await expect(
       dialog.getByText("Used up: its read buttons are off until it is given another grant."),
     ).toBeVisible();
-    // owner, 2026-11-19: older reads come on "Show more reads", not a fixed 20
+    // owner, 2026-11-20: "Show more reads" (right of the Last reads title) takes over the dialog;
+    // "Load older reads" asks for the next 20; Back returns. Close is a 44px icon.
+    const close = dialog.getByRole("button", { name: "Close" });
+    const closeBox = (await close.boundingBox())!;
+    expect(closeBox.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox.height).toBeGreaterThanOrEqual(44);
     const more = dialog.getByRole("button", { name: "Show more reads" });
     expect((await more.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     await more.click();
+    await expect(dialog.getByRole("heading", { name: "All reads" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Load older reads" }).click();
     await expect(
       dialog.getByText("17 Nov 2026 · Payment Request · Failed · 0 tokens"),
     ).toBeVisible();
-    await expect(more).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Load older reads" })).toHaveCount(0);
     expect(await noSideScroll(page)).toBe(true);
+    if (process.env.E2E_SHOTS)
+      await page.screenshot({ path: `${process.env.E2E_SHOTS}/ai-all-reads-360.png` });
+    await dialog.getByRole("button", { name: "Back" }).click();
     const tokens = dialog.getByRole("textbox", { name: "Tokens" });
     await tokens.fill("lots");
     await expect(tokens).toHaveAccessibleDescription(

@@ -128,3 +128,7 @@ export const showPastLabel = (n: number) => `Show past grants (${n})`;
 export const PAST_GRANTS = "Past grants";
 export const PAST_TEXT = "Grants used up or ended. They can't be used anymore.";
 export const BACK = "Back";
+/** Last reads: the newest three; the rest on their own view (owner, 2026-11-20). */
+export const SHOW_MORE_READS = "Show more reads";
+export const ALL_READS = "All reads";
+export const LOAD_OLDER = "Load older reads";

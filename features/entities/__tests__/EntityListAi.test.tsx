@@ -309,7 +309,7 @@ describe("AI allowances on Select Company", () => {
     ).toBeInTheDocument();
   });
 
-  it("Show more reads adds the older reads under the last one, and goes when there are no more", async () => {
+  it("Show more reads takes over the dialog; Load older reads adds the next page and goes when there are no more", async () => {
     const asked = serve(SUPERUSER, undefined, { ...COMPANY, reads_more: true });
     show();
     await aiMode();
@@ -318,17 +318,27 @@ describe("AI allowances on Select Company", () => {
     );
     const more = await dialog().findByRole("button", { name: "Show more reads" });
     await userEvent.click(more);
+    expect(dialog().getByRole("heading", { name: "All reads" })).toHaveFocus();
+    expect(dialog().queryByRole("button", { name: "Give grant" })).toBeNull(); // the form is gone
+    await userEvent.click(dialog().getByRole("button", { name: "Load older reads" }));
 
     const older = await dialog().findByText("17 Nov 2026 · Petty Cash · Failed · 0 tokens");
     expect(asked.before).toEqual(["r1"]);
-    const reads = within(dialog().getByRole("list", { name: "Last reads" }));
+    const reads = within(dialog().getByRole("list", { name: "All reads" }));
     expect(reads.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "18 Nov 2026 · Payment Request · Read · 5,200 tokens",
       "17 Nov 2026 · Petty Cash · Failed · 0 tokens",
     ]);
-    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
+    expect(dialog().queryByRole("button", { name: "Load older reads" })).toBeNull();
     // the button went: focus lands on the first read it brought
     expect(older.closest("li")).toHaveFocus();
+    await userEvent.click(dialog().getByRole("button", { name: "Back" }));
+    // both reads now fit the three: no Show more reads, and focus is on the dialog's title
+    expect(
+      within(dialog().getByRole("list", { name: "Last reads" })).getAllByRole("listitem"),
+    ).toHaveLength(2);
+    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
+    await waitFor(() => expect(dialog().getByRole("heading", { level: 2 })).toHaveFocus());
   });
 
   it("no older reads: no Show more", async () => {
@@ -342,8 +352,8 @@ describe("AI allowances on Select Company", () => {
     expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
   });
 
-  it("shows the 3 newest reads; Show more reads shows the rest it has, Show less folds them back", async () => {
-    // owner, 2026-11-19: five rows, then Show more for the rest
+  it("shows the 3 newest reads; Show more reads shows every read it has on its own view, Back returns", async () => {
+    // owner, 2026-11-20: three rows, then Show more takes over the dialog
     const seven = Array.from({ length: 7 }, (_, i) => ({
       ...COMPANY.reads[0],
       id: `r${7 - i}`,
@@ -361,14 +371,13 @@ describe("AI allowances on Select Company", () => {
     expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("1,000 tokens"); // newest first
 
     await userEvent.click(dialog().getByRole("button", { name: "Show more reads" }));
-    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
+    const all = within(dialog().getByRole("list", { name: "All reads" }));
+    expect(all.getAllByRole("listitem")).toHaveLength(7);
     expect(asked.before).toEqual([]); // the rest was already here: nothing asked
-    expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
-    // focus lands on the first read it showed
-    expect(within(list).getAllByRole("listitem")[3]).toHaveFocus();
-    await userEvent.click(dialog().getByRole("button", { name: "Show less" }));
-    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
-    expect(dialog().getByRole("button", { name: "Show more reads" })).toBeInTheDocument();
+    expect(dialog().queryByRole("button", { name: "Load older reads" })).toBeNull();
+    await userEvent.click(dialog().getByRole("button", { name: "Back" }));
+    const back = within(dialog().getByRole("list", { name: "Last reads" }));
+    expect(back.getAllByRole("listitem")).toHaveLength(3);
   });
 
   it("checks each field as it is typed, and only a submit says the grant gives nothing", async () => {

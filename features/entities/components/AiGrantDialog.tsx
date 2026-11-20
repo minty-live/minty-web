@@ -14,6 +14,7 @@ import { ErrorSummary } from "@minty/shared/ui";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Icon } from "@/components/ui/Icon";
 import { ModalFrame } from "@/components/ui/ModalFrame";
 import {
   SETTINGS_FIELD_ERROR,
@@ -49,7 +50,10 @@ import {
   endedLine,
   fieldProblems,
   GRANT_ENDED,
+  ALL_READS,
   BACK,
+  LOAD_OLDER,
+  SHOW_MORE_READS,
   PAST_GRANTS,
   PAST_TEXT,
   NO_OPEN_GRANTS,
@@ -79,7 +83,7 @@ const FIELD_ID: Record<GrantField, string> = {
   note: "ai-grant-note",
 };
 const ORDER: GrantField[] = ["tokens", "reads", "days", "note"];
-/** Last reads: the newest three, then "Show more reads" / "Show less" (owner, 2026-11-20). */
+/** Last reads: the newest three; "Show more reads" takes over the dialog (owner, 2026-11-20). */
 const FIRST_READS = 3;
 
 export function AiGrantDialog({
@@ -100,9 +104,14 @@ export function AiGrantDialog({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  // "Show more reads" (owner, 2026-11-20): the 3 newest first; a press shows the rest already
-  // loaded (the API sends 20), then each press asks for 20 older ones
-  const [readsShown, setReadsShown] = useState(FIRST_READS);
+  // "Show more reads" (owner, 2026-11-20): the 3 newest here; the button takes over the dialog with
+  // every read loaded (the API sends 20), and "Load older reads" asks for 20 more each press
+  const [showReads, setShowReads] = useState(false);
+  const readsButton = useRef<HTMLButtonElement>(null);
+  const readsHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (showReads) readsHeading.current?.focus();
+  }, [showReads]);
   const [moreBusy, setMoreBusy] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   const [focusRead, setFocusRead] = useState<string | null>(null);
@@ -132,20 +141,14 @@ export function AiGrantDialog({
     return () => abort.abort();
   }, [id]);
 
-  // the reads Show more brought: focus the first one, so the place isn't lost when the button goes
+  // the reads "Load older reads" brought: focus the first one, so the place isn't lost
   useEffect(() => {
     if (!focusRead) return;
     readsList.current?.querySelector<HTMLElement>(`[data-read="${focusRead}"]`)?.focus();
   }, [focusRead, company]);
 
-  async function showMoreReads() {
+  async function loadOlderReads() {
     if (!company || moreBusy) return;
-    if (readsShown < company.reads.length) {
-      // the rest of what is already here first - nothing asked
-      setFocusRead(company.reads[readsShown].id);
-      setReadsShown(company.reads.length);
-      return;
-    }
     const last = company.reads[company.reads.length - 1];
     if (!last) return;
     setMoreBusy(true);
@@ -155,7 +158,6 @@ export function AiGrantDialog({
       setCompany((now) =>
         now ? { ...now, reads: [...now.reads, ...page.reads], reads_more: page.more } : now,
       );
-      setReadsShown((n) => n + page.reads.length);
       setFocusRead(page.reads[0]?.id ?? null);
     } catch (e) {
       setMoreError(message(e));
@@ -241,6 +243,19 @@ export function AiGrantDialog({
   const openGrants = company ? company.grants.filter((g) => grantStatus(g) === "Open") : [];
   const pastGrants = company ? company.grants.filter((g) => grantStatus(g) !== "Open") : [];
 
+  /** One read's line - the newest three here, every one loaded under Show more reads. */
+  const renderRead = (r: AiCompany["reads"][number]) => (
+    <li
+      key={r.id}
+      data-read={r.id}
+      tabIndex={-1}
+      className="text-sm text-text-primary outline-none"
+    >
+      {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} · {count(r.tokens)}{" "}
+      tokens
+    </li>
+  );
+
   /** One grant's card - in the open list, or under Show past grants (owner, 2026-11-20). */
   const renderGrant = (grant: AiGrant) => {
     const state = grantStatus(grant);
@@ -302,8 +317,14 @@ export function AiGrantDialog({
           >
             {company?.company.name ?? "AI allowance"}
           </h2>
-          <button type="button" className={SETTINGS_OUTLINE} onClick={onClose} disabled={busy}>
-            Close
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            disabled={busy}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-text-muted hover:bg-surface-sunk hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-focus disabled:opacity-50"
+          >
+            <Icon name="close" size={24} />
           </button>
         </div>
 
@@ -344,6 +365,50 @@ export function AiGrantDialog({
               {pastGrants.map(renderGrant)}
             </ul>
           </>
+        ) : company && showReads ? (
+          <>
+            <div className="mt-2">
+              <button
+                type="button"
+                className={SETTINGS_OUTLINE}
+                onClick={() => {
+                  setShowReads(false);
+                  setFocusRead(null);
+                  // back to the button, or to the title when every read fits the three
+                  setTimeout(() => (readsButton.current ?? heading.current)?.focus(), 0);
+                }}
+              >
+                {BACK}
+              </button>
+            </div>
+            <h3
+              ref={readsHeading}
+              tabIndex={-1}
+              className="mt-4 text-sm font-semibold text-text-primary outline-none"
+            >
+              {ALL_READS}
+            </h3>
+            <ul ref={readsList} aria-label={ALL_READS} className="mt-2 flex flex-col gap-1">
+              {company.reads.map(renderRead)}
+            </ul>
+            {moreError ? (
+              <p role="alert" className="mt-2 text-sm text-status-danger-ink">
+                {moreError}
+              </p>
+            ) : null}
+            {company.reads_more ? (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  className={SETTINGS_OUTLINE}
+                  onClick={() => void loadOlderReads()}
+                  disabled={moreBusy}
+                >
+                  {moreBusy ? "Loading…" : LOAD_OLDER}
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : company ? (
           <>
             <p className="mt-2 text-sm text-text-primary">
@@ -354,7 +419,20 @@ export function AiGrantDialog({
                 : `${company.allowance.percent_left ?? 0}% of its AI allowance left.`}
             </p>
 
-            <h3 className="mt-5 text-sm font-semibold text-text-primary">Open grants</h3>
+            {/* each section's view button sits at the right of its title row (owner, 2026-11-20) */}
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-text-primary">Open grants</h3>
+              {pastGrants.length > 0 ? (
+                <button
+                  type="button"
+                  ref={pastButton}
+                  className={SETTINGS_OUTLINE}
+                  onClick={() => setShowPast(true)}
+                >
+                  {showPastLabel(pastGrants.length)}
+                </button>
+              ) : null}
+            </div>
             {company.grants.length === 0 ? (
               <p className="mt-1 text-sm text-text-secondary">
                 None yet.{" "}
@@ -369,18 +447,6 @@ export function AiGrantDialog({
                 {openGrants.map(renderGrant)}
               </ul>
             )}
-            {pastGrants.length > 0 ? (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  ref={pastButton}
-                  className={SETTINGS_OUTLINE}
-                  onClick={() => setShowPast(true)}
-                >
-                  {showPastLabel(pastGrants.length)}
-                </button>
-              </div>
-            ) : null}
 
             <form noValidate onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-text-primary">Give a grant</h3>
@@ -444,58 +510,29 @@ export function AiGrantDialog({
               </div>
             </form>
 
-            <h3 className="mt-6 text-sm font-semibold text-text-primary">Last reads</h3>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-text-primary">Last reads</h3>
+              {company.reads.length > FIRST_READS || company.reads_more ? (
+                <button
+                  type="button"
+                  ref={readsButton}
+                  className={SETTINGS_OUTLINE}
+                  onClick={() => {
+                    setMoreError(null);
+                    setShowReads(true);
+                  }}
+                >
+                  {SHOW_MORE_READS}
+                </button>
+              ) : null}
+            </div>
             {company.reads.length === 0 ? (
               <p className="mt-1 text-sm text-text-secondary">No reads yet.</p>
             ) : (
-              <ul ref={readsList} aria-label="Last reads" className="mt-2 flex flex-col gap-1">
-                {company.reads.slice(0, readsShown).map((r) => (
-                  <li
-                    key={r.id}
-                    data-read={r.id}
-                    tabIndex={-1}
-                    className="text-sm text-text-primary outline-none"
-                  >
-                    {day(r.created_at)} · {MODULE_NAME[r.module]} · {READ_STATUS[r.status]} ·{" "}
-                    {count(r.tokens)} tokens
-                  </li>
-                ))}
+              <ul aria-label="Last reads" className="mt-2 flex flex-col gap-1">
+                {company.reads.slice(0, FIRST_READS).map(renderRead)}
               </ul>
             )}
-            {moreError ? (
-              <p role="alert" className="mt-2 text-sm text-status-danger-ink">
-                {moreError}
-              </p>
-            ) : null}
-            {company.reads_more ||
-            readsShown < company.reads.length ||
-            (readsShown > FIRST_READS && company.reads.length > FIRST_READS) ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {company.reads_more || readsShown < company.reads.length ? (
-                  <button
-                    type="button"
-                    className={SETTINGS_OUTLINE}
-                    onClick={() => void showMoreReads()}
-                    disabled={moreBusy}
-                  >
-                    {moreBusy ? "Loading…" : "Show more reads"}
-                  </button>
-                ) : null}
-                {readsShown > FIRST_READS && company.reads.length > FIRST_READS ? (
-                  <button
-                    type="button"
-                    className={SETTINGS_OUTLINE}
-                    onClick={() => {
-                      setReadsShown(FIRST_READS);
-                      setFocusRead(null);
-                    }}
-                    disabled={moreBusy}
-                  >
-                    Show less
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
           </>
         ) : null}
       </ModalFrame>
