@@ -244,6 +244,20 @@ test.describe("AI allowances on Select Company", () => {
       page,
     }) => {
       await stub(page);
+      // registered last, so it answers first: Scenario 5 with its default grant still open
+      await page.route(`${ACCOUNTS_API_URL}/api/me/ai/companies/${FIVE.id}`, (route) =>
+        route.request().method() === "GET"
+          ? route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({
+                ...COMPANY,
+                allowance: { ...COMPANY.allowance, percent_left: 75, blocked: false },
+                grants: [{ ...COMPANY.grants[0], tokens_used: 5000, open: true }],
+              }),
+            })
+          : route.fallback(),
+      );
       await page.setViewportSize({ width, height: 800 });
       await handoff(page, creds(), "/entities");
       const main = page.getByRole("main");
@@ -260,6 +274,9 @@ test.describe("AI allowances on Select Company", () => {
         await page.screenshot({ path: `${process.env.E2E_SHOTS}/ai-end-ask-${width}.png` });
       await page.getByRole("button", { name: "End grant", exact: true }).click();
 
+      // it leaves the open list; Show past grants takes over the dialog and says when and who
+      await expect(page.getByText("No open grants. Give it a grant to let it read.")).toBeVisible();
+      await page.getByRole("button", { name: "Show past grants (1)" }).click();
       await expect(page.getByText("Ended 20 Nov 2026 by boss@dailyminty.com")).toBeVisible();
       await expect(page.getByRole("button", { name: "End this grant" })).toHaveCount(0);
       expect(await noSideScroll(page)).toBe(true);

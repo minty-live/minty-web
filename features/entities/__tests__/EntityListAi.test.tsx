@@ -288,9 +288,22 @@ describe("AI allowances on Select Company", () => {
         "Used up: its read buttons are off until it is given another grant.",
       ),
     ).toBeInTheDocument();
-    const grants = within(dialog().getByRole("list", { name: "Grants" }));
+    // only open grants are listed; a used-up one waits behind Show past grants (owner, 2026-11-20)
+    expect(
+      dialog().getByText("No open grants. Give it a grant to let it read."),
+    ).toBeInTheDocument();
+    expect(dialog().queryByRole("list", { name: "Past grants" })).toBeNull();
+    // Show past grants takes over the dialog; Back returns to the company
+    await userEvent.click(dialog().getByRole("button", { name: "Show past grants (1)" }));
+    const grants = within(dialog().getByRole("list", { name: "Past grants" }));
     expect(grants.getByText("Default grant")).toBeInTheDocument();
     expect(grants.getByText("21,000 of 20,000 tokens used")).toBeInTheDocument();
+    expect(dialog().getByRole("heading", { name: "Past grants" })).toHaveFocus();
+    expect(dialog().queryByRole("button", { name: "Give grant" })).toBeNull(); // the form is gone
+    expect(dialog().queryByRole("list", { name: "Last reads" })).toBeNull();
+    await userEvent.click(dialog().getByRole("button", { name: "Back" }));
+    expect(dialog().queryByRole("list", { name: "Past grants" })).toBeNull();
+    expect(dialog().getByRole("button", { name: "Show past grants (1)" })).toHaveFocus();
     expect(
       dialog().getByText("18 Nov 2026 · Payment Request · Read · 5,200 tokens"),
     ).toBeInTheDocument();
@@ -329,7 +342,7 @@ describe("AI allowances on Select Company", () => {
     expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
   });
 
-  it("shows the 5 newest reads; Show more reads shows the rest it has before asking for older ones", async () => {
+  it("shows the 3 newest reads; Show more reads shows the rest it has, Show less folds them back", async () => {
     // owner, 2026-11-19: five rows, then Show more for the rest
     const seven = Array.from({ length: 7 }, (_, i) => ({
       ...COMPANY.reads[0],
@@ -344,7 +357,7 @@ describe("AI allowances on Select Company", () => {
       rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
     );
     const list = await dialog().findByRole("list", { name: "Last reads" });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
     expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("1,000 tokens"); // newest first
 
     await userEvent.click(dialog().getByRole("button", { name: "Show more reads" }));
@@ -352,7 +365,10 @@ describe("AI allowances on Select Company", () => {
     expect(asked.before).toEqual([]); // the rest was already here: nothing asked
     expect(dialog().queryByRole("button", { name: "Show more reads" })).toBeNull();
     // focus lands on the first read it showed
-    expect(within(list).getAllByRole("listitem")[5]).toHaveFocus();
+    expect(within(list).getAllByRole("listitem")[3]).toHaveFocus();
+    await userEvent.click(dialog().getByRole("button", { name: "Show less" }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(dialog().getByRole("button", { name: "Show more reads" })).toBeInTheDocument();
   });
 
   it("checks each field as it is typed, and only a submit says the grant gives nothing", async () => {
@@ -422,6 +438,13 @@ describe("AI allowances on Select Company", () => {
 });
 
 describe("ending a grant (owner, 2026-11-20)", () => {
+  /** Scenario 5 with its default grant still open. */
+  const RUNNING: AiCompany = {
+    ...COMPANY,
+    allowance: { ...COMPANY.allowance, percent_left: 75, blocked: false },
+    grants: [{ ...COMPANY.grants[0], tokens_used: 5000, open: true }],
+  };
+
   async function openFive() {
     show();
     await aiMode();
@@ -432,7 +455,7 @@ describe("ending a grant (owner, 2026-11-20)", () => {
   }
 
   it("asks first; Go back sends nothing", async () => {
-    const asked = serve(SUPERUSER);
+    const asked = serve(SUPERUSER, undefined, RUNNING);
     const grants = await openFive();
     await userEvent.click(grants.getByRole("button", { name: "End this grant" }));
     expect(await screen.findByText("End this grant?")).toBeInTheDocument();
@@ -447,16 +470,20 @@ describe("ending a grant (owner, 2026-11-20)", () => {
     expect(dialog().getByRole("list", { name: "Grants" })).toBeInTheDocument();
   });
 
-  it("End grant ends it once, then the grant says when and who, with no button", async () => {
-    const asked = serve(SUPERUSER);
+  it("End grant ends it once; it leaves the open list and says when and who under past grants", async () => {
+    const asked = serve(SUPERUSER, undefined, RUNNING);
     const grants = await openFive();
     await userEvent.click(grants.getByRole("button", { name: "End this grant" }));
     await userEvent.click(await screen.findByRole("button", { name: "End grant" }));
 
-    expect(await screen.findByText("Ended 20 Nov 2026 by boss@test.com")).toBeInTheDocument();
+    expect(
+      await dialog().findByText("No open grants. Give it a grant to let it read."),
+    ).toBeInTheDocument();
     expect(asked.ends).toEqual([`/api/me/ai/companies/${FIVE.id}/grants/g1/end`]);
-    const list = within(dialog().getByRole("list", { name: "Grants" }));
+    await userEvent.click(dialog().getByRole("button", { name: "Show past grants (1)" }));
+    const list = within(dialog().getByRole("list", { name: "Past grants" }));
     expect(list.getByText("Ended")).toBeInTheDocument();
+    expect(list.getByText("Ended 20 Nov 2026 by boss@test.com")).toBeInTheDocument();
     expect(list.queryByRole("button", { name: "End this grant" })).toBeNull();
     expect(await screen.findByText("Grant ended.")).toBeInTheDocument(); // the toast
   });

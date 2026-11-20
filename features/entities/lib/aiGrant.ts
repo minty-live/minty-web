@@ -108,6 +108,8 @@ export const END_GRANT_LABEL = "End this grant";
 export const END_TITLE = "End this grant?";
 export const END_TEXT = "Its unused tokens and reads can't be used anymore. This can't be undone.";
 export const GRANT_ENDED = "Grant ended.";
+/** Only open grants are listed (owner, 2026-11-20); none open: */
+export const NO_OPEN_GRANTS = "No open grants. Give it a grant to let it read.";
 
 /** Still running (open or used up): not ended by support and not past its end date. */
 export function canEnd(grant: AiGrant, now = new Date()): boolean {
@@ -120,3 +122,9 @@ export function endedLine(grant: AiGrant): string | null {
   if (!grant.ended_at) return null;
   return `Ended ${day(grant.ended_at)}${grant.ended_by ? ` by ${grant.ended_by}` : ""}`;
 }
+
+/** Used-up and ended grants wait behind a button that takes over the dialog (owner, 2026-11-20). */
+export const showPastLabel = (n: number) => `Show past grants (${n})`;
+export const PAST_GRANTS = "Past grants";
+export const PAST_TEXT = "Grants used up or ended. They can't be used anymore.";
+export const BACK = "Back";

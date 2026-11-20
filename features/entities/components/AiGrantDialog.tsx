@@ -49,6 +49,11 @@ import {
   endedLine,
   fieldProblems,
   GRANT_ENDED,
+  BACK,
+  PAST_GRANTS,
+  PAST_TEXT,
+  NO_OPEN_GRANTS,
+  showPastLabel,
   grantStatus,
   grantUse,
   submitProblems,
@@ -74,8 +79,8 @@ const FIELD_ID: Record<GrantField, string> = {
   note: "ai-grant-note",
 };
 const ORDER: GrantField[] = ["tokens", "reads", "days", "note"];
-/** Last reads: the newest five, then "Show more reads" (owner, 2026-11-19). */
-const FIRST_READS = 5;
+/** Last reads: the newest three, then "Show more reads" / "Show less" (owner, 2026-11-20). */
+const FIRST_READS = 3;
 
 export function AiGrantDialog({
   id,
@@ -95,7 +100,7 @@ export function AiGrantDialog({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  // "Show more reads" (owner, 2026-11-19): the 5 newest first; a press shows the rest already
+  // "Show more reads" (owner, 2026-11-20): the 3 newest first; a press shows the rest already
   // loaded (the API sends 20), then each press asks for 20 older ones
   const [readsShown, setReadsShown] = useState(FIRST_READS);
   const [moreBusy, setMoreBusy] = useState(false);
@@ -104,6 +109,13 @@ export function AiGrantDialog({
   const readsList = useRef<HTMLUListElement>(null);
   // "End grant" (owner, 2026-11-20): the grant being asked about, and that question's progress
   const [ending, setEnding] = useState<AiGrant | null>(null);
+  // "Show past grants" (owner, 2026-11-20): used-up and ended grants take over the dialog
+  const [showPast, setShowPast] = useState(false);
+  const pastButton = useRef<HTMLButtonElement>(null);
+  const pastHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (showPast) pastHeading.current?.focus();
+  }, [showPast]);
   const [endBusy, setEndBusy] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
 
@@ -224,6 +236,54 @@ export function AiGrantDialog({
     message: shown[k] as string,
   }));
 
+  // only the grants still running are listed (owner, 2026-11-20); used-up and ended ones wait
+  // behind "Show past grants"
+  const openGrants = company ? company.grants.filter((g) => grantStatus(g) === "Open") : [];
+  const pastGrants = company ? company.grants.filter((g) => grantStatus(g) !== "Open") : [];
+
+  /** One grant's card - in the open list, or under Show past grants (owner, 2026-11-20). */
+  const renderGrant = (grant: AiGrant) => {
+    const state = grantStatus(grant);
+    return (
+      <li key={grant.id} className="rounded-[12px] border border-border-default p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 pt-2.5">
+            <span className="text-sm font-semibold text-text-primary">
+              {grant.source === "default" ? "Default grant" : "Grant"}
+            </span>
+            <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
+          </div>
+          {/* top right of its card (owner, 2026-11-20) */}
+          {canEnd(grant) ? (
+            <button
+              type="button"
+              className={`${SETTINGS_DANGER} shrink-0`}
+              aria-label={END_GRANT_LABEL}
+              onClick={() => {
+                setEndError(null);
+                setEnding(grant);
+              }}
+            >
+              {END_GRANT}
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-1 text-sm text-text-primary">{grantUse(grant)}</p>
+        <p className="text-sm text-text-secondary">
+          Given {day(grant.created_at)}
+          {grant.granted_by ? ` by ${grant.granted_by}` : ""}
+          {grant.expires_at && !grant.ended_at ? ` · ends ${day(grant.expires_at)}` : ""}
+        </p>
+        {endedLine(grant) ? (
+          <p className="break-words text-sm text-text-secondary">{endedLine(grant)}</p>
+        ) : null}
+        {grant.note ? (
+          <p className="break-words text-sm text-text-secondary">{grant.note}</p>
+        ) : null}
+      </li>
+    );
+  };
+
   return (
     <>
       <ModalFrame
@@ -258,7 +318,33 @@ export function AiGrantDialog({
           </p>
         ) : null}
 
-        {company ? (
+        {company && showPast ? (
+          <>
+            <div className="mt-2">
+              <button
+                type="button"
+                className={SETTINGS_OUTLINE}
+                onClick={() => {
+                  setShowPast(false);
+                  setTimeout(() => pastButton.current?.focus(), 0);
+                }}
+              >
+                {BACK}
+              </button>
+            </div>
+            <h3
+              ref={pastHeading}
+              tabIndex={-1}
+              className="mt-4 text-sm font-semibold text-text-primary outline-none"
+            >
+              {PAST_GRANTS}
+            </h3>
+            <p className="mt-1 text-sm text-text-secondary">{PAST_TEXT}</p>
+            <ul aria-label={PAST_GRANTS} className="mt-2 flex flex-col gap-2">
+              {pastGrants.map(renderGrant)}
+            </ul>
+          </>
+        ) : company ? (
           <>
             <p className="mt-2 text-sm text-text-primary">
               {company.allowance.blocked
@@ -268,7 +354,7 @@ export function AiGrantDialog({
                 : `${company.allowance.percent_left ?? 0}% of its AI allowance left.`}
             </p>
 
-            <h3 className="mt-5 text-sm font-semibold text-text-primary">Grants</h3>
+            <h3 className="mt-5 text-sm font-semibold text-text-primary">Open grants</h3>
             {company.grants.length === 0 ? (
               <p className="mt-1 text-sm text-text-secondary">
                 None yet.{" "}
@@ -276,54 +362,25 @@ export function AiGrantDialog({
                   ? `It gets ${count(company.default_grant.tokens)} tokens on its first read.`
                   : "It gets nothing automatically: give it a grant to let it read."}
               </p>
+            ) : openGrants.length === 0 ? (
+              <p className="mt-1 text-sm text-text-secondary">{NO_OPEN_GRANTS}</p>
             ) : (
               <ul aria-label="Grants" className="mt-2 flex flex-col gap-2">
-                {company.grants.map((grant) => {
-                  const state = grantStatus(grant);
-                  return (
-                    <li key={grant.id} className="rounded-[12px] border border-border-default p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-text-primary">
-                          {grant.source === "default" ? "Default grant" : "Grant"}
-                        </span>
-                        <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
-                      </div>
-                      <p className="mt-1 text-sm text-text-primary">{grantUse(grant)}</p>
-                      <p className="text-sm text-text-secondary">
-                        Given {day(grant.created_at)}
-                        {grant.granted_by ? ` by ${grant.granted_by}` : ""}
-                        {grant.expires_at && !grant.ended_at
-                          ? ` · ends ${day(grant.expires_at)}`
-                          : ""}
-                      </p>
-                      {endedLine(grant) ? (
-                        <p className="break-words text-sm text-text-secondary">
-                          {endedLine(grant)}
-                        </p>
-                      ) : null}
-                      {grant.note ? (
-                        <p className="break-words text-sm text-text-secondary">{grant.note}</p>
-                      ) : null}
-                      {canEnd(grant) ? (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            className={SETTINGS_DANGER}
-                            aria-label={END_GRANT_LABEL}
-                            onClick={() => {
-                              setEndError(null);
-                              setEnding(grant);
-                            }}
-                          >
-                            {END_GRANT}
-                          </button>
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
+                {openGrants.map(renderGrant)}
               </ul>
             )}
+            {pastGrants.length > 0 ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  ref={pastButton}
+                  className={SETTINGS_OUTLINE}
+                  onClick={() => setShowPast(true)}
+                >
+                  {showPastLabel(pastGrants.length)}
+                </button>
+              </div>
+            ) : null}
 
             <form noValidate onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-text-primary">Give a grant</h3>
@@ -410,16 +467,33 @@ export function AiGrantDialog({
                 {moreError}
               </p>
             ) : null}
-            {company.reads_more || readsShown < company.reads.length ? (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  className={SETTINGS_OUTLINE}
-                  onClick={() => void showMoreReads()}
-                  disabled={moreBusy}
-                >
-                  {moreBusy ? "Loading…" : "Show more reads"}
-                </button>
+            {company.reads_more ||
+            readsShown < company.reads.length ||
+            (readsShown > FIRST_READS && company.reads.length > FIRST_READS) ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {company.reads_more || readsShown < company.reads.length ? (
+                  <button
+                    type="button"
+                    className={SETTINGS_OUTLINE}
+                    onClick={() => void showMoreReads()}
+                    disabled={moreBusy}
+                  >
+                    {moreBusy ? "Loading…" : "Show more reads"}
+                  </button>
+                ) : null}
+                {readsShown > FIRST_READS && company.reads.length > FIRST_READS ? (
+                  <button
+                    type="button"
+                    className={SETTINGS_OUTLINE}
+                    onClick={() => {
+                      setReadsShown(FIRST_READS);
+                      setFocusRead(null);
+                    }}
+                    disabled={moreBusy}
+                  >
+                    Show less
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </>
