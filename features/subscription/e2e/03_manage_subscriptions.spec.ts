@@ -630,6 +630,47 @@ test.describe("manage subscriptions", () => {
     await expect(body(page).locator("li[data-open]")).toHaveCount(0);
   });
 
+  // 2026-11-20: a trial reloads the list, which used to drop pending ticks without a word.
+  for (const width of [360, 1440]) {
+    test(`at ${width}px Start Trial with a tick pending asks "Leave without saving?" first`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const posts = await stubApi(page, subscriptionsPage());
+      await handoff(page, creds(), "/subscription/subscriptions", { entity_id: "" });
+
+      await body(page).getByRole("button", { name: "Open Mino Market Limited" }).click();
+      const opened = body(page).locator("li[data-open]");
+      const restore = opened.getByRole("checkbox", { name: "Payment Request subscription" });
+      await restore.click();
+      await expect(restore).toHaveAttribute("data-changed", "true");
+
+      const trial = body(page).getByRole("button", {
+        name: "Start Trial · Petty Cash · Harbour & Vine Limited",
+      });
+      await trial.click();
+      const leave = page.getByRole("dialog", { name: "Leave without saving?" });
+      await expect(leave).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      if (process.env.E2E_SHOTS)
+        await page.screenshot({ path: `${process.env.E2E_SHOTS}/mw-trial-leave-${width}.png` });
+      await leave.getByRole("button", { name: "Go Back" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(restore).toHaveAttribute("data-changed", "true");
+
+      await trial.click();
+      await page
+        .getByRole("dialog", { name: "Leave without saving?" })
+        .getByRole("button", { name: "Discard changes" })
+        .click();
+      const ask = page.getByRole("dialog", { name: "Start Free Trial for Petty Cash" });
+      await expect(ask).toContainText("Harbour & Vine Limited");
+      expect(posts).toEqual([]);
+    });
+  }
+
   test("06·B: the bank declining a charge asks to try again, the ticks staying pending", async ({
     page,
   }) => {

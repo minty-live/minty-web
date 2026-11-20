@@ -82,6 +82,27 @@ describe("TransferSubscriptionScreen", () => {
     expect(push).toHaveBeenCalledWith("/subscription/subscriptions?entity=e-company-b");
   });
 
+  // 2026-11-20 (Save buttons that cover what the screen saves, item 8): Send invite acts at once,
+  // beside a Cancel that reads as if it could undo it - so the line under it says it can't.
+  it("07-A: under Send invite, a line says the invite goes at once and Cancel won't take it back", async () => {
+    serve({ "GET /api/me/subscriptions/subscriber-options": SUBSCRIBER_OPTIONS });
+    render(<TransferSubscriptionScreen entityId="e-company-b" />);
+    await screen.findByRole("heading", { level: 2, name: "Company B Limited" });
+
+    const note = "The invite goes out as soon as you send it. Cancel won't take it back.";
+    expect(screen.getByText(note)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send invite" })).toHaveAccessibleDescription(note);
+  });
+
+  it("07-A2: Send invite is a finger's size (44px)", async () => {
+    serve({ "GET /api/me/subscriptions/subscriber-options": SUBSCRIBER_OPTIONS });
+    render(<TransferSubscriptionScreen entityId="e-company-b" />);
+    await screen.findByRole("heading", { level: 2, name: "Company B Limited" });
+    expect(screen.getByRole("button", { name: "Send invite" }).className).toMatch(
+      /(^| )min-h-11( |$)/,
+    );
+  });
+
   it("07-B: Request transfer lands on Transfer requested, Back to the company's row", async () => {
     serve({ "GET /api/me/subscriptions/subscriber-options": SUBSCRIBER_OPTIONS });
     render(<TransferSubscriptionScreen entityId="e-company-b" />);

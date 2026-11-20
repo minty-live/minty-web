@@ -78,6 +78,26 @@ export type Call = <T>(
 const ADD = "__add__";
 /** A contact picker's note, shown as the list opens (onboarding's wording). */
 export const CONTACT_HINT = "Type a contact name to add a new contact";
+/** A new contact held by the mapping until Save Changes (2026-11-20): its id until it is created. */
+const NEW_CONTACT = "new:";
+export const heldContactNote = (name: string) =>
+  `${name} is new. It's created when you save your changes.`;
+
+/** The mapping's browser draft (shape 2, 2026-11-20): the picks and the new contacts it holds. */
+type MappingDraft = { picked: Selection; contacts: XeroOption[] };
+
+/** A kept draft's new contacts, only in the shape the card holds them. */
+function draftContacts(value: unknown): XeroOption[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (c): c is XeroOption =>
+      !!c &&
+      typeof c.id === "string" &&
+      c.id.startsWith(NEW_CONTACT) &&
+      typeof c.name === "string" &&
+      c.name.trim() !== "",
+  );
+}
 
 /** Five pulsing rows while Xero is asked. */
 function Skeleton() {
@@ -140,7 +160,6 @@ export function XeroMappingCard({
   connectHref,
   onRetry,
   onSaved,
-  onAdded,
   onDirty,
   resetKey = 0,
   drafts,
@@ -152,8 +171,6 @@ export function XeroMappingCard({
   onRetry: () => void;
   /** The API's answer to a save that went through. */
   onSaved: (answer: MappingAnswer) => void;
-  /** A contact was created: the success toast. */
-  onAdded: (message: string) => void;
   /** Unsaved changes on the form, or none (the page's leave guard). */
   onDirty?: (dirty: boolean) => void;
   /** Bumped by the page to put the saved choices back ("Discard changes"). */
@@ -186,7 +203,6 @@ export function XeroMappingCard({
           busy={busy}
           call={call}
           onSaved={onSaved}
-          onAdded={onAdded}
           onDirty={onDirty}
           drafts={drafts}
         />
@@ -195,6 +211,13 @@ export function XeroMappingCard({
   );
 }
 
+/**
+ * The mapping's pickers. "+ Add '<name>' as a new contact" and Create only hold the contact here
+ * (2026-11-20): it joins the contact pickers and is chosen, and nothing is sent. Save Changes first
+ * creates each held contact that is chosen (`POST /api/me/company/contacts`), puts its id into the
+ * mapping, then saves the mapping; a refused creation stops there with its sentence, the card still
+ * holding everything.
+ */
 function MappingForm({
   fields: initial,
   minty = false,
@@ -203,7 +226,6 @@ function MappingForm({
   busy,
   call,
   onSaved,
-  onAdded,
   onDirty,
   drafts,
 }: {
@@ -216,14 +238,15 @@ function MappingForm({
   busy: boolean;
   call: Call;
   onSaved: (answer: MappingAnswer) => void;
-  onAdded: (message: string) => void;
   onDirty?: (dirty: boolean) => void;
   drafts?: CardDrafts;
 }) {
   const ids = useId();
   const idOf = (key: MappingKey) => `${ids}-${key}`;
-  // the lists grow by a contact created here
+  // the lists grow by a contact added here (held until Save Changes)
   const [fields, setFields] = useState(initial);
+  const [held, setHeld] = useState<XeroOption[]>([]);
+  const fresh = useRef(0);
   const [picked, setPicked] = useState<Selection>(() => selectionOf(initial));
   const labelOf = (key: MappingKey, id: string): string => {
     const option = fields.find((f) => f.key === key)?.options.find((o) => o.id === id);
@@ -254,11 +277,14 @@ function MappingForm({
   useDirtyReport(editable && changed, onDirty);
   // the choices as a browser draft, against the saved choices the API sent (lib/drafts.ts)
   const savedMark = useMemo(() => fingerprint(selectionOf(initial)), [initial]);
-  const draft = useCardDraft<Selection>(drafts, {
+  // only the new contacts still chosen somewhere are worth keeping
+  const chosenHeld = held.filter((c) => Object.values(picked).includes(c.id));
+  const draft = useCardDraft<MappingDraft>(drafts, {
     form: DRAFT_FORMS.mapping,
+    shape: 2,
     ready: editable,
     basedOn: savedMark,
-    value: picked,
+    value: { picked, contacts: chosenHeld },
     dirty: editable && changed,
   });
 
@@ -266,20 +292,28 @@ function MappingForm({
     if (summary && summary.length > 1) summaryRef.current?.focus();
   }, [summary]);
 
-  /** Restore: each kept choice still on its list goes back; the others stay as saved. */
+  /** Restore: the kept new contacts join the contact pickers; each kept choice still on its list
+   * goes back; the others stay as saved. */
   function restoreDraft() {
     const kept = draft.restore()?.value;
     if (!kept) return;
+    const contacts = draftContacts(kept.contacts);
+    const grown = contacts.reduce((all, c) => withContact(all, c), fields);
+    for (const c of contacts)
+      fresh.current = Math.max(fresh.current, Number(c.id.slice(NEW_CONTACT.length)) || 0);
+    const choices: Partial<Selection> = kept.picked ?? {};
     const next = { ...picked };
-    for (const f of fields) {
-      const id = kept[f.key];
+    for (const f of grown) {
+      const id = choices[f.key];
       if (typeof id === "string" && (id === "" || f.options.some((o) => o.id === id)))
         next[f.key] = id;
     }
+    setFields(grown);
+    setHeld(contacts);
     setPicked(next);
     setTexts((all) => {
       const out = { ...all };
-      for (const f of fields) {
+      for (const f of grown) {
         const option = f.options.find((o) => o.id === next[f.key]);
         out[f.key] = option ? optionLabel(option) : "";
       }
@@ -288,11 +322,14 @@ function MappingForm({
   }
 
   /** A stale draft, read-only: each field and what was chosen in it. */
-  const describeDraft = () =>
-    fields.map((f) => {
-      const option = f.options.find((o) => o.id === draft.offer?.value[f.key]);
+  const describeDraft = () => {
+    const contacts = draftContacts(draft.offer?.value.contacts);
+    return fields.map((f) => {
+      const id = draft.offer?.value.picked?.[f.key];
+      const option = [...f.options, ...contacts].find((o) => o.id === id);
       return { label: f.label, value: option ? optionLabel(option) : "" };
     });
+  };
 
   function pick(key: MappingKey, option: XeroOption) {
     setPicked((p) => ({ ...p, [key]: option.id }));
@@ -338,7 +375,9 @@ function MappingForm({
     };
   }
 
-  async function createContact() {
+  /** Create: the contact is held here and chosen - nothing is sent until Save Changes. A name
+   * already on the contact lists is that contact. */
+  function createContact() {
     if (!adding || busy) return;
     const name = adding.name.trim();
     if (!name) {
@@ -346,17 +385,18 @@ function MappingForm({
       document.getElementById(`${idOf(adding.key)}-new`)?.focus();
       return;
     }
-    // Settings' contacts are accounts-api's (owner, 2026-11-12): accountant and up, made in Xero
-    // too when the company is live, never a duplicate; named in the picker by its Xero id, else
-    // its own
-    const made = await call<{ contact: { id: string; name: string; xero_id: string | null } }>(
-      "/api/me/company/contacts",
-      { method: "POST", json: { name }, hub: true },
-      "Creating contact…",
-    );
-    if (!made) return;
-    const contact = { id: made.contact.xero_id || made.contact.id, name: made.contact.name };
-    setFields((f) => withContact(f, contact));
+    const known = fields
+      .filter((f) => f.kind === "contact")
+      .flatMap((f) => f.options)
+      .find((o) => o.name.trim().toLowerCase() === name.toLowerCase());
+    let contact = known;
+    if (!contact) {
+      fresh.current += 1;
+      const made = { id: `${NEW_CONTACT}${fresh.current}`, name };
+      setHeld((all) => [...all, made]);
+      setFields((f) => withContact(f, made));
+      contact = made;
+    }
     pick(adding.key, contact);
     const key = adding.key;
     setAdding(null);
@@ -367,7 +407,38 @@ function MappingForm({
       box.dataset.quietFocus = "1";
       box.focus();
     }, 0);
-    onAdded("That contact's added!");
+  }
+
+  /** Each held contact that is chosen, created through accounts-api; the choices with their new
+   * ids, or null when a creation was refused (its sentence is the page's toast). */
+  async function createHeld(choices: Selection): Promise<Selection | null> {
+    let next = choices;
+    for (const contact of held) {
+      if (!Object.values(next).includes(contact.id)) continue;
+      // Settings' contacts are accounts-api's (owner, 2026-11-12): accountant and up, made in Xero
+      // too when the company is live, never a duplicate; named in the picker by its Xero id, else
+      // its own
+      const made = await call<{ contact: { id: string; name: string; xero_id: string | null } }>(
+        "/api/me/company/contacts",
+        { method: "POST", json: { name: contact.name }, hub: true },
+        "Creating contact…",
+      );
+      if (!made) return null;
+      const real = { id: made.contact.xero_id || made.contact.id, name: made.contact.name };
+      next = Object.fromEntries(
+        Object.entries(next).map(([k, id]) => [k, id === contact.id ? real.id : id]),
+      ) as Selection;
+      // created: from here on it is a contact like the others (a second try never makes it again)
+      const swap = (all: MappingField[]) =>
+        withContact(
+          all.map((f) => ({ ...f, options: f.options.filter((o) => o.id !== contact.id) })),
+          real,
+        );
+      setFields(swap);
+      setHeld((all) => all.filter((c) => c.id !== contact.id));
+      setPicked(next);
+    }
+    return next;
   }
 
   async function save() {
@@ -381,9 +452,11 @@ function MappingForm({
       return;
     }
     setSummary(null);
+    const choices = await createHeld(picked);
+    if (!choices) return;
     const answer = await call<MappingAnswer>(
       "/settings/xero/mapping",
-      { method: "PUT", json: mappingBody(picked) },
+      { method: "PUT", json: mappingBody(choices) },
       undefined,
       (message) => setMarked(new Set(fieldsNamed(message, fields))),
     );
@@ -573,6 +646,11 @@ function MappingForm({
                   {problem ? (
                     <p id={problemId} className={SETTINGS_FIELD_ERROR}>
                       {problem}
+                    </p>
+                  ) : null}
+                  {picked[key].startsWith(NEW_CONTACT) ? (
+                    <p className="mt-1 text-[13px] [overflow-wrap:anywhere] text-set-ink-2">
+                      {heldContactNote(labelOf(key, picked[key]))}
                     </p>
                   ) : null}
                 </div>

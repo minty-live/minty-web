@@ -14,10 +14,15 @@ import {
   NAME_EMPTY,
   RENAME_NAME_MAX,
   catalogueOptions,
+  heldAvailable,
+  heldFrom,
   kindFor,
+  methodChanges,
   methodNameProblem,
   movedIds,
   placedIds,
+  removedMethods,
+  salesBody,
   shownTypes,
   viewOnly,
   type SettingsPermissions,
@@ -174,5 +179,63 @@ describe("view-only", () => {
     expect(viewOnly(NONE)).toBe(true);
     expect(viewOnly({ ...NONE, reorder_sales_methods: true })).toBe(false);
     expect(viewOnly({ ...NONE, edit_xero: true })).toBe(false);
+  });
+});
+
+// The sales accounts card holds its methods until Save changes (2026-11-20).
+describe("the held methods", () => {
+  const visa = { id: "v1", name: "Visa", value_name: "visa_sales", own: false };
+  const kpay = { id: "v2", name: "Kpay", value_name: "kpay_sales", own: true };
+  const panda = { id: "d1", name: "Foodpanda", value_name: "foodpanda_sales", own: false };
+  const saved = { electronic: [visa, kpay], delivery: [panda] };
+  const octopus = {
+    id: "new:1",
+    name: "Octopus",
+    value_name: "",
+    own: false,
+    fresh: true,
+    sale_info_id: "o1",
+  };
+  const typed = { id: "new:2", name: "Lalamove", value_name: "", own: true, fresh: true };
+
+  it("counts nothing when nothing changed", () => {
+    expect(methodChanges(saved, heldFrom(saved))).toBe(0);
+    expect(removedMethods(saved, heldFrom(saved))).toEqual([]);
+  });
+
+  it("counts each add, rename and removal, and a moved list once", () => {
+    const held = {
+      electronic: [{ ...kpay, name: "Kpay HK" }, visa, octopus],
+      delivery: [typed],
+    };
+    // Octopus and Lalamove added, Kpay renamed, Foodpanda taken off, the electronic list moved
+    expect(methodChanges(saved, held)).toBe(5);
+    expect(removedMethods(saved, held)).toEqual([panda]);
+  });
+
+  it("sends each list in its held order: kept by id (a rename with its name), added by pick or name", () => {
+    const held = { electronic: [{ ...kpay, name: "Kpay HK" }, visa, octopus], delivery: [typed] };
+    const ticks = { cash: true, electronic: true, delivery: false };
+    expect(salesBody(ticks, held, saved)).toEqual({
+      accounts: ticks,
+      methods: {
+        electronic: [{ id: "v2", name: "Kpay HK" }, { id: "v1" }, { sale_info_id: "o1" }],
+        delivery: [{ name: "Lalamove" }],
+      },
+    });
+    // a person who cannot see the methods never sends lists (they would read as all taken off)
+    expect(salesBody(ticks, null, saved)).toEqual({ accounts: ticks, methods: {} });
+  });
+
+  it("offers the catalogue less what is held, and Minty's methods taken off here", () => {
+    const available = [
+      { id: "o1", name: "Octopus" },
+      { id: "o2", name: "AlipayHK" },
+    ];
+    // Visa (Minty's) and Kpay (the company's own) taken off; Octopus added
+    expect(heldAvailable(available, saved.electronic, [octopus])).toEqual([
+      { id: "o2", name: "AlipayHK" },
+      { id: "v1", name: "Visa" },
+    ]);
   });
 });

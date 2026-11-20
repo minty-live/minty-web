@@ -196,3 +196,85 @@ export function viewOnly(p: SettingsPermissions): boolean {
     p.edit_sales_accounts
   );
 }
+
+// --- the sales accounts card, held until Save changes (2026-11-20) --------------------------------
+
+/**
+ * A method as the card holds it before Save changes: one the API sent (its `id`), or one added here
+ * (`id` `new:<n>`, `fresh`) - picked from the catalogue (`sale_info_id`) or typed (`own`).
+ */
+export type HeldMethod = SalesMethod & { fresh?: boolean; sale_info_id?: string };
+export type HeldMethods = Record<MethodType, HeldMethod[]>;
+
+/** One item of `PUT /settings/sales`'s lists: kept (renamed when `name` is sent) or added. */
+export type SalesMethodItem =
+  { id: string; name?: string } | { sale_info_id: string } | { name: string };
+export type SalesBody = {
+  accounts: SalesParts;
+  methods: Partial<Record<MethodType, SalesMethodItem[]>>;
+};
+
+export const NEW_METHOD = "new:";
+
+/** The card's own copy of the saved lists, to change until Save changes. */
+export function heldFrom(saved: Record<MethodType, SalesMethod[]>): HeldMethods {
+  return { electronic: [...saved.electronic], delivery: [...saved.delivery] };
+}
+
+/** The saved methods the card has taken off, in their saved order. */
+export function removedMethods(
+  saved: Record<MethodType, SalesMethod[]>,
+  held: HeldMethods,
+): SalesMethod[] {
+  return METHOD_TYPES.flatMap((type) =>
+    saved[type].filter((m) => !held[type].some((h) => !h.fresh && h.id === m.id)),
+  );
+}
+
+/** How many changes the card holds in its methods: each add, rename and removal, and each list
+ * whose kept methods changed order. */
+export function methodChanges(saved: Record<MethodType, SalesMethod[]>, held: HeldMethods): number {
+  let count = removedMethods(saved, held).length;
+  for (const type of METHOD_TYPES) {
+    const kept = held[type].filter((h) => !h.fresh);
+    count += held[type].length - kept.length;
+    count += kept.filter((h) => saved[type].find((m) => m.id === h.id)?.name !== h.name).length;
+    const before = saved[type].map((m) => m.id).filter((id) => kept.some((h) => h.id === id));
+    if (kept.some((h, i) => h.id !== before[i])) count += 1;
+  }
+  return count;
+}
+
+/** What the add field offers while the card holds changes: the API's list, the saved Minty methods
+ * taken off here (to put back), less the ones already added here. */
+export function heldAvailable(
+  available: CatalogueMethod[],
+  saved: SalesMethod[],
+  held: HeldMethod[],
+): CatalogueMethod[] {
+  const taken = new Set(held.map((h) => h.sale_info_id ?? h.id));
+  const back = saved
+    .filter((m) => !m.own && !held.some((h) => !h.fresh && h.id === m.id))
+    .map((m) => ({ id: m.id, name: m.name }));
+  return [...available, ...back].filter((m) => !taken.has(m.id));
+}
+
+/** The one `PUT /settings/sales`: the ticks and, when this person can see them, both lists in
+ * their held order. */
+export function salesBody(
+  ticks: SalesParts,
+  held: HeldMethods | null,
+  saved: Record<MethodType, SalesMethod[]>,
+): SalesBody {
+  const methods: SalesBody["methods"] = {};
+  if (held) {
+    for (const type of METHOD_TYPES) {
+      methods[type] = held[type].map((h): SalesMethodItem => {
+        if (h.fresh) return h.sale_info_id ? { sale_info_id: h.sale_info_id } : { name: h.name };
+        const was = saved[type].find((m) => m.id === h.id);
+        return was && was.name !== h.name ? { id: h.id, name: h.name } : { id: h.id };
+      });
+    }
+  }
+  return { accounts: { ...ticks }, methods };
+}

@@ -42,6 +42,35 @@ test.describe("transfers", () => {
     await requireApp();
   });
 
+  // 2026-11-20: Send invite acts at once; the line under it says Cancel won't take it back.
+  for (const width of [360, 1440]) {
+    test(`at ${width}px the line under Send invite says it goes at once`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.route(
+        `${SUBSCRIPTION_API_URL}/api/me/subscriptions/subscriber-options?*`,
+        (route) => route.fulfill(json(SUBSCRIBER_OPTIONS)),
+      );
+      await handoff(page, creds(), "/subscription/subscriptions/subscriber?entity=e-company-b", {
+        entity_id: "",
+      });
+
+      const note = body(page).getByText(
+        "The invite goes out as soon as you send it. Cancel won't take it back.",
+      );
+      await expect(note).toBeVisible();
+      const box = (await note.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      if (process.env.E2E_SHOTS) {
+        await note.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${process.env.E2E_SHOTS}/mw-invite-note-${width}.png` });
+      }
+    });
+  }
+
   test("07-A → 07-B: the payer picks the new subscriber and sends the request", async ({
     page,
   }) => {

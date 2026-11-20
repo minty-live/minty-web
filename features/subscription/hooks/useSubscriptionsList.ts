@@ -49,7 +49,8 @@
  * When it fails or gets interrupted (06·B): a charge the bank declined asks with "Payment could
  * not be processed" - Try again now applies the same change again, Done leaves the ticks
  * pending; and leaving the open row with ticks pending (closing it, opening another company,
- * going back) asks "Leave without saving?" first - Discard changes drops the ticks and goes.
+ * going back, Start Free Trial on any row) asks "Leave without saving?" first - Discard changes
+ * drops the ticks and goes.
  *
  * The panel's *Change* beside the company's card opens the SAME "Billing Accounts" sheet with no
  * change behind it (the user, 2026-09-29): the account the company is on reads "Billed here
@@ -459,10 +460,6 @@ export function useSubscriptionsList({
 
   const toggleSort = useCallback((column: SortColumn) => setSort((s) => nextSort(s, column)), []);
 
-  const askStartTrial = useCallback((entity: PortalEntity, code: ModuleCode) => {
-    const moduleName = entity.modules.find((m) => m.code === code)?.name ?? code;
-    setTrialPrompt({ entity, code, moduleName });
-  }, []);
   const dismissTrialPrompt = useCallback(() => {
     if (!trialBusy) setTrialPrompt(null);
   }, [trialBusy]);
@@ -532,6 +529,17 @@ export function useSubscriptionsList({
     prompt.proceed();
   }, [leavePrompt, summary]);
   const stay = useCallback(() => setLeavePrompt(null), []);
+  // A trial reloads the list, which drops pending ticks: with any pending, Start Free Trial asks
+  // "Leave without saving?" first and reaches the trial's own question only on Discard
+  // (2026-11-20); Go back keeps the ticks.
+  const askStartTrial = useCallback(
+    (entity: PortalEntity, code: ModuleCode) =>
+      guardLeave(() => {
+        const moduleName = entity.modules.find((m) => m.code === code)?.name ?? code;
+        setTrialPrompt({ entity, code, moduleName });
+      }),
+    [guardLeave],
+  );
   // No "Leave site?" on a reload or a closed tab: Minty shows no native browser dialog (owner,
   // 2026-11-16), and a browser allows no other prompt there - those exits drop the ticks.
 

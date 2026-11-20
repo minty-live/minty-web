@@ -9,8 +9,11 @@
  * - Account mapping and Petty Cash Account Code (`XeroCards.tsx`), read once per page load
  *   from `GET /settings/xero` (it asks Xero), each with its own Save; "Xero isn't connected" in
  *   both when the connection is not live.
- * - Electronic and Delivery: add (the catalogue or a new name), rename, Move up / down, Delete -
- *   each the API's at once, its answer drawn and its sentence shown.
+ * - Sales accounts and methods (`SalesAccountsCard.tsx`): the ticks and each ticked account's
+ *   methods - add (the catalogue or a new name), rename, drag, take off - all held until its Save
+ *   changes, then one `PUT /settings/sales` (2026-11-20). An API without `sales_parts` keeps the
+ *   method cards of their own, each change the API's at once, its answer drawn and its sentence
+ *   shown.
  * - No Country & currency card: those are the General tab's.
  *
  * What a person may change is the API's `permissions`; a cashier sees it all read-only. Unsaved
@@ -36,7 +39,10 @@ import { useDraftScope } from "@/lib/draftScope";
 
 import { pettyCashSettingsFetch } from "@/features/petty-cash-settings/api/pettyCashSettings";
 import { BusyOverlay } from "@/features/petty-cash-settings/components/parts";
-import { SalesAccountsCard } from "@/features/petty-cash-settings/components/SalesAccountsCard";
+import {
+  SalesAccountsCard,
+  type HeldLists,
+} from "@/features/petty-cash-settings/components/SalesAccountsCard";
 import {
   SalesMethodsCard,
   SalesMethodsList,
@@ -58,8 +64,8 @@ import {
   viewOnly,
   type MethodType,
   type SalesMethod,
+  type SalesBody,
   type SalesPart,
-  type SalesParts,
   type SettingsAnswer,
   type SettingsRead,
 } from "@/features/petty-cash-settings/lib/settings";
@@ -152,9 +158,9 @@ function SettingsBody({
   const acting = useRef(false);
   const perms = read.permissions;
 
-  // "Leave without saving?" over the two Xero cards (each saves on its own; the sales methods save
-  // at once, so they never hold anything). Discard remounts both forms from what the API holds.
-  // The sales accounts card holds its ticks until Save changes too (2026-11-17).
+  // "Leave without saving?" over the cards that hold changes until their own Save: the two Xero
+  // cards and the sales accounts card - its ticks (2026-11-17) and its methods (2026-11-20). Discard
+  // remounts them from what the API holds. Only the fallback method cards save at once.
   const [dirty, setDirty] = useState({ mapping: false, codes: false, accounts: false });
   const [resetKey, setResetKey] = useState(0);
   const mappingDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, mapping: on })), []);
@@ -297,33 +303,34 @@ function SettingsBody({
     say: (message) => showToast(message, "error"),
   };
 
-  // Each ticked account's methods inside its card (owner, 2026-11-17; Figma 529:675). A Non-cash
+  // Each ticked account's methods inside its card (owner, 2026-11-17; Figma 529:675), from the
+  // card's held lists and actions (2026-11-20: nothing sent until its Save changes). A Non-cash
   // company's leftover delivery methods (from before the business type was asked) stay under
   // Electronic Payment while Delivery is off, so they can be seen and removed.
-  const methodsList = (type: MethodType) => (
+  const methodsList = (type: MethodType, held: HeldLists) => (
     <SalesMethodsList
       key={type}
       region
       type={type}
       groups={read.sales_groups}
-      methods={read.sales_methods[type]}
-      available={read.available[type]}
+      methods={held.methods[type]}
+      available={held.available[type]}
       permissions={perms}
       busy={busy !== null}
-      actions={actions}
+      actions={held.actions}
     />
   );
-  const methodsFor = (part: SalesPart) => {
+  const methodsFor = (part: SalesPart, held: HeldLists) => {
     if (part === "cash") return null;
-    if (part === "delivery") return methodsList("delivery");
+    if (part === "delivery") return methodsList("delivery", held);
     const leftover =
       read.sales_groups === "non_cash" &&
       !read.sales_parts?.delivery &&
       read.sales_methods.delivery.length > 0;
     return (
       <div className="flex min-w-0 flex-col gap-5">
-        {methodsList("electronic")}
-        {leftover ? methodsList("delivery") : null}
+        {methodsList("electronic", held)}
+        {leftover ? methodsList("delivery", held) : null}
       </div>
     );
   };
@@ -339,7 +346,6 @@ function SettingsBody({
           call={call}
           connectHref={connectHref}
           onRetry={retryXero}
-          onAdded={(message) => showToast(message, "success")}
           // Every save stays here and says so - the first included (owner, 2026-11-11: it used to
           // leave for the Petty Cash dashboard, as Flask's did, and its sentence went with the page).
           onSaved={({ first_save: _first, ...answer }) => xeroSaved(answer)}
@@ -366,12 +372,15 @@ function SettingsBody({
           <SalesAccountsCard
             key={resetKey}
             saved={read.sales_parts}
+            savedMethods={read.sales_methods}
+            available={read.available}
             canEdit={!!perms.edit_sales_accounts}
+            holdsMethods={perms.view_sales_methods}
             busy={busy !== null}
-            onSave={(parts: SalesParts) =>
-              write("/settings/sales-accounts", { method: "PUT", json: parts })
-            }
+            entityName={company.name}
+            onSave={(body: SalesBody) => write("/settings/sales", { method: "PUT", json: body })}
             onDirty={accountsDirty}
+            say={actions.say}
             methodsFor={methodsFor}
             drafts={drafts}
           />
@@ -404,6 +413,7 @@ function SettingsBody({
         : null}
 
       {busy ? <BusyOverlay text={busy} /> : null}
+      {/* the fallback method cards' removal only: the sales accounts card asks on its Save */}
       {confirmDelete ? (
         <SettingsDialog
           title={`${confirmDelete.method.own ? "Delete" : "Remove"} ${KIND[confirmDelete.type].title} Method`}

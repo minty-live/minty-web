@@ -17,6 +17,8 @@ import { setAuth } from "@/lib/auth";
 import { env } from "@/lib/env";
 
 import type {
+  SalesBody,
+  SalesMethod,
   SettingsPermissions,
   SettingsRead,
 } from "@/features/petty-cash-settings/lib/settings";
@@ -40,9 +42,18 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 type Route = (body: unknown) => Response;
+/** minty-petty-cash-api per method and path (`PUT /settings/sales`); accounts-api's company door
+ * (Settings' contacts) as `HUB <method> <path>`, the company as ?entity=. */
 function api(routes: Record<string, Route>) {
   fetchMock.mockImplementation(async (input, init = {}) => {
     const url = new URL(String(input));
+    if (url.origin === new URL(env.ACCOUNTS_API_URL).origin) {
+      expect(url.searchParams.get("entity")).toBe(ID);
+      const key = `HUB ${(init.method ?? "GET").toUpperCase()} ${url.pathname}`;
+      const route = routes[key];
+      if (!route) throw new Error(`unexpected ${key}`);
+      return route(init.body ? JSON.parse(String(init.body)) : null);
+    }
     expect(url.origin).toBe(new URL(env.PETTY_CASH_API_URL).origin);
     expect(url.pathname.startsWith(PREFIX)).toBe(true);
     expect(new Headers(init.headers).get("X-Entity-Id")).toBeNull();
@@ -55,12 +66,19 @@ function api(routes: Record<string, Route>) {
 }
 const sent = (key: string) =>
   fetchMock.mock.calls
-    .filter(
-      ([input, init]) =>
-        `${((init as RequestInit)?.method ?? "GET").toUpperCase()} ${new URL(String(input)).pathname.slice(PREFIX.length)}` ===
-        key,
-    )
+    .filter(([input, init]) => {
+      const url = new URL(String(input));
+      const method = ((init as RequestInit)?.method ?? "GET").toUpperCase();
+      return key.startsWith("HUB ")
+        ? `HUB ${method} ${url.pathname}` === key
+        : `${method} ${url.pathname.slice(PREFIX.length)}` === key;
+    })
     .map(([, init]) => JSON.parse(String((init as RequestInit).body ?? "null")));
+/** Every call that would change something: none until a card's Save. */
+const writes = () =>
+  fetchMock.mock.calls
+    .filter(([, init]) => (init?.method ?? "GET").toUpperCase() !== "GET")
+    .map(([input, init]) => `${init?.method} ${new URL(String(input)).pathname}`);
 
 const ALL: SettingsPermissions = {
   edit_xero: true,
@@ -90,6 +108,34 @@ const m = (id: string, name: string, own = false) => ({
 const VISA = m("v1", "Visa");
 const ALIPAY = m("v2", "AlipayHK", true);
 const FOODPANDA = m("d1", "Foodpanda");
+
+const PARTS_ON = { cash: true, electronic: true, delivery: true };
+
+/** What the API holds after `PUT /settings/sales`: each list as sent (a new typed name the
+ * company's own), the ticks, and the catalogue less what was added. */
+function applySales(state: SettingsRead, body: SalesBody): SettingsRead {
+  const lists = { ...state.sales_methods };
+  const available = { ...state.available };
+  for (const type of ["electronic", "delivery"] as const) {
+    const items = body.methods[type];
+    if (!items) continue;
+    lists[type] = items.map((item): SalesMethod => {
+      if ("id" in item) {
+        const was = state.sales_methods[type].find((x) => x.id === item.id)!;
+        return item.name ? { ...was, name: item.name } : was;
+      }
+      if ("sale_info_id" in item) {
+        const picked = state.available[type].find((x) => x.id === item.sale_info_id);
+        const back = state.sales_methods[type].find((x) => x.id === item.sale_info_id);
+        return picked ? m(picked.id, picked.name) : back!;
+      }
+      return m(`n-${item.name}`, item.name, true);
+    });
+    const taken = new Set(lists[type].map((x) => x.id));
+    available[type] = state.available[type].filter((x) => !taken.has(x.id));
+  }
+  return { ...state, sales_methods: lists, available, sales_parts: body.accounts };
+}
 
 function settings(over: Partial<SettingsRead> = {}): SettingsRead {
   return {
@@ -200,6 +246,12 @@ function show() {
 const drawn = () => screen.findByRole("list", { name: "Electronic methods" });
 
 const card = (name: string) => within(screen.getByRole("region", { name }));
+const salesCard = () => card("Sales accounts and methods");
+/** The chips of a list, in order. */
+const names = (title: string) =>
+  within(screen.getByRole("list", { name: `${title} methods` }))
+    .getAllByRole("listitem")
+    .map((li) => li.getAttribute("data-method"));
 
 describe("PettyCashSettingsScreen", () => {
   beforeEach(() => {
@@ -276,24 +328,19 @@ describe("PettyCashSettingsScreen", () => {
     expect(screen.queryByText("No delivery methods yet.")).toBeNull();
   });
 
-  it("each method has the bin and the drag handle, no menu, and a drop reorders", async () => {
-    // owner, 2026-11-12: the list keeps its rows; the bin and the handle replace the menu
+  it("each method has the bin and the drag handle, no menu; a drop reorders here, sent on Save changes", async () => {
+    // owner, 2026-11-12: the list keeps its rows; the bin and the handle replace the menu.
+    // 2026-11-20: the card holds every change until Save changes - one PUT /settings/sales.
     let state = settings({
+      sales_parts: PARTS_ON,
       sales_methods: { electronic: [VISA, ALIPAY, m("o1", "Octopus")], delivery: [FOODPANDA] },
     });
     api({
       "GET /settings": () => json(state),
       "GET /settings/xero": () => json(xero({ live: false })),
-      "PUT /sales-methods/order": (body) => {
-        const ids = (body as { method_ids: string[] }).method_ids;
-        state = {
-          ...state,
-          sales_methods: {
-            ...state.sales_methods,
-            electronic: ids.map((id) => state.sales_methods.electronic.find((x) => x.id === id)!),
-          },
-        };
-        return json({ ...state, message: "Order saved." });
+      "PUT /settings/sales": (body) => {
+        state = applySales(state, body as SalesBody);
+        return json({ ...state, message: "Your sales accounts and methods are saved." });
       },
     });
     show();
@@ -306,90 +353,52 @@ describe("PettyCashSettingsScreen", () => {
     const handle = visa.getByRole("button", { name: "Move Visa" });
     expect(handle).toHaveAttribute("draggable", "true");
 
-    // Visa dropped on Octopus: the whole list in its new order
+    // Visa dropped on Octopus: drawn in its new place, nothing sent yet
     fireEvent.dragStart(handle);
     fireEvent.dragOver(rows[2]);
     fireEvent.drop(rows[2]);
-    expect(await screen.findByText("Order saved.")).toBeInTheDocument();
-    expect(sent("PUT /sales-methods/order")).toEqual([
-      { type: "electronic", method_ids: ["v2", "o1", "v1"] },
+    expect(names("Electronic")).toEqual(["AlipayHK", "Octopus", "Visa"]);
+    expect(salesCard().getByText("1 change not saved yet")).toBeInTheDocument();
+    // dropped on itself: nothing changes
+    const first = within(list).getAllByRole("listitem")[0];
+    fireEvent.dragStart(within(first).getByRole("button", { name: /^Move / }));
+    fireEvent.drop(first);
+    expect(salesCard().getByText("1 change not saved yet")).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+
+    // nothing taken off: Save changes asks nothing and sends the whole card once
+    await userEvent.click(salesCard().getByRole("button", { name: "Save changes" }));
+    expect(
+      await screen.findByText("Your sales accounts and methods are saved."),
+    ).toBeInTheDocument();
+    expect(sent("PUT /settings/sales")).toEqual([
+      {
+        accounts: PARTS_ON,
+        methods: {
+          electronic: [{ id: "v2" }, { id: "o1" }, { id: "v1" }],
+          delivery: [{ id: "d1" }],
+        },
+      },
     ]);
-    // dropped on itself: nothing is sent
-    fireEvent.dragStart(within(rows[0]).getByRole("button", { name: /^Move / }));
-    fireEvent.drop(rows[0]);
-    expect(sent("PUT /sales-methods/order")).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(salesCard().getByText("No changes to save yet")).toBeInTheDocument();
   });
 
-  it("adds from the catalogue, renames, moves and deletes - each the API's answer, its sentence shown", async () => {
-    let state = settings();
-    const answer = (next: SettingsRead, message: string, status = 200) => {
-      state = next;
-      return json({ ...next, message }, status);
-    };
+  it("adds, renames, moves and takes off here; Save changes asks about what goes, then sends one PUT", async () => {
+    let state = settings({ sales_parts: PARTS_ON });
     api({
       "GET /settings": () => json(state),
       "GET /settings/xero": () => json(xero({ live: false })),
-      "POST /sales-methods": () =>
-        answer(
-          {
-            ...state,
-            sales_methods: {
-              ...state.sales_methods,
-              electronic: [...state.sales_methods.electronic, m("o1", "Octopus")],
-            },
-            available: { ...state.available, electronic: [] },
-          },
-          "Octopus added.",
-          201,
-        ),
-      "PUT /sales-methods/v2": (body) =>
-        answer(
-          {
-            ...state,
-            sales_methods: {
-              ...state.sales_methods,
-              electronic: state.sales_methods.electronic.map((x) =>
-                x.id === "v2" ? { ...x, name: (body as { name: string }).name } : x,
-              ),
-            },
-          },
-          "Name saved.",
-        ),
-      "PUT /sales-methods/order": (body) => {
-        const ids = (body as { method_ids: string[] }).method_ids;
-        return answer(
-          {
-            ...state,
-            sales_methods: {
-              ...state.sales_methods,
-              electronic: ids.map((id) => state.sales_methods.electronic.find((x) => x.id === id)!),
-            },
-          },
-          "Order saved.",
-        );
+      "PUT /settings/sales": (body) => {
+        state = applySales(state, body as SalesBody);
+        return json({ ...state, message: "Your sales accounts and methods are saved." });
       },
-      "DELETE /sales-methods/d1": () =>
-        answer(
-          { ...state, sales_methods: { ...state.sales_methods, delivery: [] } },
-          "Foodpanda is off your list. You can add it back any time.",
-        ),
-      "DELETE /sales-methods/v2": () =>
-        answer(
-          {
-            ...state,
-            sales_methods: {
-              ...state.sales_methods,
-              electronic: state.sales_methods.electronic.filter((x) => x.id !== "v2"),
-            },
-          },
-          "Alipay HK deleted.",
-        ),
     });
     show();
     await drawn();
     const user = userEvent.setup();
 
-    // add: the catalogue, picked, sent by id
+    // add: the catalogue, picked - a chip at once, nothing sent
     // the add field is always there under the chips (Figma 529:675): no Add New Method to open
     expect(card("Electronic").queryByRole("button", { name: /Add New Method/ })).toBeNull();
     const picker = await card("Electronic").findByRole("combobox", { name: "Method" });
@@ -405,72 +414,140 @@ describe("PettyCashSettingsScreen", () => {
     ).toBeInTheDocument();
     await user.click(card("Electronic").getByRole("option", { name: "Octopus" }));
     await user.click(card("Electronic").getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("Octopus added.")).toBeInTheDocument();
-    expect(sent("POST /sales-methods")).toEqual([{ type: "electronic", sale_info_id: "o1" }]);
+    expect(names("Electronic")).toEqual(["Visa", "AlipayHK", "Octopus"]);
+    expect(picker).toHaveValue("");
+    // the picker no longer offers what the card holds
+    await user.click(picker);
+    expect(card("Electronic").queryByRole("option", { name: "Octopus" })).toBeNull();
+    await user.keyboard("{Escape}");
     // Minty's method: the name is text and there is no pencil (owner, 2026-11-12)
-    expect(card("Electronic").getByText("Octopus")).toBeInTheDocument();
     expect(card("Electronic").queryByRole("button", { name: "Edit Octopus" })).toBeNull();
 
-    // rename: the pencil turns the name into a box, checked as typed, Enter saves
+    // rename: the pencil turns the name into a box, checked as typed, Enter keeps it here
     await user.click(card("Electronic").getByRole("button", { name: "Edit AlipayHK" }));
     const box = card("Electronic").getByRole("textbox", { name: "Rename AlipayHK" });
     await user.clear(box);
-    await user.type(box, "visa");
-    expect(card("Electronic").getByText("visa is already on the list.")).toBeInTheDocument();
+    await user.type(box, "octopus");
+    expect(card("Electronic").getByText("octopus is already on the list.")).toBeInTheDocument();
     await user.keyboard("{Enter}");
-    expect(sent("PUT /sales-methods/v2")).toEqual([]);
+    expect(box).toBeInTheDocument();
     await user.clear(box);
     await user.type(box, "Alipay HK{Enter}");
-    expect(await screen.findByText("Name saved.")).toBeInTheDocument();
-    expect(sent("PUT /sales-methods/v2")).toEqual([{ name: "Alipay HK" }]);
+    expect(names("Electronic")).toEqual(["Visa", "Alipay HK", "Octopus"]);
 
-    // move: the type's whole list in its new order
+    // move: the handle with the arrow keys
     // no Move up / Move down (owner, 2026-11-12): the handle, dragged or with the arrow keys
     expect(card("Electronic").queryByRole("menuitem")).toBeNull();
     card("Electronic").getByRole("button", { name: "Move Visa" }).focus();
     await user.keyboard("{ArrowDown}");
-    expect(await screen.findByText("Order saved.")).toBeInTheDocument();
-    expect(sent("PUT /sales-methods/order")).toEqual([
-      { type: "electronic", method_ids: ["v2", "v1", "o1"] },
-    ]);
+    expect(names("Electronic")).toEqual(["Alipay HK", "Visa", "Octopus"]);
 
-    // Minty's method: no pencil; its bin only takes it off the list, and asks first
+    // Minty's method: no pencil; its x takes it off here, with no question of its own
     expect(card("Delivery").queryByRole("button", { name: "Edit Foodpanda" })).toBeNull();
     expect(card("Delivery").queryByRole("button", { name: "Delete Foodpanda" })).toBeNull();
-    const removeFoodpanda = { name: "Remove Foodpanda from my list" };
-    await user.click(card("Delivery").getByRole("button", removeFoodpanda));
-    expect(screen.getByRole("dialog", { name: "Remove Delivery Method" })).toHaveTextContent(
-      'Remove "Foodpanda" from your list? You can add it back any time.',
+    await user.click(
+      card("Delivery").getByRole("button", { name: "Remove Foodpanda from my list" }),
     );
-    let dialog = within(screen.getByRole("dialog", { name: "Remove Delivery Method" }));
-    expect(dialog.getByRole("button", { name: "Go back" })).toHaveFocus();
-    await user.click(dialog.getByRole("button", { name: "Go back" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(sent("DELETE /sales-methods/d1")).toHaveLength(0);
-    await user.click(card("Delivery").getByRole("button", removeFoodpanda));
-    dialog = within(screen.getByRole("dialog", { name: "Remove Delivery Method" }));
-    expect(dialog.getByRole("button", { name: "Remove" }).className).toBe(SETTINGS_DANGER_FILL);
-    await user.click(dialog.getByRole("button", { name: "Remove" }));
-    expect(
-      await screen.findByText("Foodpanda is off your list. You can add it back any time."),
-    ).toBeInTheDocument();
     expect(card("Delivery").getByText("No delivery methods yet.")).toBeInTheDocument();
+    // ...and the add field offers it back
+    await user.click(card("Delivery").getByRole("combobox", { name: "Method" }));
+    expect(
+      card("Delivery")
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Keeta", "Foodpanda"]);
+    await user.keyboard("{Escape}");
 
-    // the company's own method: Delete, confirmed, gone for good
-    await user.click(card("Electronic").getByRole("button", { name: "Delete Alipay HK" }));
-    dialog = within(screen.getByRole("dialog", { name: "Delete Electronic Method" }));
-    expect(screen.getByRole("dialog", { name: "Delete Electronic Method" })).toHaveTextContent(
-      'Are you sure you want to delete "Alipay HK"? This action cannot be undone.',
+    // an add, a rename, a move and a removal
+    expect(salesCard().getByText("4 changes not saved yet")).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+
+    // Save changes asks first because something goes; Go back sends nothing
+    await user.click(salesCard().getByRole("button", { name: "Save changes" }));
+    let dialog = screen.getByRole("dialog", { name: "Remove Foodpanda?" });
+    expect(dialog).toHaveTextContent(
+      "Foodpanda comes off your list. You can add it back any time.",
     );
-    await user.click(dialog.getByRole("button", { name: "Delete" }));
-    expect(await screen.findByText("Alipay HK deleted.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Go back" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(sent("PUT /settings/sales")).toEqual([]);
+    await user.click(salesCard().getByRole("button", { name: "Save changes" }));
+    dialog = screen.getByRole("dialog", { name: "Remove Foodpanda?" });
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    expect(
+      await screen.findByText("Your sales accounts and methods are saved."),
+    ).toBeInTheDocument();
+    expect(sent("PUT /settings/sales")).toEqual([
+      {
+        accounts: PARTS_ON,
+        methods: {
+          electronic: [{ id: "v2", name: "Alipay HK" }, { id: "v1" }, { sale_info_id: "o1" }],
+          delivery: [],
+        },
+      },
+    ]);
+    expect(names("Electronic")).toEqual(["Alipay HK", "Visa", "Octopus"]);
+    expect(salesCard().getByText("No changes to save yet")).toBeInTheDocument();
   });
 
-  it("an add by name is checked as typed; a refusal says the API's sentence and keeps the form", async () => {
+  it("the company's own method taken off is named as deleted in the question", async () => {
     api({
-      "GET /settings": () => json(settings()),
+      "GET /settings": () => json(settings({ sales_parts: PARTS_ON })),
       "GET /settings/xero": () => json(xero({ live: false })),
-      "POST /sales-methods": () => json({ error: "Deliveroo is already on the list." }, 409),
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    await user.click(card("Electronic").getByRole("button", { name: "Delete AlipayHK" }));
+    await user.click(
+      card("Delivery").getByRole("button", { name: "Remove Foodpanda from my list" }),
+    );
+    await user.click(salesCard().getByRole("checkbox", { name: /Sales - Delivery/ }));
+    await user.click(salesCard().getByRole("button", { name: "Save changes" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Turn off Sales - Delivery and remove 2 methods?",
+    });
+    expect(dialog).toHaveTextContent("AlipayHK is deleted. This can't be undone.");
+    expect(dialog).toHaveTextContent(
+      "Foodpanda comes off your list. You can add it back any time.",
+    );
+    expect(within(dialog).getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+  });
+
+  it("a refused save says the API's sentence and keeps every change", async () => {
+    api({
+      "GET /settings": () => json(settings({ sales_parts: PARTS_ON })),
+      "GET /settings/xero": () => json(xero({ live: false })),
+      "PUT /settings/sales": () => json({ error: "A method with that name already exists." }, 409),
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    await user.click(card("Electronic").getByRole("button", { name: "Edit AlipayHK" }));
+    await user.type(
+      card("Electronic").getByRole("textbox", { name: "Rename AlipayHK" }),
+      " Plus{Enter}",
+    );
+    await user.click(salesCard().getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("A method with that name already exists.")).toBeInTheDocument();
+    expect(sent("PUT /settings/sales")).toHaveLength(1);
+    expect(names("Electronic")).toEqual(["Visa", "AlipayHK Plus"]);
+    expect(salesCard().getByText("1 change not saved yet")).toBeInTheDocument();
+    expect(salesCard().getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
+  it("an add by name is checked as typed, then held as a chip until Save changes", async () => {
+    let state = settings({ sales_parts: PARTS_ON });
+    api({
+      "GET /settings": () => json(state),
+      "GET /settings/xero": () => json(xero({ live: false })),
+      "PUT /settings/sales": (body) => {
+        state = applySales(state, body as SalesBody);
+        return json({ ...state, message: "Your sales accounts and methods are saved." });
+      },
     });
     show();
     await drawn();
@@ -498,10 +575,75 @@ describe("PettyCashSettingsScreen", () => {
     ).toBeInTheDocument();
     expect(name).toHaveAttribute("aria-invalid", "true");
     await user.clear(name);
+    await user.type(name, "foodpanda{Enter}");
+    expect(card("Delivery").getByText("foodpanda is already on the list.")).toBeInTheDocument();
+    expect(names("Delivery")).toEqual(["Foodpanda"]);
+    await user.clear(name);
     await user.type(name, "Deliveroo{Enter}");
-    expect(await screen.findByText("Deliveroo is already on the list.")).toBeInTheDocument();
-    expect(sent("POST /sales-methods")).toEqual([{ type: "delivery", name: "Deliveroo" }]);
-    expect(name).toHaveValue("Deliveroo");
+    expect(names("Delivery")).toEqual(["Foodpanda", "Deliveroo"]);
+    expect(card("Delivery").queryByRole("textbox", { name: "Name" })).toBeNull();
+    // a method typed here is the company's own: it has a pencil
+    expect(card("Delivery").getByRole("button", { name: "Edit Deliveroo" })).toBeInTheDocument();
+
+    await user.click(salesCard().getByRole("button", { name: "Save changes" }));
+    expect(
+      await screen.findByText("Your sales accounts and methods are saved."),
+    ).toBeInTheDocument();
+    expect(sent("PUT /settings/sales")).toEqual([
+      {
+        accounts: PARTS_ON,
+        methods: {
+          electronic: [{ id: "v1" }, { id: "v2" }],
+          delivery: [{ id: "d1" }, { name: "Deliveroo" }],
+        },
+      },
+    ]);
+  });
+
+  it("an API without the sales accounts: the method cards of their own, each change at once", async () => {
+    let state = settings();
+    api({
+      "GET /settings": () => json(state),
+      "GET /settings/xero": () => json(xero({ live: false })),
+      "POST /sales-methods": () => {
+        state = {
+          ...state,
+          sales_methods: {
+            ...state.sales_methods,
+            electronic: [...state.sales_methods.electronic, m("o1", "Octopus")],
+          },
+          available: { ...state.available, electronic: [] },
+        };
+        return json({ ...state, message: "Octopus added." }, 201);
+      },
+      "DELETE /sales-methods/d1": () => {
+        state = { ...state, sales_methods: { ...state.sales_methods, delivery: [] } };
+        return json({
+          ...state,
+          message: "Foodpanda is off your list. You can add it back any time.",
+        });
+      },
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    await user.click(card("Electronic").getByRole("combobox", { name: "Method" }));
+    await user.click(card("Electronic").getByRole("option", { name: "Octopus" }));
+    await user.click(card("Electronic").getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("Octopus added.")).toBeInTheDocument();
+    expect(sent("POST /sales-methods")).toEqual([{ type: "electronic", sale_info_id: "o1" }]);
+
+    await user.click(
+      card("Delivery").getByRole("button", { name: "Remove Foodpanda from my list" }),
+    );
+    const dialog = within(screen.getByRole("dialog", { name: "Remove Delivery Method" }));
+    expect(dialog.getByRole("button", { name: "Go back" })).toHaveFocus();
+    expect(dialog.getByRole("button", { name: "Remove" }).className).toBe(SETTINGS_DANGER_FILL);
+    await user.click(dialog.getByRole("button", { name: "Remove" }));
+    expect(
+      await screen.findByText("Foodpanda is off your list. You can add it back any time."),
+    ).toBeInTheDocument();
+    expect(card("Delivery").getByText("No delivery methods yet.")).toBeInTheDocument();
   });
 
   it("saves the Xero mapping: a new pick, the eight keys sent, the API's sentence", async () => {
@@ -741,14 +883,14 @@ describe("PettyCashSettingsScreen - the sales accounts", () => {
     expect(save()).toBeDisabled();
   });
 
-  it("turning Delivery off asks first, saves the three, and hides its methods card", async () => {
+  it("turning Delivery off asks first, saves the card in one PUT, and hides its methods", async () => {
     api({
       "GET /settings": () => json(settings({ sales_parts: ON })),
       "GET /settings/xero": () => json(xero()),
-      "PUT /settings/sales-accounts": (body) =>
+      "PUT /settings/sales": (body) =>
         json({
-          ...settings({ sales_parts: body as typeof ON }),
-          message: "Your sales accounts are saved.",
+          ...applySales(settings({ sales_parts: ON }), body as SalesBody),
+          message: "Your sales accounts and methods are saved.",
         }),
     });
     show();
@@ -761,13 +903,24 @@ describe("PettyCashSettingsScreen - the sales accounts", () => {
     await userEvent.click(save());
     const dialog = within(await screen.findByRole("dialog"));
     expect(dialog.getByText("Turn off Sales - Delivery?")).toBeInTheDocument();
+    expect(
+      dialog.getByText(
+        "Its methods leave your daily report and come back if you turn it on again. Past reports keep their delivery sales.",
+      ),
+    ).toBeInTheDocument();
     await userEvent.click(dialog.getByRole("button", { name: "Turn off" }));
     await waitFor(() =>
-      expect(sent("PUT /settings/sales-accounts")).toEqual([
-        { cash: true, electronic: true, delivery: false },
+      expect(sent("PUT /settings/sales")).toEqual([
+        {
+          accounts: { cash: true, electronic: true, delivery: false },
+          // the methods held as they were: a part turned off keeps them
+          methods: { electronic: [{ id: "v1" }, { id: "v2" }], delivery: [{ id: "d1" }] },
+        },
       ]),
     );
-    expect(await screen.findByText("Your sales accounts are saved.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Your sales accounts and methods are saved."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Delivery methods" })).toBeNull();
   });
 
@@ -786,7 +939,7 @@ describe("PettyCashSettingsScreen - the sales accounts", () => {
       ),
     ).toBeInTheDocument();
     expect(save()).toBeDisabled();
-    expect(sent("PUT /settings/sales-accounts")).toEqual([]);
+    expect(writes()).toEqual([]);
   });
 
   it("each ticked account holds its methods; Cash has none and there are no separate cards", async () => {
@@ -932,6 +1085,33 @@ describe("PettyCashSettingsScreen - leaving with unsaved Xero choices", () => {
     expect(went).toEqual([expect.stringContaining("/settings/users")]);
   });
 
+  it("a method taken off holds the page; Discard changes puts it back", async () => {
+    api({
+      "GET /settings": () => json(settings({ sales_parts: PARTS_ON })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    await user.click(card("Electronic").getByRole("button", { name: "Remove Visa from my list" }));
+    expect(names("Electronic")).toEqual(["AlipayHK"]);
+
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleName(LEAVE_TITLE);
+    await user.click(within(dialog).getByRole("button", { name: GO_BACK_UPPER }));
+    expect(names("Electronic")).toEqual(["AlipayHK"]);
+    expect(went).toEqual([]);
+
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: DISCARD_CHANGES }),
+    );
+    expect(names("Electronic")).toEqual(["Visa", "AlipayHK"]);
+    expect(went).toEqual([expect.stringContaining("/settings/users")]);
+    expect(writes()).toEqual([]);
+  });
+
   it("asks nothing when nothing changed", async () => {
     api({
       "GET /settings": () => json(settings()),
@@ -1011,7 +1191,8 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     expect(localStorage.getItem(MAPPING)).toBeNull();
     await wait2s();
     const kept = JSON.parse(localStorage.getItem(MAPPING) ?? "null");
-    expect(kept.value.cashsale_account).toBe("a2");
+    expect(kept.shape).toBe(2);
+    expect(kept.value).toEqual({ picked: { ...SAVED, cashsale_account: "a2" }, contacts: [] });
     first.unmount();
 
     mount();
@@ -1081,12 +1262,12 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
       v: 1,
       form: "settings.pc-mapping",
       record: "-",
-      shape: 1,
+      shape: 2,
       userId: "u1",
       entityId: ID,
       savedAt: Date.now() - 60_000,
       basedOn: "an-older-save",
-      value: { ...SAVED, cashsale_account: "a2" },
+      value: { picked: { ...SAVED, cashsale_account: "a2" }, contacts: [] },
       files: [],
       missing: [],
     });
@@ -1115,12 +1296,12 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
       v: 1,
       form: "settings.pc-mapping",
       record: "-",
-      shape: 1,
+      shape: 2,
       userId: "u2",
       entityId: ID,
       savedAt: Date.now(),
       basedOn: null,
-      value: { ...SAVED, cashsale_account: "a2" },
+      value: { picked: { ...SAVED, cashsale_account: "a2" }, contacts: [] },
       files: [],
       missing: [],
     });
@@ -1151,11 +1332,15 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     await user.click(
       card("Sales accounts and methods").getByRole("checkbox", { name: /Sales - Delivery/ }),
     );
+    await user.click(card("Electronic").getByRole("button", { name: "Remove Visa from my list" }));
     await wait2s();
     expect(JSON.parse(localStorage.getItem(CODES) ?? "null").value).toEqual(["400", "404"]);
-    expect(JSON.parse(localStorage.getItem(SALES) ?? "null").value).toEqual({
-      ...ON,
-      delivery: false,
+    // shape 2 (2026-11-20): the ticks and the methods the card holds
+    const kept = JSON.parse(localStorage.getItem(SALES) ?? "null");
+    expect(kept.shape).toBe(2);
+    expect(kept.value).toEqual({
+      ticks: { ...ON, delivery: false },
+      methods: { electronic: [ALIPAY], delivery: [FOODPANDA] },
     });
     expect(localStorage.getItem(MAPPING)).toBeNull();
     first.unmount();
@@ -1172,7 +1357,32 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
       "aria-checked",
       "false",
     );
-    expect(sales.getByText("1 change not saved yet")).toBeInTheDocument();
+    expect(names("Electronic")).toEqual(["AlipayHK"]);
+    expect(sales.getByText("2 changes not saved yet")).toBeInTheDocument();
+  });
+
+  it("a sales draft from before shape 2 is not offered", async () => {
+    writeDraft(SALES, {
+      v: 1,
+      form: "settings.pc-sales",
+      record: "-",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: null,
+      value: { ...ON, delivery: false },
+      files: [],
+      missing: [],
+    });
+    api({
+      "GET /settings": () => json(settings({ sales_parts: ON })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    mount();
+    await drawn();
+    await act(async () => undefined);
+    expect(card("Sales accounts and methods").queryByText(/unsaved changes/)).toBeNull();
   });
 
   it("Discard changes on leaving removes every card's draft", async () => {
@@ -1199,5 +1409,179 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     await wait2s();
     expect(localStorage.getItem(CODES)).toBeNull();
     expect(localStorage.getItem(MAPPING)).toBeNull();
+  });
+});
+
+// The mapping's new contact waits for Save Changes (2026-11-20): "+ Add '<name>' as a new contact"
+// and Create only add it to the pickers and choose it; Save Changes first creates it through
+// accounts-api's company door (Settings' contacts), puts its id into the mapping, then saves the
+// mapping. A refused creation stops there with its sentence; Discard changes drops it.
+describe("PettyCashSettingsScreen - a new contact in the mapping", () => {
+  let went: string[];
+  const onClick = (event: MouseEvent) => {
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (anchor instanceof HTMLAnchorElement) {
+      event.preventDefault();
+      went.push(anchor.getAttribute("href") ?? "");
+    }
+  };
+  const scope = { userId: "u1", entityId: ID };
+  const MAPPING = draftKey(scope, "settings.pc-mapping", "-");
+  const CONTACTS_PATH = "/api/me/company/contacts";
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+    went = [];
+    window.addEventListener("click", onClick);
+  });
+  afterEach(() => {
+    window.removeEventListener("click", onClick);
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const customer = () =>
+    card("Account mapping").findByRole("combobox", { name: /Select the Customer contact/ });
+
+  async function holdNina(user: ReturnType<typeof userEvent.setup>) {
+    const mapping = card("Account mapping");
+    const box = await customer();
+    await user.clear(box);
+    await user.type(box, "Nina Ng");
+    await user.click(mapping.getByRole("option", { name: "+ Add 'Nina Ng' as a new contact" }));
+    const name = mapping.getByRole("textbox", { name: /New Contact/ });
+    expect(name).toHaveValue("Nina Ng");
+    // emptied: said under the box on Create, nothing held
+    await user.clear(name);
+    await user.click(mapping.getByRole("button", { name: "Create" }));
+    expect(
+      mapping.getByText("The contact's name is still empty. Type a name to create it."),
+    ).toBeInTheDocument();
+    await user.type(name, "Nina Ng");
+    await user.click(mapping.getByRole("button", { name: "Create" }));
+    return box;
+  }
+
+  it("Create only chooses it here; Save Changes creates it, then saves the mapping with its id", async () => {
+    let read = xero();
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(read),
+      [`HUB POST ${CONTACTS_PATH}`]: (body) =>
+        json(
+          {
+            contact: { id: "row-9", name: (body as { name: string }).name, xero_id: "x-nina" },
+            message: "added",
+          },
+          201,
+        ),
+      "PUT /settings/xero/mapping": (body) => {
+        read = xero({ mapping: body as Record<MappingKey, string> });
+        return json({ ...read, message: "Account mapping saved.", first_save: false });
+      },
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    const mapping = card("Account mapping");
+    const box = await holdNina(user);
+
+    // chosen and offered in the other contact pickers, nothing sent yet
+    expect(box).toHaveValue("Nina Ng");
+    expect(
+      mapping.getByText("Nina Ng is new. It's created when you save your changes."),
+    ).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+    await user.click(
+      mapping.getByRole("combobox", { name: /Director or Responsible person who pays personally/ }),
+    );
+    expect(mapping.getByRole("option", { name: "Nina Ng" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    const save = mapping.getByRole("button", { name: "Save Changes" });
+    expect(save).toBeEnabled();
+
+    await user.click(save);
+    expect(await screen.findByText("Account mapping saved.")).toBeInTheDocument();
+    expect(sent(`HUB POST ${CONTACTS_PATH}`)).toEqual([{ name: "Nina Ng" }]);
+    expect(sent("PUT /settings/xero/mapping")).toEqual([{ ...SAVED, cashsale_contact: "x-nina" }]);
+    // created first, then the mapping
+    expect(writes()).toEqual([`POST ${CONTACTS_PATH}`, `PUT ${PREFIX}/settings/xero/mapping`]);
+  });
+
+  it("a refused creation stops with its sentence: no mapping save, the choice kept", async () => {
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+      [`HUB POST ${CONTACTS_PATH}`]: () =>
+        json({ error: "You don't have permission to add contacts." }, 403),
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    const box = await holdNina(user);
+    await user.click(card("Account mapping").getByRole("button", { name: "Save Changes" }));
+    expect(
+      await screen.findByText("You don't have permission to add contacts."),
+    ).toBeInTheDocument();
+    expect(sent("PUT /settings/xero/mapping")).toEqual([]);
+    expect(box).toHaveValue("Nina Ng");
+    expect(card("Account mapping").getByRole("button", { name: "Save Changes" })).toBeEnabled();
+  });
+
+  it("a held contact holds the page; Discard changes drops it", async () => {
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    show();
+    await drawn();
+    const user = userEvent.setup();
+    await holdNina(user);
+
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: DISCARD_CHANGES }),
+    );
+    expect(went).toEqual([expect.stringContaining("/settings/users")]);
+    const box = await customer();
+    expect(box).toHaveValue("Walk-in Customer");
+    await user.click(box);
+    expect(card("Account mapping").queryByRole("option", { name: "Nina Ng" })).toBeNull();
+    expect(writes()).toEqual([]);
+  });
+
+  it("the draft keeps the held contact (shape 2) and Restore chooses it again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    const first = render(
+      <ToastProvider>
+        <PettyCashSettingsScreen company={COMPANY} />
+      </ToastProvider>,
+    );
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await holdNina(user);
+    await act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+    const kept = JSON.parse(localStorage.getItem(MAPPING) ?? "null");
+    expect(kept.shape).toBe(2);
+    expect(kept.value.picked.cashsale_contact).toBe(kept.value.contacts[0].id);
+    expect(kept.value.contacts).toEqual([{ id: expect.stringMatching(/^new:/), name: "Nina Ng" }]);
+    first.unmount();
+
+    show();
+    await drawn();
+    const mapping = card("Account mapping");
+    await mapping.findByText(/You have unsaved changes/);
+    await user.click(mapping.getByRole("button", { name: "Restore" }));
+    expect(await customer()).toHaveValue("Nina Ng");
+    expect(mapping.getByRole("button", { name: "Save Changes" })).toBeEnabled();
+    expect(writes()).toEqual([]);
   });
 });

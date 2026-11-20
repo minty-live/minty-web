@@ -27,6 +27,9 @@ import { formatPrice } from "@minty/shared/money";
 export const PICK_HEADING = "SELECT NEW SUBSCRIBER FOR THIS ENTITY (Admin Role Only)";
 export const INVITE_HEADING = "Invite someone new";
 export const INVITE_PLACEHOLDER = "name@company.com";
+/** Under Send invite: it acts at once, and the screen's Cancel does not undo it (2026-11-20). */
+export const INVITE_SENT_AT_ONCE =
+  "The invite goes out as soon as you send it. Cancel won't take it back.";
 export const REQUEST_TRANSFER = "Request transfer";
 export const WITHDRAW_REQUEST = "Withdraw request";
 export const REQUEST_WAITING = "A request is already waiting.";

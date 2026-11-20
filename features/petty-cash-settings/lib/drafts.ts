@@ -6,7 +6,9 @@
  * never the real settings): Account mapping (`settings.pc-mapping`), Petty Cash Account Code
  * (`settings.pc-codes`) and the sales accounts (`settings.pc-sales`), each record `-`, each
  * `basedOn` the fingerprint of the values the API sent for that card - a save by anyone since
- * makes the draft stale (shown, never put back).
+ * makes the draft stale (shown, never put back). Shape 2 (2026-11-20) for the two cards that hold
+ * more than their picks: the mapping keeps its new contacts (`{picked, contacts}`) and the sales
+ * accounts their methods (`{ticks, methods}`); a shape-1 draft from before is dropped.
  *
  * The cards remount on the page's "Discard changes" (its `resetKey`), and a form going away writes
  * what it still holds, so the page clears every card's draft FIRST: each card registers its
@@ -32,13 +34,21 @@ export type CardDrafts = {
 
 export function useCardDraft<T>(
   drafts: CardDrafts | undefined,
-  opts: { form: string; ready: boolean; basedOn: string; value: T; dirty: boolean },
+  opts: {
+    form: string;
+    ready: boolean;
+    basedOn: string;
+    value: T;
+    dirty: boolean;
+    /** The value's shape (bumped when it changes); 1 unless said. */
+    shape?: number;
+  },
 ) {
   const draft = useAutoSaveDraft<T>({
     scope: drafts?.scope ?? null,
     form: opts.form,
     record: "-",
-    shape: 1,
+    shape: opts.shape ?? 1,
     ready: opts.ready,
     basedOn: opts.basedOn,
     value: opts.value,

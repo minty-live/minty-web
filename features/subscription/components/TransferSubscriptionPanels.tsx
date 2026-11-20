@@ -15,6 +15,7 @@ import type { SubscriberCandidate } from "@/features/subscription/api/payerPorta
 import {
   INVITE_HEADING,
   INVITE_PLACEHOLDER,
+  INVITE_SENT_AT_ONCE,
   NO_ADMINS,
   PICK_HEADING,
   REQUEST_TRANSFER,
@@ -191,11 +192,15 @@ export function SubscriberPicker({
             type="button"
             onClick={on.onSendInvite}
             disabled={inviting || !invite.trim()}
-            className="shrink-0 rounded-lg px-3 py-1.5 text-[15px] font-semibold text-text-link hover:opacity-80 disabled:cursor-not-allowed disabled:text-text-disabled"
+            aria-describedby="inviteEmail-note"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-[15px] font-semibold text-text-link hover:opacity-80 disabled:cursor-not-allowed disabled:text-text-disabled"
           >
             {inviting ? "Sending…" : "Send invite"}
           </button>
         </div>
+        <p id="inviteEmail-note" className="text-xs text-text-secondary">
+          {INVITE_SENT_AT_ONCE}
+        </p>
         {inviteEmail.rejected && (
           <p id="inviteEmail-hint" className="text-sm text-status-danger-ink" role="status">
             {EMAIL_ASCII_HINT}

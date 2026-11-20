@@ -904,6 +904,56 @@ describe("useSubscriptionsList", () => {
     expect(result.current.summary.view?.pendingChange ?? null).toBeNull();
   });
 
+  // 2026-11-20 (Save buttons that cover what the screen saves, item 7): a trial reloads the list,
+  // which would drop the ticks without a word - so Start Free Trial asks "Leave without saving?"
+  // first, and reaches the trial's own question only on Discard.
+  it("Start Free Trial with ticks pending asks to leave first; Go back keeps them, Discard opens the trial's question", async () => {
+    serveChange(fetchMock, "RV44");
+    const [first, second] = ENTITIES;
+    const { result } = renderHook(
+      () => useSubscriptionsList({ today: TODAY, focusEntityId: first.entity_id }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.status).toBe("ready"));
+    act(() => result.current.summary.toggleTick("PETTY_CASH"));
+    expect(result.current.summary.view?.pendingChange).not.toBeNull();
+
+    // The open row's own trial and another company's both ask first.
+    for (const entity of [first, second]) {
+      act(() => result.current.askStartTrial(entity, "PAYMENT_REQUEST"));
+      expect(result.current.leavePrompt).not.toBeNull();
+      expect(result.current.trialPrompt).toBeNull();
+      act(() => result.current.stay());
+      expect(result.current.leavePrompt).toBeNull();
+      expect(result.current.trialPrompt).toBeNull();
+      expect(result.current.summary.view?.pendingChange).not.toBeNull();
+    }
+
+    act(() => result.current.askStartTrial(second, "PAYMENT_REQUEST"));
+    act(() => result.current.discardAndLeave());
+    expect(result.current.leavePrompt).toBeNull();
+    expect(result.current.summary.view?.pendingChange ?? null).toBeNull();
+    expect(result.current.trialPrompt).toMatchObject({
+      entity: { entity_id: second.entity_id },
+      code: "PAYMENT_REQUEST",
+    });
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("start-trial"))).toBe(false);
+  });
+
+  it("Start Free Trial with nothing pending goes straight to the trial's question", async () => {
+    serveChange(fetchMock, "RV44");
+    const [first] = ENTITIES;
+    const { result } = renderHook(
+      () => useSubscriptionsList({ today: TODAY, focusEntityId: first.entity_id }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.summary.status).toBe("ready"));
+
+    act(() => result.current.askStartTrial(first, "PAYMENT_REQUEST"));
+    expect(result.current.leavePrompt).toBeNull();
+    expect(result.current.trialPrompt).toMatchObject({ code: "PAYMENT_REQUEST" });
+  });
+
   it("ticks pending never arm the browser's own 'Leave site?' (owner, 2026-11-16)", async () => {
     serveChange(fetchMock, "RV44");
     const added = vi.spyOn(window, "addEventListener");

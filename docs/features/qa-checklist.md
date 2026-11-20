@@ -147,6 +147,26 @@ run" below).
       _Discard_ keeps the saved values. Nothing reaches the API until Save (Network tab: no write
       on Restore). A card's own Save, _Discard changes_ on leaving, and the account form's Cancel
       remove the draft (reload: no notice).
+- [ ] **Petty Cash Settings - Sales accounts and methods hold everything until Save changes**
+      (2026-11-20), at 360, 768 and 1440: add a method from the picker and by name, rename your
+      own, drag one, take one off with x - each shows at once, the counter reads "N changes not
+      saved yet", and the Network tab shows NO write. x asks nothing. A method taken off is offered
+      back in the picker. Save changes with nothing taken off or turned off asks nothing and sends
+      ONE `PUT /settings/sales`; with something taken off or an account turned off it first asks in
+      the ConfirmDialog ("Remove Foodpanda?", "Turn off Sales - Delivery and remove 2 methods?"),
+      listing each one (own: "is deleted"; Minty's: "comes off your list"). _Go back_ sends
+      nothing. A refused save keeps every change with the API's sentence. With changes held,
+      leaving asks; _Discard changes_ puts the saved lists back.
+- [ ] **Account mapping - a new contact waits for Save Changes** (2026-11-20): "+ Add '<name>' as a
+      new contact", Create - the picker shows it with "<name> is new. It's created when you save
+      your changes.", the other contact pickers offer it, and no request goes out. Save Changes
+      sends `POST /api/me/company/contacts` then `PUT /settings/xero/mapping` with the new id.
+      Refuse the creation (a cashier's token, or offline) - its sentence shows, no mapping save,
+      the card stays changed. Leaving asks; _Discard changes_ drops the new contact.
+- [ ] **DB** after a sales save: the company's `pettycashv3.entity_sale_setting` rows joined to
+      `sale_info`, by `display_order` - the order as saved; a Minty method taken off reads
+      `is_active = false`; the company's own is gone (or its `sale_info.enabled = false` when a
+      report used it).
 - [ ] Draft gone stale: keep a draft, change and save the same card in another tab, reload the
       first - "This was saved again after your unsaved changes …", _Show what I typed_ lists it,
       no Restore.
@@ -258,6 +278,10 @@ pettycashv3.entity_module_subscription WHERE entity_id = '<id>';` — a confirme
 - [ ] Tick a module, then try to close the row via its chevron — the in-app "Leave without
       saving?" (A-11) appears; _Discard changes_ drops the tick and closes; _Go Back_ keeps it
       open with the tick intact.
+- [ ] Tick a module, then press another company's (or this row's) _Start Free Trial_ — "Leave
+      without saving?" comes first; _Go Back_ keeps the tick and starts nothing; _Discard
+      changes_ drops the tick and only then opens the trial's own dialog. With nothing ticked,
+      _Start Free Trial_ opens the trial's dialog straight away (2026-11-20).
 - [ ] A change that ONLY cancels (no billing involved) applies directly on Confirm — no "Billing
       Accounts" step.
 - [ ] A change that bills anything (a trial confirmed, an expired trial reactivated, a
@@ -294,6 +318,9 @@ pettycashv3.entity_module_subscription WHERE entity_id = '<id>';` — a confirme
       "Current" — it cannot be selected.
 - [ ] A candidate the API flags with a blocker is shown in amber and disables _Request transfer_
       for that pick.
+- [ ] Under _Send invite_ the line "The invite goes out as soon as you send it. Cancel won't take
+      it back." shows at 360 and 1440 without clipping; the answer still shows by the box, and
+      _Cancel_ afterwards does not withdraw the invitation (2026-11-20).
 - [ ] With a request already pending, _Withdraw request_ fires with **no confirmation dialog**
       (there's nothing to lose), shows "Transfer request has been withdrawn", then returns to the
       picker.

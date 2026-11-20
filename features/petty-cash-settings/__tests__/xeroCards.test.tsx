@@ -67,7 +67,7 @@ const props = { busy: false, call: vi.fn(), connectHref: "/x", onRetry: vi.fn(),
 
 describe("Minty on its own", () => {
   it("the mapping card draws its own accounts, with no contacts and no Xero wording", () => {
-    render(<XeroMappingCard {...props} onAdded={vi.fn()} load={{ kind: "ready", read: read() }} />);
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: read() }} />);
     expect(screen.getByText("Account mapping")).toBeInTheDocument();
     expect(screen.queryByText(/Xero isn.t connected/)).not.toBeInTheDocument();
     expect(screen.getByText("Select Petty Cash bank account")).toBeInTheDocument();
@@ -86,7 +86,6 @@ describe("Minty on its own", () => {
     render(
       <XeroMappingCard
         {...props}
-        onAdded={vi.fn()}
         load={{ kind: "ready", read: read({ minty: false, mapping: null, account_codes: null }) }}
       />,
     );
@@ -117,13 +116,7 @@ describe("a company that banks all its sales (2026-11-10)", () => {
     const mapping = base.mapping!.map((f) =>
       f.key === "cashsale_account" ? { ...f, optional: true } : f,
     );
-    render(
-      <XeroMappingCard
-        {...props}
-        onAdded={vi.fn()}
-        load={{ kind: "ready", read: read({ mapping }) }}
-      />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: read({ mapping }) }} />);
     expect(screen.getByText("(optional)")).toBeInTheDocument();
     const picked = {
       main_bank: "a1",
@@ -169,9 +162,7 @@ const xeroRead = () =>
 
 describe("a Xero company: the accounts first, then the contacts grouped (owner, 2026-11-12)", () => {
   it("draws the five accounts' groups, then one Contacts group holding the three contacts", () => {
-    render(
-      <XeroMappingCard {...props} onAdded={vi.fn()} load={{ kind: "ready", read: xeroRead() }} />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: xeroRead() }} />);
 
     expect(screen.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
       "Petty Cash Account",
@@ -203,7 +194,6 @@ describe("a Xero company without a live connection (owner, 2026-11-12)", () => {
     render(
       <XeroMappingCard
         {...props}
-        onAdded={vi.fn()}
         load={{ kind: "ready", read: { ...xeroRead(), minty: false, live: false } }}
       />,
     );
@@ -254,13 +244,7 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
     "Bank 1 is archived in Xero. Please check it in Xero, then map this account to the one you want to use, or choose another account here.";
 
   it("says the chosen account is archived, tied to its box", () => {
-    render(
-      <XeroMappingCard
-        {...props}
-        onAdded={vi.fn()}
-        load={{ kind: "ready", read: archivedRead() }}
-      />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: archivedRead() }} />);
     const note = screen.getByText(NOTE);
     const box = screen.getByRole("combobox", { name: /Petty Cash bank account/ });
     expect(box).toHaveAttribute("aria-describedby", note.id);
@@ -268,13 +252,7 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
   });
 
   it("clears once another account is chosen", () => {
-    render(
-      <XeroMappingCard
-        {...props}
-        onAdded={vi.fn()}
-        load={{ kind: "ready", read: archivedRead() }}
-      />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: archivedRead() }} />);
     const box = screen.getByRole("combobox", { name: /Petty Cash bank account/ });
     fireEvent.focus(box);
     const [, replacement] = screen.getAllByRole("option");
@@ -290,13 +268,7 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
         ? { ...f, options: [{ id: "c-7", name: "7-Eleven" }], selected: "c-7", archived: true }
         : f,
     );
-    render(
-      <XeroMappingCard
-        {...props}
-        onAdded={vi.fn()}
-        load={{ kind: "ready", read: { ...base, mapping } }}
-      />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: { ...base, mapping } }} />);
     expect(
       screen.getByText(
         "7-Eleven is archived in Xero. Restore it in Xero, or choose another contact here.",
@@ -309,7 +281,6 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
     render(
       <XeroMappingCard
         {...props}
-        onAdded={vi.fn()}
         load={{ kind: "ready", read: { ...archivedRead(), live: false } }}
       />,
     );
@@ -320,9 +291,7 @@ describe("a saved account archived in Xero (2026-11-13)", () => {
   });
 
   it("an active account has no note", () => {
-    render(
-      <XeroMappingCard {...props} onAdded={vi.fn()} load={{ kind: "ready", read: xeroRead() }} />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: xeroRead() }} />);
     expect(screen.queryByText(/is archived/)).not.toBeInTheDocument();
   });
 });
@@ -346,13 +315,7 @@ describe("a contact picker tells the person they can type to add (owner, 2026-11
     });
 
   it("shows the note as soon as the list opens, and the add row once a new name is typed", () => {
-    render(
-      <XeroMappingCard
-        {...props}
-        onAdded={vi.fn()}
-        load={{ kind: "ready", read: xeroWithContacts() }}
-      />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: xeroWithContacts() }} />);
     const box = screen.getByRole("combobox", { name: /Customer contact/ });
     fireEvent.focus(box);
     expect(screen.getByText("Type a contact name to add a new contact")).toBeInTheDocument();
@@ -367,9 +330,7 @@ describe("a contact picker tells the person they can type to add (owner, 2026-11
   it("someone who may not add sees no note", () => {
     const viewOnly = xeroWithContacts();
     viewOnly.permissions = { ...viewOnly.permissions, edit_mapping: false };
-    render(
-      <XeroMappingCard {...props} onAdded={vi.fn()} load={{ kind: "ready", read: viewOnly }} />,
-    );
+    render(<XeroMappingCard {...props} load={{ kind: "ready", read: viewOnly }} />);
     const box = screen.getByRole("combobox", { name: /Customer contact/ });
     fireEvent.focus(box);
     expect(screen.queryByText("Type a contact name to add a new contact")).not.toBeInTheDocument();

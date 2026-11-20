@@ -15,7 +15,7 @@ const HUB_SETTINGS = "/entity/3d65f186/e2e-petty-cash-shop/settings";
 const SETTINGS = `${HUB_SETTINGS}/petty-cash`;
 const PETTY_CASH_API_URL = process.env.E2E_PETTY_CASH_API_URL || "http://localhost:8010";
 const API =
-  /\/api\/petty-cash\/v1\/companies\/[^/]+\/(settings(?:\/xero(?:\/mapping|\/account-codes)?)?|sales-methods(?:\/[^/?]+)?)$/;
+  /\/api\/petty-cash\/v1\/companies\/[^/]+\/(settings(?:\/sales|\/xero(?:\/mapping|\/account-codes)?)?|sales-methods(?:\/[^/?]+)?)$/;
 const CREDS = { secret: "stub-never-verified", userId: "u", entityId: ENTITY, entityName: NAME };
 
 const VISA = "0a000000-0000-4000-8000-000000000001";
@@ -102,6 +102,9 @@ const SAVED_MAPPING: Record<MappingKey, string | null> = {
   discrepancy_account: SUSPENSE,
   discrepancy_contact: TESS,
 };
+// the mapping save sends every key of the read; these two (each sales account's code, 2026-11-17)
+// are not in this stub's read, so they go empty
+const UNSENT = { electronicsale_account: "", deliverysale_account: "" };
 const EMPTY_MAPPING = Object.fromEntries(MAPPING_KEYS.map((k) => [k, null])) as Record<
   MappingKey,
   string | null
@@ -256,7 +259,33 @@ async function stub(page: Page, state: State, refuse: Refuse = () => null) {
     }
     let message = "";
     let status = 200;
-    if (path === "/sales-methods" && call.method === "POST") {
+    if (path === "/settings/sales") {
+      // the sales accounts card in one save (2026-11-20): each list as sent, in its order
+      type Item = { id?: string; name?: string; sale_info_id?: string };
+      const lists = (body?.methods ?? {}) as Partial<Record<"electronic" | "delivery", Item[]>>;
+      for (const type of ["electronic", "delivery"] as const) {
+        const items = lists[type];
+        if (!items) continue;
+        const before = state[type];
+        state[type] = items.map((item, i) => {
+          const kept = before.find((x) => x.id === item.id);
+          if (kept) return item.name ? { ...kept, name: item.name } : kept;
+          const picked = state.available[type].find((a) => a.id === item.sale_info_id);
+          if (picked) return m(picked.id, picked.name);
+          return m(`0c000000-0000-4000-8000-00000000000${i}`, String(item.name), true);
+        });
+        const now = new Set(state[type].map((x) => x.id));
+        // Minty's methods taken off are offered again; the company's own are gone
+        state.available[type] = [
+          ...state.available[type].filter((a) => !now.has(a.id)),
+          ...before
+            .filter((x) => !x.own && !now.has(x.id))
+            .map((x) => ({ id: x.id, name: x.name })),
+        ];
+      }
+      state.parts = body?.accounts as Parts;
+      message = "Your sales accounts and methods are saved.";
+    } else if (path === "/sales-methods" && call.method === "POST") {
       const type = body?.type as "electronic" | "delivery";
       const fromCatalogue = state.available[type].find((a) => a.id === body?.sale_info_id);
       const added = fromCatalogue
@@ -377,39 +406,117 @@ test.describe("petty cash settings", () => {
     await expect(rows(page, "Electronic")).toHaveCount(2);
   });
 
-  test("adding from the catalogue: the methods offered, picked, sent by id, drawn from the answer", async ({
-    page,
-  }) => {
-    const sent = await open(page);
-    const electronic = card(page, "Electronic");
-    const picker = electronic.getByRole("combobox", { name: "Method" });
-    await picker.click();
-    await expect(electronic.getByRole("option")).toHaveText(["Octopus"]);
-    // the note on top as the list opens (owner, 2026-11-12), as every contact picker has it
-    await expect(electronic.getByText("Type a method name to add a new method")).toBeVisible();
-    await picker.fill("zz");
-    await expect(electronic.getByText("No matching payment method found")).toBeVisible();
-    await picker.fill("oct");
-    await electronic.getByRole("option", { name: "Octopus" }).click();
-    await electronic.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(toast(page, "Octopus added.")).toBeVisible();
-    expect(sent).toEqual([
-      {
-        method: "POST",
-        path: "/sales-methods",
-        body: { type: "electronic", sale_info_id: OCTOPUS },
-      },
-    ]);
-    await expect(rows(page, "Electronic")).toHaveText([/Visa/, /AlipayHK/, /Octopus/]);
-    // the field empties itself for the next one
-    await expect(picker).toHaveValue("");
-  });
+  // The sales accounts card holds every method change until its Save changes (2026-11-20): one
+  // PUT /settings/sales, asked about first only when something is turned off or taken off.
+  const HELD = () => initialState({ parts: { cash: true, electronic: true, delivery: true } });
+  const SALES_CARD = "Sales accounts and methods";
+  const saveSales = (page: Page) =>
+    card(page, SALES_CARD).getByRole("button", { name: "Save changes", exact: true });
+  const counter = (page: Page, text: string) => card(page, SALES_CARD).getByText(text);
 
-  test("adding by name on a phone: Other, the name checked as it is typed, then sent", async ({
+  for (const width of [360, 1440]) {
+    test(`adding from the catalogue: offered, picked, held as a chip, then sent with Save changes, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const sent = await open(page, HELD());
+      const electronic = card(page, "Electronic");
+      const picker = electronic.getByRole("combobox", { name: "Method" });
+      await picker.click();
+      await expect(electronic.getByRole("option")).toHaveText(["Octopus"]);
+      // the note on top as the list opens (owner, 2026-11-12), as every contact picker has it
+      await expect(electronic.getByText("Type a method name to add a new method")).toBeVisible();
+      await picker.fill("zz");
+      await expect(electronic.getByText("No matching payment method found")).toBeVisible();
+      await picker.fill("oct");
+      await electronic.getByRole("option", { name: "Octopus" }).click();
+      await electronic.getByRole("button", { name: "Add", exact: true }).click();
+      await expect(rows(page, "Electronic")).toHaveText([/Visa/, /AlipayHK/, /Octopus/]);
+      // the field empties itself for the next one; nothing is sent yet
+      await expect(picker).toHaveValue("");
+      await expect(counter(page, "1 change not saved yet")).toBeVisible();
+      expect(sent).toEqual([]);
+      await expectNoHorizontalScroll(page);
+      await page.screenshot({ path: `test-results/sales-held-add-${width}.png`, fullPage: true });
+
+      // nothing taken off: Save changes asks nothing
+      await saveSales(page).click();
+      await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
+      expect(sent).toEqual([
+        {
+          method: "PUT",
+          path: "/settings/sales",
+          body: {
+            accounts: { cash: true, electronic: true, delivery: true },
+            methods: {
+              electronic: [{ id: VISA }, { id: ALIPAY }, { sale_info_id: OCTOPUS }],
+              delivery: [{ id: FOODPANDA }],
+            },
+          },
+        },
+      ]);
+      await expect(rows(page, "Electronic")).toHaveText([/Visa/, /AlipayHK/, /Octopus/]);
+      await expect(counter(page, "No changes to save yet")).toBeVisible();
+    });
+
+    test(`taking off and deleting: no question until Save changes, then one that names both, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const sent = await open(page, HELD());
+      await off(page, "Delivery", "Foodpanda").click();
+      await bin(page, "Electronic", "AlipayHK").click();
+      // no question of their own: gone from the lists, the page holding them
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(rows(page, "Delivery")).toHaveCount(0);
+      await expect(card(page, "Delivery").getByText("No delivery methods yet.")).toBeVisible();
+      await expect(rows(page, "Electronic")).toHaveText([/Visa/]);
+      await expect(counter(page, "2 changes not saved yet")).toBeVisible();
+      expect(sent).toEqual([]);
+
+      await saveSales(page).click();
+      const dialog = page.getByRole("dialog", { name: "Remove 2 methods?" });
+      await expect(dialog).toContainText("AlipayHK is deleted. This can't be undone.");
+      await expect(dialog).toContainText(
+        "Foodpanda comes off your list. You can add it back any time.",
+      );
+      await expectNoHorizontalScroll(page);
+      await page.screenshot({ path: `test-results/sales-held-confirm-${width}.png` });
+      // the buttons are touch-sized
+      for (const name of ["Go back", "Remove"]) {
+        const box = await dialog.getByRole("button", { name, exact: true }).boundingBox();
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      await dialog.getByRole("button", { name: "Go back" }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(sent).toEqual([]);
+
+      await saveSales(page).click();
+      await page
+        .getByRole("dialog", { name: "Remove 2 methods?" })
+        .getByRole("button", { name: "Remove", exact: true })
+        .click();
+      await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
+      expect(sent).toEqual([
+        {
+          method: "PUT",
+          path: "/settings/sales",
+          body: {
+            accounts: { cash: true, electronic: true, delivery: true },
+            methods: { electronic: [{ id: VISA }], delivery: [] },
+          },
+        },
+      ]);
+      await expect(rows(page, "Electronic")).toHaveText([/Visa/]);
+      await expect(rows(page, "Delivery")).toHaveCount(0);
+    });
+  }
+
+  test("adding by name on a phone: Other, the name checked as it is typed, held, then sent", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 780 });
-    const sent = await open(page);
+    const sent = await open(page, HELD());
     const delivery = card(page, "Delivery");
     await delivery.getByRole("combobox", { name: "Method" }).fill("Lalamove");
     await delivery.getByRole("option", { name: "+ Add 'Lalamove' as a new method" }).click();
@@ -435,41 +542,34 @@ test.describe("petty cash settings", () => {
     await name.fill("foodpanda");
     await expect(delivery.getByText("foodpanda is already on the list.")).toBeVisible();
     await name.press("Enter");
-    expect(sent).toEqual([]);
+    await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/]);
     await name.fill("Deliveroo Plus");
     await expect(name).not.toHaveAttribute("aria-invalid", "true");
     await name.press("Enter");
-    await expect(toast(page, "Deliveroo Plus added.")).toBeVisible();
+    await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/, /Deliveroo Plus/]);
+    expect(sent).toEqual([]);
+    await saveSales(page).click();
+    await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
     expect(sent).toEqual([
       {
-        method: "POST",
-        path: "/sales-methods",
-        body: { type: "delivery", name: "Deliveroo Plus" },
+        method: "PUT",
+        path: "/settings/sales",
+        body: {
+          accounts: { cash: true, electronic: true, delivery: true },
+          methods: {
+            electronic: [{ id: VISA }, { id: ALIPAY }],
+            delivery: [{ id: FOODPANDA }, { name: "Deliveroo Plus" }],
+          },
+        },
       },
     ]);
     await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/, /Deliveroo Plus/]);
   });
 
-  test("an add the API refuses (409) says its sentence and keeps the form", async ({ page }) => {
-    await open(page, initialState(), (s) =>
-      s.path === "/sales-methods"
-        ? { status: 409, error: "Tap & Go is already on the list." }
-        : null,
-    );
-    const electronic = card(page, "Electronic");
-    await electronic.getByRole("combobox", { name: "Method" }).fill("Tap & Go");
-    await electronic.getByRole("option", { name: "+ Add 'Tap & Go' as a new method" }).click();
-    await expect(electronic.getByRole("textbox", { name: "Name" })).toHaveValue("Tap & Go");
-    await electronic.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(toast(page, "Tap & Go is already on the list.")).toBeVisible();
-    await expect(electronic.getByRole("textbox", { name: "Name" })).toHaveValue("Tap & Go");
-    await expect(rows(page, "Electronic")).toHaveCount(2);
-  });
-
-  test("renaming: the pencil opens the name box, Enter saves; Escape puts it back", async ({
+  test("renaming: the pencil opens the name box, Enter keeps it; Escape puts it back", async ({
     page,
   }) => {
-    const sent = await open(page);
+    const sent = await open(page, HELD());
     const electronic = card(page, "Electronic");
     await electronic.getByRole("button", { name: "Edit AlipayHK" }).click();
     const box = electronic.getByRole("textbox", { name: "Rename AlipayHK" });
@@ -484,26 +584,38 @@ test.describe("petty cash settings", () => {
       electronic.getByText("That name is too long. Keep it to 80 characters or fewer."),
     ).toBeVisible();
     await box.press("Enter");
-    expect(sent).toEqual([]);
+    await expect(box).toBeVisible();
     await box.press("Escape");
     await expect(electronic.getByRole("button", { name: "Edit AlipayHK" })).toBeVisible();
-    expect(sent).toEqual([]);
+    await expect(counter(page, "No changes to save yet")).toBeVisible();
 
     await electronic.getByRole("button", { name: "Edit AlipayHK" }).click();
     await electronic.getByRole("textbox", { name: "Rename AlipayHK" }).fill("Alipay HK");
     await electronic.getByRole("textbox", { name: "Rename AlipayHK" }).press("Enter");
-    await expect(toast(page, "Name saved.")).toBeVisible();
-    expect(sent).toEqual([
-      { method: "PUT", path: `/sales-methods/${ALIPAY}`, body: { name: "Alipay HK" } },
-    ]);
     await expect(rows(page, "Electronic")).toHaveText([/Visa/, /Alipay HK/]);
+    expect(sent).toEqual([]);
+    await saveSales(page).click();
+    await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
+    expect(sent).toEqual([
+      {
+        method: "PUT",
+        path: "/settings/sales",
+        body: {
+          accounts: { cash: true, electronic: true, delivery: true },
+          methods: {
+            electronic: [{ id: VISA }, { id: ALIPAY, name: "Alipay HK" }],
+            delivery: [{ id: FOODPANDA }],
+          },
+        },
+      },
+    ]);
   });
 
-  test("a refused rename (409) says the API's sentence and keeps the old name", async ({
+  test("a save the API refuses (409) says its sentence and keeps every change", async ({
     page,
   }) => {
-    await open(page, initialState(), (s) =>
-      s.method === "PUT" && s.path.startsWith("/sales-methods/")
+    await open(page, HELD(), (s) =>
+      s.path === "/settings/sales"
         ? { status: 409, error: "A method with that name already exists." }
         : null,
     );
@@ -511,13 +623,15 @@ test.describe("petty cash settings", () => {
     await electronic.getByRole("button", { name: "Edit Visa" }).click();
     await electronic.getByRole("textbox", { name: "Rename Visa" }).fill("Visa Card");
     await electronic.getByRole("textbox", { name: "Rename Visa" }).press("Enter");
+    await saveSales(page).click();
     await expect(toast(page, "A method with that name already exists.")).toBeVisible();
-    await expect(rows(page, "Electronic")).toHaveText([/Visa/, /AlipayHK/]);
-    await expect(toast(page, "Name saved.")).toHaveCount(0);
+    await expect(rows(page, "Electronic")).toHaveText([/Visa Card/, /AlipayHK/]);
+    await expect(counter(page, "1 change not saved yet")).toBeVisible();
+    await expect(saveSales(page)).toBeEnabled();
   });
 
   test("Minty's method has no pencil; the company's own does", async ({ page }) => {
-    const sent = await open(page);
+    const sent = await open(page, HELD());
     const delivery = card(page, "Delivery");
     await expect(delivery.getByRole("button", { name: "Edit Foodpanda" })).toHaveCount(0);
     await expect(delivery.getByRole("button", { name: "Delete Foodpanda" })).toHaveCount(0);
@@ -533,7 +647,51 @@ test.describe("petty cash settings", () => {
     await expectNoHorizontalScroll(page);
   });
 
-  test("removing Minty's method: the confirm, Go back sends nothing, Remove takes it off the list", async ({
+  test("reordering: a dragged method dropped on another row moves it here; Save changes sends the order", async ({
+    page,
+  }) => {
+    const sent = await open(page, HELD());
+    await expect(card(page, "Electronic").getByRole("menu")).toHaveCount(0);
+
+    await handle(page, "Electronic", "AlipayHK").dragTo(rows(page, "Electronic").first());
+    await expect(rows(page, "Electronic")).toHaveText([/AlipayHK/, /Visa/]);
+    // the handle's arrow keys move one place, as a drag does
+    await handle(page, "Delivery", "Foodpanda").focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/]);
+    expect(sent).toEqual([]);
+    await saveSales(page).click();
+    await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
+    expect(sent).toEqual([
+      {
+        method: "PUT",
+        path: "/settings/sales",
+        body: {
+          accounts: { cash: true, electronic: true, delivery: true },
+          methods: { electronic: [{ id: ALIPAY }, { id: VISA }], delivery: [{ id: FOODPANDA }] },
+        },
+      },
+    ]);
+  });
+
+  test("a held method change asks before leaving; Discard changes puts it back", async ({
+    page,
+  }) => {
+    const sent = await open(page, HELD());
+    await bin(page, "Electronic", "Visa").click();
+    await expect(rows(page, "Electronic")).toHaveText([/AlipayHK/]);
+    await page
+      .getByRole("navigation", { name: "Settings sections" })
+      .getByRole("link", { name: "Users", exact: true })
+      .click();
+    const leave = page.getByRole("dialog", { name: "Leave without saving?" });
+    await expect(leave).toBeVisible();
+    await leave.getByRole("button", { name: /discard/i }).click();
+    await expect(page).toHaveURL(new RegExp(`${HUB_SETTINGS}/users`));
+    expect(sent).toEqual([]);
+  });
+
+  test("an API without the sales accounts: the method cards of their own, each change at once", async ({
     page,
   }) => {
     const sent = await open(page);
@@ -542,75 +700,11 @@ test.describe("petty cash settings", () => {
     await expect(dialog).toContainText(
       'Remove "Foodpanda" from your list? You can add it back any time.',
     );
-    await expect(dialog.getByRole("button", { name: "Go back" })).toBeFocused();
-    await dialog.getByRole("button", { name: "Go back" }).click();
-    await expect(dialog).toHaveCount(0);
-    expect(sent).toEqual([]);
-
-    await off(page, "Delivery", "Foodpanda").click();
-    await page
-      .getByRole("dialog", { name: "Remove Delivery Method" })
-      .getByRole("button", { name: "Remove" })
-      .click();
+    await dialog.getByRole("button", { name: "Remove" }).click();
     await expect(
       toast(page, "Foodpanda is off your list. You can add it back any time."),
     ).toBeVisible();
     expect(sent).toEqual([{ method: "DELETE", path: `/sales-methods/${FOODPANDA}`, body: null }]);
-    await expect(rows(page, "Delivery")).toHaveCount(0);
-    await expect(card(page, "Delivery").getByText("No delivery methods yet.")).toBeVisible();
-  });
-
-  test("deleting the company's own method: confirmed, then gone from the list", async ({
-    page,
-  }) => {
-    const sent = await open(page);
-    await bin(page, "Electronic", "AlipayHK").click();
-    const dialog = page.getByRole("dialog", { name: "Delete Electronic Method" });
-    await expect(dialog).toContainText(
-      'Are you sure you want to delete "AlipayHK"? This action cannot be undone.',
-    );
-    await dialog.getByRole("button", { name: "Delete" }).click();
-    await expect(toast(page, "AlipayHK deleted.")).toBeVisible();
-    expect(sent).toEqual([{ method: "DELETE", path: `/sales-methods/${ALIPAY}`, body: null }]);
-    await expect(rows(page, "Electronic")).toHaveText([/Visa/]);
-  });
-
-  test("reordering: a dragged method dropped on another row sends the type's whole list in its new order", async ({
-    page,
-  }) => {
-    const sent = await open(page);
-    await expect(card(page, "Electronic").getByRole("menu")).toHaveCount(0);
-
-    await handle(page, "Electronic", "AlipayHK").dragTo(rows(page, "Electronic").first());
-    await expect(toast(page, "Order saved.")).toBeVisible();
-    expect(sent).toEqual([
-      {
-        method: "PUT",
-        path: "/sales-methods/order",
-        body: { type: "electronic", method_ids: [ALIPAY, VISA] },
-      },
-    ]);
-    await expect(rows(page, "Electronic")).toHaveText([/AlipayHK/, /Visa/]);
-  });
-
-  test("a reorder refused because the list changed (409) keeps the order and says why", async ({
-    page,
-  }) => {
-    await open(page, initialState(), (s) =>
-      s.path === "/sales-methods/order"
-        ? {
-            status: 409,
-            error: "The list changed since it was loaded. Reload the page and order it again.",
-          }
-        : null,
-    );
-    // the handle's arrow keys move one place, as a drag does
-    await handle(page, "Electronic", "Visa").focus();
-    await page.keyboard.press("ArrowDown");
-    await expect(
-      toast(page, "The list changed since it was loaded. Reload the page and order it again."),
-    ).toBeVisible();
-    await expect(rows(page, "Electronic")).toHaveText([/Visa/, /AlipayHK/]);
   });
 
   test("a cashier sees it all read-only: the notice, no controls, no Save", async ({ page }) => {
@@ -786,7 +880,7 @@ test.describe("petty cash settings", () => {
       {
         method: "PUT",
         path: "/settings/xero/mapping",
-        body: { ...SAVED_MAPPING, cashsale_account: DRAWINGS },
+        body: { ...SAVED_MAPPING, ...UNSENT, cashsale_account: DRAWINGS },
       },
     ]);
     await expect(sales).toHaveValue("Owner Drawings - 880");
@@ -877,64 +971,80 @@ test.describe("petty cash settings", () => {
     // the Petty Cash dashboard, and its sentence went with the page)
     await expect(toast(page, "Account mapping saved.")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`${SETTINGS}$`));
-    expect(sent).toEqual([{ method: "PUT", path: "/settings/xero/mapping", body: SAVED_MAPPING }]);
-  });
-
-  test("adding a new contact: the offer, the New Contact box, accounts-api's POST, then chosen and saved", async ({
-    page,
-  }) => {
-    const sent = await open(page, initialState({ xero: xeroState() }));
-    const mapping = card(page, MAPPING);
-    const contact = picker(page, "Select the Customer contact");
-    await contact.click();
-    await contact.fill("zz");
-    await expect(mapping.getByText("No contact found")).toBeVisible();
-    await contact.fill("Tess");
-    await expect(mapping.getByRole("option")).toHaveText([
-      "Tess Tester",
-      "+ Add 'Tess' as a new contact",
-    ]);
-    await contact.fill("Nina Ng");
-    await mapping.getByRole("option", { name: "+ Add 'Nina Ng' as a new contact" }).click();
-
-    const name = mapping.getByRole("textbox", { name: "New Contact" });
-    await expect(name).toHaveValue("Nina Ng");
-    await expect(name).toBeFocused();
-    // emptied: said under the box on Create, nothing sent
-    await name.fill("");
-    await mapping.getByRole("button", { name: "Create" }).click();
-    await expect(
-      mapping.getByText("The contact's name is still empty. Type a name to create it."),
-    ).toBeVisible();
-    expect(sent).toEqual([]);
-    await name.fill("Nina Ng");
-    await name.press("Enter");
-    await expect(toast(page, "That contact's added!")).toBeVisible();
     expect(sent).toEqual([
-      { method: "POST", path: "/api/me/company/contacts", body: { name: "Nina Ng" } },
+      { method: "PUT", path: "/settings/xero/mapping", body: { ...SAVED_MAPPING, ...UNSENT } },
     ]);
-    await expect(contact).toHaveValue("Nina Ng");
-    // focus comes back to the box without opening its list, which would cover the next box
-    await expect(contact).toBeFocused();
-    await expect(mapping.getByRole("listbox")).toHaveCount(0);
-    // the other contact pickers offer it too
-    await picker(page, "Select the Director or Responsible person who pays personally").click();
-    await expect(mapping.getByRole("option", { name: "Nina Ng" })).toBeVisible();
-    await page.keyboard.press("Escape");
-
-    await saveIn(page, MAPPING).click();
-    await expect(toast(page, "Account mapping saved.")).toBeVisible();
-    expect(sent[1]).toEqual({
-      method: "PUT",
-      path: "/settings/xero/mapping",
-      body: { ...SAVED_MAPPING, cashsale_contact: NEW_CONTACT },
-    });
   });
 
-  test("a new contact the API refuses says its sentence and keeps the box; Cancel puts the picker back", async ({
+  // A new contact waits for Save Changes (2026-11-20): Create only holds and chooses it; Save
+  // Changes creates it through accounts-api, then saves the mapping with its id.
+  for (const width of [360, 1440]) {
+    test(`adding a new contact: the offer, the New Contact box, held and chosen, created on Save Changes, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const sent = await open(page, initialState({ xero: xeroState() }));
+      const mapping = card(page, MAPPING);
+      const contact = picker(page, "Select the Customer contact");
+      await contact.click();
+      await contact.fill("zz");
+      await expect(mapping.getByText("No contact found")).toBeVisible();
+      await contact.fill("Tess");
+      await expect(mapping.getByRole("option")).toHaveText([
+        "Tess Tester",
+        "+ Add 'Tess' as a new contact",
+      ]);
+      await contact.fill("Nina Ng");
+      await mapping.getByRole("option", { name: "+ Add 'Nina Ng' as a new contact" }).click();
+
+      const name = mapping.getByRole("textbox", { name: "New Contact" });
+      await expect(name).toHaveValue("Nina Ng");
+      await expect(name).toBeFocused();
+      // emptied: said under the box on Create, nothing sent
+      await name.fill("");
+      await mapping.getByRole("button", { name: "Create" }).click();
+      await expect(
+        mapping.getByText("The contact's name is still empty. Type a name to create it."),
+      ).toBeVisible();
+      await name.fill("Nina Ng");
+      await name.press("Enter");
+      // held: chosen and said so, nothing sent
+      await expect(contact).toHaveValue("Nina Ng");
+      await expect(
+        mapping.getByText("Nina Ng is new. It's created when you save your changes."),
+      ).toBeVisible();
+      expect(sent).toEqual([]);
+      // focus comes back to the box without opening its list, which would cover the next box
+      await expect(contact).toBeFocused();
+      await expect(mapping.getByRole("listbox")).toHaveCount(0);
+      // the other contact pickers offer it too
+      await picker(page, "Select the Director or Responsible person who pays personally").click();
+      await expect(mapping.getByRole("option", { name: "Nina Ng" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expectNoHorizontalScroll(page);
+      await page.screenshot({
+        path: `test-results/mapping-held-contact-${width}.png`,
+        fullPage: true,
+      });
+
+      await saveIn(page, MAPPING).click();
+      await expect(toast(page, "Account mapping saved.")).toBeVisible();
+      expect(sent).toEqual([
+        { method: "POST", path: "/api/me/company/contacts", body: { name: "Nina Ng" } },
+        {
+          method: "PUT",
+          path: "/settings/xero/mapping",
+          body: { ...SAVED_MAPPING, ...UNSENT, cashsale_contact: NEW_CONTACT },
+        },
+      ]);
+      await expect(saveIn(page, MAPPING)).toBeDisabled();
+    });
+  }
+
+  test("a new contact the API refuses on Save Changes says its sentence; nothing else is saved", async ({
     page,
   }) => {
-    await open(page, initialState({ xero: xeroState() }), (s) =>
+    const sent = await open(page, initialState({ xero: xeroState() }), (s) =>
       s.path === "/api/me/company/contacts"
         ? { status: 403, error: "You don't have permission to add contacts." }
         : null,
@@ -945,10 +1055,26 @@ test.describe("petty cash settings", () => {
     await contact.fill("Nina Ng");
     await mapping.getByRole("option", { name: "+ Add 'Nina Ng' as a new contact" }).click();
     await mapping.getByRole("button", { name: "Create" }).click();
+    await saveIn(page, MAPPING).click();
     await expect(toast(page, "You don't have permission to add contacts.")).toBeVisible();
-    await expect(mapping.getByRole("textbox", { name: "New Contact" })).toHaveValue("Nina Ng");
+    expect(sent).toEqual([
+      { method: "POST", path: "/api/me/company/contacts", body: { name: "Nina Ng" } },
+    ]);
+    await expect(contact).toHaveValue("Nina Ng");
+    await expect(saveIn(page, MAPPING)).toBeEnabled();
+  });
+
+  test("Cancel in the New Contact box puts the picker back", async ({ page }) => {
+    const sent = await open(page, initialState({ xero: xeroState() }));
+    const mapping = card(page, MAPPING);
+    const contact = picker(page, "Select the Customer contact");
+    await contact.click();
+    await contact.fill("Nina Ng");
+    await mapping.getByRole("option", { name: "+ Add 'Nina Ng' as a new contact" }).click();
     await mapping.getByRole("button", { name: "Cancel" }).click();
     await expect(contact).toHaveValue("Walk-in Customer");
+    await expect(saveIn(page, MAPPING)).toBeDisabled();
+    expect(sent).toEqual([]);
   });
 
   test("account codes: the search, Select all, at least one ticked (said at once), then saved", async ({
@@ -1118,7 +1244,7 @@ test.describe("petty cash settings", () => {
             ? JSON.parse(localStorage.getItem(key) ?? "{}")
             : null;
         }, ENTITY),
-      ).toMatchObject({ userId: "u", value: { cashsale_account: DRAWINGS } });
+      ).toMatchObject({ userId: "u", shape: 2, value: { picked: { cashsale_account: DRAWINGS } } });
 
       await page.reload();
       const notice = card(page, MAPPING).locator("[data-draft-notice]");

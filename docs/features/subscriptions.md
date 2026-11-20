@@ -1026,7 +1026,9 @@ The dialog family (`components/ui/ModalFrame`, `components/ui/ConfirmDialog`, `L
   backdrop are Done). **A-11 "Leave without saving?"** (the component moved to
   `components/ui/LeaveDialog.tsx` on 2026-10-09, when the Entity & Integration tab needed it too -
   a feature may not reach another feature) when the open row has ticks pending and
-  the person closes it, opens another company, goes back, or takes another company's ⋮ —
+  the person closes it, opens another company, goes back, takes another company's ⋮, or presses
+  _Start Free Trial_ on any row (2026-11-20: the trial reloads the list, which used to drop the
+  ticks without a word; _Discard changes_ then opens the trial's own `StartTrialDialog`) —
   "You have unsaved changes." / "Your changes will be lost if you leave this page.", _Discard
   changes_ (drops the ticks and goes) or _Go Back_ (stays; Escape and the backdrop stay); a
   reload or a closed tab leaves WITHOUT asking and drops the ticks - Minty shows no native browser
@@ -1085,7 +1087,9 @@ payer's money does not cover, and the subscription moves.
   "They’ll be charged HKD 88 for <from> to <to> …" — removed 2026-09-24 by decision, along
   with `candidateCharge`; the recipient is still told what accepting costs them, on 07-D, the
   screen where that money is actually owed), the API's `blockers` in amber (they disable _Request transfer_), "Invite someone
-  new" (an address, _Send invite_ → `invite-admin`; the answer or the refusal stays by the box),
+  new" (an address, _Send invite_ → `invite-admin`; the answer or the refusal stays by the box;
+  under it, since 2026-11-20, "The invite goes out as soon as you send it. Cancel won't take it
+  back." - `INVITE_SENT_AT_ONCE`, the button's `aria-describedby`),
   _Cancel_ / _Request transfer_ (`POST /transfer {entity, to_user}`) — beside Minty handing the
   papers to Lemon.
 - **07-B "Transfer requested"**: "Request has been sent to <email>." and the responsibility

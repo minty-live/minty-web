@@ -406,6 +406,37 @@ describe("ManageSubscriptionsScreen", { timeout: 30_000 }, () => {
     expect(JSON.parse(String(post![1]?.body))).toEqual({ codes: ["PAYMENT_REQUEST"] });
   });
 
+  it("Start Trial with ticks pending asks 'Leave without saving?' first; Go Back keeps the ticks, Discard asks about the trial (2026-11-20)", async () => {
+    serve(subscriptionsPage());
+    render(
+      <ToastProvider>
+        <ManageSubscriptionsScreen today={TODAY} focusEntityId={ENTITIES[0].entity_id} />
+      </ToastProvider>,
+    );
+    const row = await screen.findByRole("region", { name: "Subscription Summary", busy: false });
+    const item = row.closest("li")!;
+    const tick = () => within(item).getByRole("checkbox", { name: "Petty Cash subscription" });
+    await userEvent.click(tick());
+    expect(tick()).toHaveAttribute("data-changed", "true");
+
+    const kestrelTrial = () =>
+      screen.getByRole("button", { name: "Start Trial · Petty Cash · Kestrel Foods Limited" });
+    await userEvent.click(kestrelTrial());
+    const leave = screen.getByRole("dialog");
+    expect(leave).toHaveAccessibleName("Leave without saving?");
+    await userEvent.click(within(leave).getByRole("button", { name: "Go Back" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(tick()).toHaveAttribute("data-changed", "true");
+
+    await userEvent.click(kestrelTrial());
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Discard changes" }),
+    );
+    const trial = await screen.findByRole("dialog", { name: "Start Free Trial for Petty Cash" });
+    expect(within(trial).getByText("Kestrel Foods Limited")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => c[1]?.method === "POST")).toBe(false);
+  });
+
   it("the whole row opens the company, but its own controls do not", async () => {
     await show(subscriptionsPage());
 

@@ -31,7 +31,10 @@ const OTHER = "__other__";
 /** The picker's note, shown on top as the list opens (owner, 2026-11-12; the contact pickers' way). */
 export const METHOD_HINT = "Type a method name to add a new method";
 
-/** What the card asks the page to send; each resolves true once the API said yes. */
+/** What the list does with a change. The fallback cards' actions send it to the API (each resolves
+ * true once the API said yes; a removal asks first); the sales accounts card's are HELD (2026-11-20):
+ * they change its own lists, x needs no question of its own, and nothing is sent until its Save
+ * changes. */
 export type MethodActions = {
   add: (type: MethodType, body: { sale_info_id: string } | { name: string }) => Promise<boolean>;
   rename: (method: SalesMethod, name: string) => Promise<boolean>;
@@ -74,9 +77,10 @@ export function SalesMethodsCard(props: ListProps) {
  * A sales account's methods (owner, 2026-11-17; Figma 529:675): chips in order - drag one, or press
  * the arrow keys on it, to reorder; x takes it off (the company's own is deleted, Minty's only leaves
  * the list - owner, 2026-11-12); the company's own has a pencil for an inline rename - and the add
- * field always there under them: the catalogue picker, or a new name typed into it, then + Add. Each
- * change is the API's at once; the page shows its answer. `region` names the block (inside an
- * account card) by its title.
+ * field always there under them: the catalogue picker, or a new name typed into it, then + Add. What
+ * a change does is `actions`': inside the sales accounts card it is held there until Save changes
+ * (its `available` then leaves out what the card holds); in a fallback card it is the API's at
+ * once. `region` names the block (inside an account card) by its title.
  */
 export function SalesMethodsList({
   type,
