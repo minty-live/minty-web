@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { Account, Contact } from "@/features/company-settings/api/chart";
+import type { Account, AccountsRead, Contact } from "@/features/company-settings/api/chart";
+import { mergeableAccounts } from "@/features/company-settings/components/ChartCards";
 import {
   accountProblems,
   contactProblem,
@@ -106,5 +107,37 @@ describe("delete's confirm", () => {
     expect(usedNote("Rent")).toBe(
       "Rent is already used in your records or Petty Cash Settings, so it can't be deleted.",
     );
+  });
+});
+
+describe("mergeableAccounts", () => {
+  const account = (id: string, extra: Partial<Account> = {}): Account => ({
+    id,
+    code: id.toUpperCase(),
+    name: `Account ${id}`,
+    type: "EXPENSE",
+    type_label: "Expense",
+    description: "",
+    own: true,
+    source: "user",
+    in_xero: false,
+    used: false,
+    ...extra,
+  });
+
+  it("never offers an account gone from Xero as the one kept, but lets it be merged away", () => {
+    const taxi = account("taxi");
+    const gone = account("gone", { in_xero: true, gone_from_xero: true });
+    const transport = account("transport");
+    const read = {
+      accounts: [taxi, gone, transport],
+      types: [],
+      next_codes: {},
+      xero_live: true,
+      permissions: {} as AccountsRead["permissions"],
+      minty_accounts: [],
+    } as AccountsRead;
+    expect(mergeableAccounts(read, taxi).map((a) => a.id)).toEqual(["transport"]);
+    expect(mergeableAccounts(read, gone).map((a) => a.id)).toEqual(["taxi", "transport"]);
   });
 });

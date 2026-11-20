@@ -3,9 +3,11 @@
 // name/country/currency form and the Xero card. The accounts API is answered per path and method;
 // every call must name the company with ?entity=.
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { draftKey, writeDraft } from "@minty/shared/drafts";
 
 import { DISCARD_CHANGES, GO_BACK_UPPER, LEAVE_TITLE } from "@/components/ui/LeaveDialog";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -750,5 +752,157 @@ describe("IntegrationScreen", () => {
 
     await screen.findByRole("link", { name: "Reconnect to Xero" });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+// Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the company's details as
+// typed are kept in this browser 2 s after the last change, per person and company, and offered
+// when General opens again (Restore / Discard); a save that went through and "Discard changes"
+// remove them; a value saved since makes the draft stale (shown, never put back).
+describe("GeneralScreen - auto-saved draft of the details", () => {
+  const KEY = draftKey({ userId: "u1", entityId: ID }, "settings.details", "-");
+  const wait2s = () =>
+    act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+  const mount = () =>
+    render(
+      <ToastProvider>
+        <GeneralScreen company={COMPANY} />
+      </ToastProvider>,
+    );
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    while (recorders.length) recorders.pop()?.();
+  });
+
+  it("kept 2 s after typing; General opened again asks, and Restore puts the values back", async () => {
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    const first = mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const name = await screen.findByRole("textbox", { name: /^Entity name/ });
+    await user.type(name, " Ltd");
+    await user.selectOptions(screen.getByLabelText(/^Country\s*\*?$/), "SG");
+    expect(localStorage.getItem(KEY)).toBeNull();
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value).toEqual({
+      name: "Olive Shop Ltd",
+      country: "SG",
+      currency: "c-hkd",
+    });
+    first.unmount();
+
+    mount();
+    const again = await screen.findByRole("textbox", { name: /^Entity name/ });
+    expect(
+      await screen.findByText(/You have unsaved changes from \d\d:\d\d\./),
+    ).toBeInTheDocument();
+    expect(again).toHaveValue("Olive Shop");
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(again).toHaveValue("Olive Shop Ltd");
+    expect(screen.getByLabelText(/^Country\s*\*?$/)).toHaveValue("SG");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
+  });
+
+  it("Discard removes it and keeps the saved values", async () => {
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    const first = mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(await screen.findByRole("textbox", { name: /^Entity name/ }), " Ltd");
+    await wait2s();
+    first.unmount();
+
+    mount();
+    await screen.findByText(/You have unsaved changes from/);
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(screen.getByRole("textbox", { name: /^Entity name/ })).toHaveValue("Olive Shop");
+  });
+
+  it("a save that went through removes it", async () => {
+    flask({
+      "GET /api/me/company/integration": () => json(INTEGRATION),
+      "PATCH /api/me/company/integration": () =>
+        json({
+          ...INTEGRATION,
+          company: { ...INTEGRATION.company, country_code: "SG" },
+          message: "Settings saved!",
+        }),
+    });
+    mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.selectOptions(await screen.findByLabelText(/^Country\s*\*?$/), "SG");
+    await wait2s();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Settings saved!")).toBeInTheDocument();
+    await wait2s();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("a refused save keeps it", async () => {
+    flask({
+      "GET /api/me/company/integration": () => json(INTEGRATION),
+      "PATCH /api/me/company/integration": () =>
+        json({ error: "Oh, someone got there first! Do you have another name in mind?" }, 422),
+    });
+    mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(await screen.findByRole("textbox", { name: /^Entity name/ }), " Ltd");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("someone got there first");
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value.name).toBe("Olive Shop Ltd");
+  });
+
+  it("the details saved since: shown, never put back", async () => {
+    writeDraft(KEY, {
+      v: 1,
+      form: "settings.details",
+      record: "-",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: "an-older-save",
+      value: { name: "Olive Shop Ltd", country: "SG", currency: "c-sgd" },
+      files: [],
+      missing: [],
+    });
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    mount();
+    expect(
+      await screen.findByText(/This was saved again after your unsaved changes/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(screen.getByRole("button", { name: "Show what I typed" }));
+    expect(screen.getByText("Singapore Dollar", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Entity name/ })).toHaveValue("Olive Shop");
+  });
+
+  it("Discard changes on leaving removes it", async () => {
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    const went = navigationRecorder();
+    mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.selectOptions(await screen.findByLabelText(/^Country\s*\*?$/), "SG");
+    await wait2s();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: DISCARD_CHANGES }),
+    );
+    expect(went).toEqual([expect.stringContaining("/settings/users")]);
+    await wait2s();
+    expect(localStorage.getItem(KEY)).toBeNull();
   });
 });

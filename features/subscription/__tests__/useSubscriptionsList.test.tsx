@@ -463,7 +463,12 @@ describe("useSubscriptionsList", () => {
     await waitFor(() => expect(result.current.summary.status).toBe("ready"));
     act(() => result.current.summary.toggleTick("PETTY_CASH"));
     act(() => result.current.confirmChange(e, result.current.summary.view!.pendingChange!));
-    await act(() => result.current.applyChangePrompt("Too expensive"));
+    let done: boolean | undefined;
+    await act(async () => {
+      done = await result.current.applyChangePrompt("Too expensive");
+    });
+    // true: the dialog removes the reason's draft (ChangeDialog)
+    expect(done).toBe(true);
     expect(result.current.result?.result.layout).toBe("page");
     expect(result.current.openEntityId).toBeNull();
 
@@ -929,7 +934,12 @@ describe("useSubscriptionsList", () => {
     await waitFor(() => expect(result.current.summary.status).toBe("ready"));
     act(() => result.current.summary.toggleTick("PETTY_CASH"));
     act(() => result.current.confirmChange(e, result.current.summary.view!.pendingChange!));
-    await act(() => result.current.applyChangePrompt());
+    let done: boolean | undefined;
+    await act(async () => {
+      done = await result.current.applyChangePrompt();
+    });
+    // false: the dialog keeps the reason's draft (ChangeDialog)
+    expect(done).toBe(false);
     expect(posts.map((p) => p.action)).toEqual(["cancel"]);
     expect(result.current.result).toBeNull();
     expect(document.body.textContent).toContain("Module Petty Cash isn't active.");

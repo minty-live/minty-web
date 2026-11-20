@@ -49,7 +49,11 @@ export function GeneralScreen({ company }: { company: { id: string; name: string
             draft={draft}
             busy={tab.busy === "save"}
             error={tab.saveError}
-            onSave={(changes) => void tab.save(changes)}
+            onSave={(changes) =>
+              void tab.save(changes).then((saved) => {
+                if (saved) draft.clearDraft();
+              })
+            }
           />
           <ChartSection entityId={shown.id} entityName={shown.name} />
         </>

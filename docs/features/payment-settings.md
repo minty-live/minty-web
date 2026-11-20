@@ -61,6 +61,13 @@ Payment." - the old copy, kept), in a `SettingsCard`, folding under a 44px chevr
 - **Leaving with ticks not saved asks first** (`@minty/shared/leaveGuard`,
   `components/ui/LeaveDialog.tsx`): the tab row, the header's Back, the sidebar, Logout and the
   browser's Back (its history sentinel); Discard changes puts the saved ticks back and goes.
+- **Auto-saved draft** (the owner's decisions doc L1, 2026-11-20; `@minty/shared/drafts`): the
+  ticks are kept in this browser 2 s after the last change (`settings.payment-codes`, record `-`,
+  per person and company - `lib/draftScope.ts`), never saved to the API. When the page opens again
+  the card asks first ("You have unsaved changes from 10:42." - Restore / Discard); if the saved
+  ticks changed since (`basedOn` = their fingerprint) it is stale - shown, never put back. Removed
+  by a Save that went through, by Discard changes, by Discard, after 7 days and by an explicit
+  sign-out; kept through the session expiry. Someone who may not change the codes keeps none.
 
 Dropped in the move: the old pill row (`SettingsPills`), `?tab=` switching and its placeholder -
 the hub's tab row replaces them.
@@ -75,7 +82,7 @@ connected and Minty-only companies alike) were rewritten on 2026-11-11.
 ## Tests
 
 `__tests__/screens.test.tsx` (load, ticking and Select all, save and its refusals, the Xero-status
-and read-only states, the leave guard), `__tests__/role.test.ts`, `__tests__/reexports.test.ts`;
+and read-only states, the leave guard, the auto-saved draft), `__tests__/role.test.ts`, `__tests__/reexports.test.ts`;
 `e2e/13_payment_settings.spec.ts` (stubbed: the picker, Save's two off states, a 409 with ON sent
 before OFF, the guard on the tab row, Back and the browser's Back, no sideways scroll at 360 /
 768 / 1440).

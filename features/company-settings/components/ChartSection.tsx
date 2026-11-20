@@ -3,7 +3,8 @@
 /**
  * The company's chart of accounts and its contacts, on General under the company's details (owner,
  * 2026-11-12: its own tab first, merged into General the same day). Added, edited and deleted here,
- * with or without Xero (made, changed and archived in Xero too when the company is live there).
+ * with or without Xero (Minty never creates an account in Xero; a contact added while live is linked or
+ * made there as a supplier; a row linked to Xero is changed in Xero only - Merge stays).
  * Both lists are read at once; each change is the API's, its sentence shown as a toast, then both
  * are read again. General's view-only line covers it: the same roles change both.
  */
@@ -14,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LoadState } from "@/components/ui/SettingsShell";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
+import { useDraftScope } from "@/lib/draftScope";
 
 import {
   addAccount,
@@ -80,6 +82,8 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState(false);
   const askedToMerge = useRef(false);
+  // the account form's browser drafts, per person and company (lib/draftScope.ts)
+  const draftScope = useDraftScope(entityId);
 
   useEffect(() => {
     let live = true;
@@ -142,6 +146,7 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
                   read={load.accounts}
                   editing={open.editing}
                   busy={busy}
+                  draftScope={draftScope}
                   onClose={() => setOpen(null)}
                   onSubmit={(input) =>
                     change(() =>

@@ -263,6 +263,37 @@ test.describe("company settings", () => {
     ]);
   });
 
+  // Auto-saved drafts (the owner's decisions doc L1, @minty/shared/drafts): what is typed is kept
+  // in this browser 2 s after the last change; General opened again asks first, and Restore puts it
+  // back - nothing is sent until Save.
+  for (const width of [360, 1440]) {
+    test(`General: the details' draft survives a reload and is restored on asking, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const asked = await stubFlask(page);
+      await handoff(page, creds(), `${BASE}/general`);
+      await page.getByLabel("Country").selectOption("SG");
+      await page.waitForTimeout(2500);
+
+      await page.reload();
+      const notice = page.locator("[data-draft-notice]");
+      await expect(notice).toContainText(/You have unsaved changes from \d\d:\d\d\./);
+      await expect(page.getByLabel("Country")).toHaveValue("HK");
+      const restore = notice.getByRole("button", { name: "Restore" });
+      expect((await restore.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(0);
+      await page.screenshot({ path: `test-results/general-draft-${width}.png`, fullPage: true });
+      await restore.click();
+      await expect(page.getByLabel("Country")).toHaveValue("SG");
+      await expect(notice).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Save changes" })).toBeEnabled();
+      expect(asked.filter((a) => a.method === "PATCH")).toEqual([]);
+    });
+  }
+
   test("Integration: Disconnect from Xero asks first, and the organisation is kept", async ({
     page,
   }) => {

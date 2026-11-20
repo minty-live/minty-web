@@ -1092,4 +1092,51 @@ test.describe("petty cash settings", () => {
       });
     }
   });
+
+  // Auto-saved drafts (the owner's decisions doc L1, @minty/shared/drafts): a choice is kept in this
+  // browser 2 s after it is made; the page opened again asks first, and Restore puts it back -
+  // nothing is sent until the card's own Save.
+  for (const width of [360, 1440]) {
+    test(`the mapping's draft survives a reload and is restored on asking, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const sent = await open(page, initialState({ xero: xeroState() }));
+      const sales = picker(page, "Select account code for cash sales");
+      await sales.click();
+      await sales.fill("880");
+      await card(page, MAPPING)
+        .getByRole("option", { name: /Owner Drawings/ })
+        .click();
+      await expect(sales).toHaveValue("Owner Drawings - 880");
+      await page.waitForTimeout(2500);
+      // kept in this browser only, per person and company
+      expect(
+        await page.evaluate((entity) => {
+          const key = Object.keys(localStorage).find((k) => k.endsWith(":settings.pc-mapping:-"));
+          return key?.includes(`:${entity}:`)
+            ? JSON.parse(localStorage.getItem(key) ?? "{}")
+            : null;
+        }, ENTITY),
+      ).toMatchObject({ userId: "u", value: { cashsale_account: DRAWINGS } });
+
+      await page.reload();
+      const notice = card(page, MAPPING).locator("[data-draft-notice]");
+      await expect(notice).toContainText(/You have unsaved changes from \d\d:\d\d\./);
+      // nothing changes until the person picks
+      await expect(picker(page, "Select account code for cash sales")).toHaveValue("Sales - 200");
+      const restore = notice.getByRole("button", { name: "Restore" });
+      const box = await restore.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expectNoHorizontalScroll(page);
+      await page.screenshot({ path: `test-results/pc-mapping-draft-${width}.png`, fullPage: true });
+      await restore.click();
+      await expect(picker(page, "Select account code for cash sales")).toHaveValue(
+        "Owner Drawings - 880",
+      );
+      await expect(notice).toHaveCount(0);
+      await expect(saveIn(page, MAPPING)).toBeEnabled();
+      expect(sent).toEqual([]);
+    });
+  }
 });

@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+
+import { fingerprint } from "@minty/shared/drafts";
+import { DraftNotice } from "@minty/shared/ui";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
 import { RequiredMark } from "@/components/ui/RequiredMark";
@@ -16,6 +19,11 @@ import {
   inputClass,
   type ComboRow,
 } from "@/features/petty-cash-settings/components/parts";
+import {
+  DRAFT_FORMS,
+  useCardDraft,
+  type CardDrafts,
+} from "@/features/petty-cash-settings/lib/drafts";
 import {
   CONTACT_EMPTY,
   MAPPING_GROUPS,
@@ -135,6 +143,7 @@ export function XeroMappingCard({
   onAdded,
   onDirty,
   resetKey = 0,
+  drafts,
 }: {
   load: XeroLoad;
   busy: boolean;
@@ -149,6 +158,8 @@ export function XeroMappingCard({
   onDirty?: (dirty: boolean) => void;
   /** Bumped by the page to put the saved choices back ("Discard changes"). */
   resetKey?: number;
+  /** The card's auto-saved draft (`lib/drafts.ts`). */
+  drafts?: CardDrafts;
 }) {
   const editable = load.kind === "ready" && load.read.permissions.edit_mapping;
   const minty = load.kind === "ready" && !!load.read.minty;
@@ -177,6 +188,7 @@ export function XeroMappingCard({
           onSaved={onSaved}
           onAdded={onAdded}
           onDirty={onDirty}
+          drafts={drafts}
         />
       )}
     </PettyCashCard>
@@ -193,6 +205,7 @@ function MappingForm({
   onSaved,
   onAdded,
   onDirty,
+  drafts,
 }: {
   fields: MappingField[];
   /** Minty's own accounts: the field lines don't say "from Xero". */
@@ -205,6 +218,7 @@ function MappingForm({
   onSaved: (answer: MappingAnswer) => void;
   onAdded: (message: string) => void;
   onDirty?: (dirty: boolean) => void;
+  drafts?: CardDrafts;
 }) {
   const ids = useId();
   const idOf = (key: MappingKey) => `${ids}-${key}`;
@@ -238,10 +252,47 @@ function MappingForm({
   const changed = mappingChanged(initial, picked);
   const byKey = new Map(fields.map((f) => [f.key, f]));
   useDirtyReport(editable && changed, onDirty);
+  // the choices as a browser draft, against the saved choices the API sent (lib/drafts.ts)
+  const savedMark = useMemo(() => fingerprint(selectionOf(initial)), [initial]);
+  const draft = useCardDraft<Selection>(drafts, {
+    form: DRAFT_FORMS.mapping,
+    ready: editable,
+    basedOn: savedMark,
+    value: picked,
+    dirty: editable && changed,
+  });
 
   useEffect(() => {
     if (summary && summary.length > 1) summaryRef.current?.focus();
   }, [summary]);
+
+  /** Restore: each kept choice still on its list goes back; the others stay as saved. */
+  function restoreDraft() {
+    const kept = draft.restore()?.value;
+    if (!kept) return;
+    const next = { ...picked };
+    for (const f of fields) {
+      const id = kept[f.key];
+      if (typeof id === "string" && (id === "" || f.options.some((o) => o.id === id)))
+        next[f.key] = id;
+    }
+    setPicked(next);
+    setTexts((all) => {
+      const out = { ...all };
+      for (const f of fields) {
+        const option = f.options.find((o) => o.id === next[f.key]);
+        out[f.key] = option ? optionLabel(option) : "";
+      }
+      return out;
+    });
+  }
+
+  /** A stale draft, read-only: each field and what was chosen in it. */
+  const describeDraft = () =>
+    fields.map((f) => {
+      const option = f.options.find((o) => o.id === draft.offer?.value[f.key]);
+      return { label: f.label, value: option ? optionLabel(option) : "" };
+    });
 
   function pick(key: MappingKey, option: XeroOption) {
     setPicked((p) => ({ ...p, [key]: option.id }));
@@ -336,7 +387,9 @@ function MappingForm({
       undefined,
       (message) => setMarked(new Set(fieldsNamed(message, fields))),
     );
-    if (answer) onSaved(answer);
+    if (!answer) return;
+    draft.clear();
+    onSaved(answer);
   }
 
   return (
@@ -348,6 +401,16 @@ function MappingForm({
         void save();
       }}
     >
+      {draft.offer ? (
+        <DraftNotice
+          savedAt={draft.offer.savedAt}
+          stale={draft.offer.stale}
+          onRestore={restoreDraft}
+          onDiscard={draft.discard}
+          describe={describeDraft}
+        />
+      ) : null}
+
       {summary && summary.length > 1 ? (
         <div
           ref={summaryRef}
@@ -541,6 +604,7 @@ export function AccountCodesCard({
   onSaved,
   onDirty,
   resetKey = 0,
+  drafts,
 }: {
   load: XeroLoad;
   busy: boolean;
@@ -552,6 +616,8 @@ export function AccountCodesCard({
   onDirty?: (dirty: boolean) => void;
   /** Bumped by the page to put the saved ticks back ("Discard changes"). */
   resetKey?: number;
+  /** The card's auto-saved draft (`lib/drafts.ts`). */
+  drafts?: CardDrafts;
 }) {
   const editable = load.kind === "ready" && load.read.permissions.edit_account_codes;
   return (
@@ -577,6 +643,7 @@ export function AccountCodesCard({
           call={call}
           onSaved={onSaved}
           onDirty={onDirty}
+          drafts={drafts}
         />
       )}
     </PettyCashCard>
@@ -590,6 +657,7 @@ function CodesForm({
   call,
   onSaved,
   onDirty,
+  drafts,
 }: {
   codes: AccountCode[];
   editable: boolean;
@@ -597,6 +665,7 @@ function CodesForm({
   call: Call;
   onSaved: (answer: CodesAnswer) => void;
   onDirty?: (dirty: boolean) => void;
+  drafts?: CardDrafts;
 }) {
   const searchId = useId();
   const hintId = useId();
@@ -610,6 +679,41 @@ function CodesForm({
   const changed = codesChanged(codes, ticked);
   const hasCodes = shownCodes(codes, "").length > 0;
   useDirtyReport(editable && changed, onDirty);
+  // the ticks as a browser draft, against the ticks the API sent (lib/drafts.ts)
+  const savedMark = useMemo(
+    () =>
+      fingerprint(
+        codes
+          .filter((r) => r.selected)
+          .map((r) => r.code)
+          .sort(),
+      ),
+    [codes],
+  );
+  const tickedList = useMemo(() => [...ticked].sort(), [ticked]);
+  const draft = useCardDraft<string[]>(drafts, {
+    form: DRAFT_FORMS.codes,
+    ready: editable,
+    basedOn: savedMark,
+    value: tickedList,
+    dirty: editable && changed,
+  });
+  /** Restore: the kept ticks still on the list. */
+  function restoreDraft() {
+    const kept = draft.restore()?.value;
+    if (!Array.isArray(kept)) return;
+    const known = new Set(codes.map((r) => r.code));
+    setTicked(new Set(kept.filter((code) => known.has(code))));
+  }
+  const describeDraft = () => [
+    {
+      label: "Ticked",
+      value: codes
+        .filter((r) => draft.offer?.value.includes(r.code))
+        .map(codeLabel)
+        .join(", "),
+    },
+  ];
 
   function set(changes: string[], on: boolean) {
     setTicked((t) => {
@@ -628,7 +732,9 @@ function CodesForm({
       method: "PUT",
       json: codesBody(ticked),
     });
-    if (answer) onSaved(answer);
+    if (!answer) return;
+    draft.clear();
+    onSaved(answer);
   }
 
   return (
@@ -640,6 +746,16 @@ function CodesForm({
         void save();
       }}
     >
+      {draft.offer ? (
+        <DraftNotice
+          savedAt={draft.offer.savedAt}
+          stale={draft.offer.stale}
+          onRestore={restoreDraft}
+          onDiscard={draft.discard}
+          describe={describeDraft}
+        />
+      ) : null}
+
       <div className="relative min-w-0">
         <label htmlFor={searchId} className="sr-only">
           Search account code

@@ -37,4 +37,7 @@ afterEach(() => {
   for (const c of document.cookie.split("; ").filter(Boolean)) {
     document.cookie = `${c.split("=")[0]}=;path=/;max-age=0`;
   }
+  // Auto-saved drafts (`@minty/shared/drafts`) live in localStorage - written on unmount too, so a
+  // form left unsaved in one test would offer its draft in the next.
+  localStorage.clear();
 });

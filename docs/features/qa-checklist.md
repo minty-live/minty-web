@@ -132,11 +132,27 @@ run" below).
       the change intact, _Discard changes_ puts the saved value back and then goes.
 - [ ] Change the country, then press the browser's Back - it asks too (nothing was clicked, so
       this is the history sentinel); _Discard changes_ then lands where Back was going, once.
-- [ ] Change the country, then reload - no dialog at all (no browser "Leave site?"); the change is dropped.
+- [ ] Change the country, wait 3 seconds, then reload - no dialog at all (no browser "Leave
+      site?"); the page shows the saved values with "You have unsaved changes from <time>." above
+      the card (the auto-saved draft) - nothing changes until _Restore_ or _Discard_.
 - [ ] Save, then leave - nothing is asked. A REFUSED save still asks (the values are still there).
 - [ ] As a viewer (read-only), leaving never asks.
 - [ ] Change something, then Logout from the menu - it asks (a button, so the guard is explicit
       there); _Go Back_ must leave you signed IN, still on the page.
+- [ ] **Auto-saved drafts** (General's details and its add / edit account form, Petty Cash
+      Settings' Account mapping, Account Code and sales accounts cards, Payment Settings' codes;
+      the owner's decisions doc L1): change something, wait 3 seconds, reload - each changed card
+      offers "You have unsaved changes from <time>." (at 360 the two buttons stack full width, from
+      `sm` side by side, each 44px). _Restore_ puts the values back and arms the leave guard;
+      _Discard_ keeps the saved values. Nothing reaches the API until Save (Network tab: no write
+      on Restore). A card's own Save, _Discard changes_ on leaving, and the account form's Cancel
+      remove the draft (reload: no notice).
+- [ ] Draft gone stale: keep a draft, change and save the same card in another tab, reload the
+      first - "This was saved again after your unsaved changes …", _Show what I typed_ lists it,
+      no Restore.
+- [ ] Drafts are per person and company: a draft on company A never shows on company B, nor to
+      another person signing in on the same browser. Logout from the menu or My Profile removes
+      this person's drafts; letting the session expire (60 minutes) keeps them.
 - [ ] **DB:** `SELECT name, country_code, currency_id, status, xero_org_id,
 connected_by_user_id FROM pettycashv3.entities WHERE id = '<id>';` — a details save
       touches only `name`/`country_code`/`currency_id` (plus `currency_format`, derived);
@@ -236,6 +252,9 @@ pettycashv3.entity_module_subscription WHERE entity_id = '<id>';` — a confirme
 - [ ] Tick a module, then close the row (or open another company, or reload) — the pending tick
       is dropped; reloading shows no dialog at all - never the browser's own "Leave site?"
       (owner, 2026-11-16).
+- [ ] Type a reason in "Cancel Subscription?" / "Remove …?", wait 3 seconds, Go back, open it
+      again - "You have unsaved changes from <time>." inside the dialog; _Restore_ puts the words
+      back; a cancellation that goes through removes the draft, a refused one keeps it.
 - [ ] Tick a module, then try to close the row via its chevron — the in-app "Leave without
       saving?" (A-11) appears; _Discard changes_ drops the tick and closes; _Go Back_ keeps it
       open with the tick intact.

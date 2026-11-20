@@ -107,7 +107,7 @@ export const sidebarHost: SidebarHost = {
   logOut: (onLeaving) =>
     guardLeave(() => {
       onLeaving?.();
-      logOut();
+      void logOut();
     }),
 
   currentToken: () => getAuth()?.token ?? "",

@@ -21,6 +21,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { fingerprint, useAutoSaveDraft, type DraftScope } from "@minty/shared/drafts";
+import { DraftNotice } from "@minty/shared/ui";
+
 import {
   SETTINGS_DANGER_FILL,
   SETTINGS_OUTLINE,
@@ -383,12 +386,25 @@ const PICK_ONE = "Pick one of Minty's accounts, or type a name to add your own."
 
 type Pick = { kind: "minty"; row: MintyAccount } | { kind: "new" } | null;
 
+/** What the account form keeps as a browser draft: the pick (Minty's account id, "new" or none). */
+type AccountDraft = {
+  pick: string | null;
+  text: string;
+  input: AccountInput;
+  codeTouched: boolean;
+};
+
 /**
  * Add or edit one account. Adding works as Petty Cash Settings' Add New Method (owner,
  * 2026-11-12): an **Account** dropdown of Minty's accounts - one picked is added as it is - and a
  * name typed into it that isn't there offers "+ Add '<name>' as a new account", which opens the
  * fields for the company's own: Type, then Code (the next free one filled in), Name, Description.
  * Editing is those fields alone.
+ *
+ * What is typed is kept as a browser draft (`settings.account`, record `new` or the account's id;
+ * `@minty/shared/drafts`, the owner's decisions doc L1): 2 s after the last change, offered when the
+ * form opens again (Restore / Discard), stale - shown, never put back - once the account was saved
+ * since. Removed by a save that went through, by Cancel and by Discard.
  */
 export function AccountForm({
   read,
@@ -396,6 +412,7 @@ export function AccountForm({
   busy,
   onClose,
   onSubmit,
+  draftScope = null,
 }: {
   read: AccountsRead;
   /** The account being edited; null to add one. */
@@ -403,6 +420,8 @@ export function AccountForm({
   busy: boolean;
   onClose: () => void;
   onSubmit: (input: AccountInput | FromMinty) => Promise<Outcome>;
+  /** Whose drafts (`lib/draftScope.ts`); null keeps none. */
+  draftScope?: DraftScope | null;
 }) {
   const ids = { type: useId(), code: useId(), name: useId(), description: useId() };
   const pickerId = useId();
@@ -427,6 +446,61 @@ export function AccountForm({
   const problems: AccountProblems = { ...accountProblems(input, others, submitted), ...server };
   const typeLabel = read.types.find((t) => t.value === input.type)?.label ?? "";
   const nextCode = input.type ? read.next_codes[input.type] : undefined;
+
+  const savedInput = useMemo(
+    () =>
+      editing
+        ? {
+            code: editing.code,
+            name: editing.name,
+            type: editing.type,
+            description: editing.description,
+          }
+        : null,
+    [editing],
+  );
+  const draft = useAutoSaveDraft<AccountDraft>({
+    scope: draftScope,
+    form: "settings.account",
+    record: editing?.id ?? "new",
+    shape: 1,
+    basedOn: savedInput ? fingerprint(savedInput) : null,
+    value: {
+      pick: pick === null ? null : pick.kind === "minty" ? pick.row.id : "new",
+      text,
+      input,
+      codeTouched,
+    },
+    dirty: savedInput
+      ? (Object.keys(savedInput) as (keyof AccountInput)[]).some((k) => input[k] !== savedInput[k])
+      : pick !== null || text.trim() !== "",
+  });
+  /** Cancel (and Escape): the form closes and its draft goes with it. */
+  const close = () => {
+    draft.clear();
+    onClose();
+  };
+  function restoreDraft() {
+    const kept = draft.restore()?.value;
+    if (!kept) return;
+    const row = read.minty_accounts.find((m) => m.id === kept.pick);
+    setPick(editing || kept.pick === "new" ? { kind: "new" } : row ? { kind: "minty", row } : null);
+    setText(typeof kept.text === "string" ? kept.text : "");
+    if (kept.input) setInput({ ...EMPTY, ...kept.input });
+    setCodeTouched(Boolean(kept.codeTouched) || !!editing);
+  }
+  const describeDraft = () => {
+    const kept = draft.offer?.value;
+    if (!kept) return [];
+    const minty = read.minty_accounts.find((m) => m.id === kept.pick);
+    if (minty) return [{ label: "Account", value: minty.name }];
+    return [
+      { label: "Type", value: read.types.find((t) => t.value === kept.input?.type)?.label ?? "" },
+      { label: "Code", value: kept.input?.code ?? "" },
+      { label: "Name", value: kept.input?.name ?? "" },
+      { label: "Description", value: kept.input?.description ?? "" },
+    ];
+  };
 
   function set(field: keyof AccountInput, value: string) {
     // a field typed into drops the API's sentence about it
@@ -494,7 +568,8 @@ export function AccountForm({
     }
     if (pick.kind === "minty") {
       const outcome = await onSubmit({ template_id: pick.row.id });
-      if (!outcome.ok && outcome.fields) setPickProblem(Object.values(outcome.fields)[0] ?? null);
+      if (outcome.ok) draft.clear();
+      else if (outcome.fields) setPickProblem(Object.values(outcome.fields)[0] ?? null);
       return;
     }
     setSubmitted(true);
@@ -510,7 +585,8 @@ export function AccountForm({
       name: input.name.replace(/\s+/g, " ").trim(),
       description: input.description.trim(),
     });
-    if (!outcome.ok && outcome.fields) setServer(outcome.fields);
+    if (outcome.ok) draft.clear();
+    else if (outcome.fields) setServer(outcome.fields);
   }
 
   const field = (name: keyof AccountInput) => ({
@@ -539,14 +615,14 @@ export function AccountForm({
     <InlineForm
       title={editing ? `Edit ${editing.name}` : "Add an account"}
       busy={busy}
-      onClose={onClose}
+      onClose={close}
       actions={
         <>
           <button
             type="button"
             className={`${SETTINGS_OUTLINE} flex-1`}
             disabled={busy}
-            onClick={onClose}
+            onClick={close}
           >
             Cancel
           </button>
@@ -561,10 +637,16 @@ export function AccountForm({
         </>
       }
     >
+      {draft.offer ? (
+        <DraftNotice
+          savedAt={draft.offer.savedAt}
+          stale={draft.offer.stale}
+          onRestore={restoreDraft}
+          onDiscard={draft.discard}
+          describe={describeDraft}
+        />
+      ) : null}
       <form id="account-form" noValidate onSubmit={submit} className="flex flex-col gap-4">
-        {editing?.in_xero ? (
-          <p className="text-[13px] text-set-ink-2">Your change is made in Xero too.</p>
-        ) : null}
         {!editing ? (
           <div className="min-w-0">
             <label htmlFor={pickerId} className={SETTINGS_LABEL}>
@@ -829,8 +911,6 @@ export function ContactForm({
           <p id={`${id}-problem`} className={SETTINGS_FIELD_ERROR}>
             {problem}
           </p>
-        ) : editing?.in_xero ? (
-          <p className="text-[12.5px] text-set-mute">The new name is used in Xero too.</p>
         ) : null}
       </form>
     </InlineForm>
@@ -1016,9 +1096,12 @@ export function mergeableAccounts(
   row: Account,
 ): (MergeSide & { label: string })[] {
   const cls = accountClass(row.type);
-  return read.accounts
-    .filter((a) => a.id !== row.id && accountClass(a.type) === cls)
-    .map((a) => ({ id: a.id, name: a.name, label: a.code ? `${a.code} - ${a.name}` : a.name }));
+  return (
+    read.accounts
+      // an account gone from Xero is never the one kept (the API refuses it); it can still be merged away
+      .filter((a) => a.id !== row.id && accountClass(a.type) === cls && !a.gone_from_xero)
+      .map((a) => ({ id: a.id, name: a.name, label: a.code ? `${a.code} - ${a.name}` : a.name }))
+  );
 }
 
 export function mergeableContacts(

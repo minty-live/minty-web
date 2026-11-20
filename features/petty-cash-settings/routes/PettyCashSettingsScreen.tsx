@@ -13,11 +13,12 @@
  *   each the API's at once, its answer drawn and its sentence shown.
  * - No Country & currency card: those are the General tab's.
  *
- * What a person may change is the API's `permissions`; a cashier sees it all read-only. No leave
- * guard: the source has none (each card saves on its own).
+ * What a person may change is the API's `permissions`; a cashier sees it all read-only. Unsaved
+ * card choices hold the page ("Leave without saving?") and are kept as browser drafts per card
+ * (`lib/drafts.ts`: Restore or Discard when the page opens again).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLeaveGuard } from "@minty/shared/leaveGuard";
 
@@ -31,6 +32,7 @@ import { SETTINGS_DANGER_FILL, SETTINGS_OUTLINE } from "@/components/ui/settings
 import { LeaveDialog } from "@/components/ui/LeaveDialog";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError, mintyFetch, type ApiRequest } from "@/lib/apiClient";
+import { useDraftScope } from "@/lib/draftScope";
 
 import { pettyCashSettingsFetch } from "@/features/petty-cash-settings/api/pettyCashSettings";
 import { BusyOverlay } from "@/features/petty-cash-settings/components/parts";
@@ -46,6 +48,7 @@ import {
   type Call,
   type XeroLoad,
 } from "@/features/petty-cash-settings/components/XeroCards";
+import type { CardDrafts } from "@/features/petty-cash-settings/lib/drafts";
 import { connectXeroPath } from "@/features/petty-cash-settings/lib/paths";
 import {
   KIND,
@@ -157,7 +160,24 @@ function SettingsBody({
   const mappingDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, mapping: on })), []);
   const codesDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, codes: on })), []);
   const accountsDirty = useCallback((on: boolean) => setDirty((d) => ({ ...d, accounts: on })), []);
+  // Each card's auto-saved draft (lib/drafts.ts): per person and company. "Discard changes" clears
+  // them all BEFORE the cards remount - a form going away writes what it still holds.
+  const draftScope = useDraftScope(entityId);
+  const draftClears = useRef(new Set<() => void>());
+  const drafts = useMemo<CardDrafts>(
+    () => ({
+      scope: draftScope,
+      register: (clear) => {
+        draftClears.current.add(clear);
+        return () => {
+          draftClears.current.delete(clear);
+        };
+      },
+    }),
+    [draftScope],
+  );
   const leave = useLeaveGuard(dirty.mapping || dirty.codes || dirty.accounts, () => {
+    for (const clear of draftClears.current) clear();
     setDirty({ mapping: false, codes: false, accounts: false });
     setResetKey((k) => k + 1);
   });
@@ -325,6 +345,7 @@ function SettingsBody({
           onSaved={({ first_save: _first, ...answer }) => xeroSaved(answer)}
           onDirty={mappingDirty}
           resetKey={resetKey}
+          drafts={drafts}
         />
 
         {/* under the mapping (owner, 2026-11-12) */}
@@ -337,6 +358,7 @@ function SettingsBody({
           onSaved={xeroSaved}
           onDirty={codesDirty}
           resetKey={resetKey}
+          drafts={drafts}
         />
 
         {/* under the account codes (owner, 2026-11-17; Figma 464:73 row 4) */}
@@ -351,6 +373,7 @@ function SettingsBody({
             }
             onDirty={accountsDirty}
             methodsFor={methodsFor}
+            drafts={drafts}
           />
         ) : null}
 

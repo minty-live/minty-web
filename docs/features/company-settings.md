@@ -110,6 +110,28 @@ does not: the typed values are still there, and still guarded. The draft and the
 `hooks/useDetailsDraft.ts` - the form used to hold them and be remounted by a `key`, which the
 guard could not see.
 
+### Auto-saved drafts (General; the owner's decisions doc L1, 2026-11-20)
+
+What is typed is kept IN THIS BROWSER as a separate copy, 2 seconds after the last change
+(`@minty/shared/drafts` v0.28, `useAutoSaveDraft`), per person and company (`lib/draftScope.ts`:
+the token's `user_id` and the settings page's company) - never the real settings, which only the
+person's own Save writes. Coming back asks first, above the card (`DraftNotice`): "You have unsaved
+changes from 10:42." - **Restore** or **Discard**; nothing changes until they pick. If the saved
+values changed since (`basedOn` = the fingerprint of what the API sent), the draft is stale: "This
+was saved again after your unsaved changes from 10:42, so we haven't put them back." with Show what
+I typed, never restored.
+
+- **The details** (`settings.details`, record `-`, `hooks/useDetailsDraft.ts`): removed by a save
+  that went through, by "Discard changes" (the guard's reset) and by Discard. A refused save keeps
+  it. A restored country or currency no longer on its list stays as saved.
+- **The add / edit account form** (`settings.account`, record `new` or the account's id,
+  `ChartCards.tsx` `AccountForm`; `basedOn` the account's saved fields, none for a new one): the
+  notice shows inside the form when Add (or that account's Edit) opens again. Removed by a save
+  that went through, by **Cancel** (and Escape) and by Discard.
+- Removed too after 7 days, and by an explicit sign-out (`lib/logout.ts`: `clearDraftsForUser`
+  before the token goes) - never by the 60-minute session expiry (the 401 path), which drafts exist
+  to survive. Another person on the same browser never sees them.
+
 ## Integration (Figma SET-1, SET-2, SET-2b)
 
 The Xero card (`components/XeroCard.tsx`): the Xero mark, what the connection means and its pill;
@@ -209,7 +231,9 @@ success case leaves the page, so a toast would not outlive it.
 `features/company-settings/__tests__/screens.test.tsx` (the chrome's six tabs; Users: each row's
 offers, the address as text, a role change, a refused removal keeping its dialog, the invite, the
 cooldown, the flashed notice; General: SET-G's card and "No changes to save yet", a save of only
-what changed, the empty name, read-only, the leave guard's cases; Integration: SET-1, SET-2 and
+what changed, the empty name, read-only, the leave guard's cases, the auto-saved draft - kept after
+2 s, offered, Restore, Discard, removed by a save and by Discard changes, kept by a refused save,
+stale; Integration: SET-1, SET-2 and
 SET-2b, the disconnected and reconnect-needed states, read-only, the refused connect and its
 move), `__tests__/reexports.test.ts`, `lib/__tests__/settingsTabs.test.ts`,
 `e2e/12_company_settings.spec.ts` (what only a real browser shows: the browser's own Back held by
@@ -284,7 +308,8 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
-failed read); e2e `13_chart.spec.ts`.
+failed read, the account form's auto-saved draft: offered and restored, Cancel, Discard, a save,
+stale); e2e `13_chart.spec.ts`.
 
 ## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
 

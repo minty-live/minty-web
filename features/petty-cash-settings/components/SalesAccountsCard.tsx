@@ -8,7 +8,10 @@
  * Turning one off keeps its methods: they come back when it is turned on again.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { fingerprint } from "@minty/shared/drafts";
+import { DraftNotice } from "@minty/shared/ui";
 
 import { SettingsDialog } from "@/components/ui/SettingsShell";
 import {
@@ -18,6 +21,11 @@ import {
 } from "@/components/ui/settingsButtons";
 
 import { Icon, PettyCashCard } from "@/features/petty-cash-settings/components/parts";
+import {
+  DRAFT_FORMS,
+  useCardDraft,
+  type CardDrafts,
+} from "@/features/petty-cash-settings/lib/drafts";
 import {
   NO_SALES_ACCOUNT,
   SALES_ACCOUNT,
@@ -39,6 +47,7 @@ export function SalesAccountsCard({
   onSave,
   onDirty,
   methodsFor,
+  drafts,
 }: {
   saved: SalesParts;
   canEdit: boolean;
@@ -49,6 +58,8 @@ export function SalesAccountsCard({
   onDirty: (on: boolean) => void;
   /** The methods drawn inside a ticked account (Figma 529:675); null for none (Cash). */
   methodsFor: (part: SalesPart) => ReactNode;
+  /** The card's auto-saved draft (`lib/drafts.ts`). */
+  drafts?: CardDrafts;
 }) {
   const [ticks, setTicks] = useState<SalesParts>(saved);
   // Discard changes remounts the card (the page's resetKey); after a save the ticks are the saved ones.
@@ -57,10 +68,29 @@ export function SalesAccountsCard({
   const changes = SALES_PARTS.filter((k) => ticks[k] !== saved[k]).length;
   const none = SALES_PARTS.every((k) => !ticks[k]);
   useEffect(() => onDirty(changes > 0), [changes, onDirty]);
+  // the ticks as a browser draft, against the ticks the API sent (lib/drafts.ts)
+  const savedMark = useMemo(() => fingerprint(saved), [saved]);
+  const draft = useCardDraft<SalesParts>(drafts, {
+    form: DRAFT_FORMS.sales,
+    ready: canEdit,
+    basedOn: savedMark,
+    value: ticks,
+    dirty: canEdit && changes > 0,
+  });
+  const restoreDraft = () => {
+    const kept = draft.restore()?.value;
+    if (!kept) return;
+    setTicks({ cash: !!kept.cash, electronic: !!kept.electronic, delivery: !!kept.delivery });
+  };
+  const describeDraft = () =>
+    SALES_PARTS.map((k) => ({
+      label: SALES_ACCOUNT[k].name,
+      value: draft.offer?.value[k] ? "On" : "Off",
+    }));
 
   const send = async () => {
     setConfirm(null);
-    await onSave(ticks);
+    if (await onSave(ticks)) draft.clear();
   };
   const save = () => {
     if (none || !changes) return;
@@ -76,6 +106,15 @@ export function SalesAccountsCard({
       readOnly={!canEdit}
       testId="sales-accounts"
     >
+      {draft.offer ? (
+        <DraftNotice
+          savedAt={draft.offer.savedAt}
+          stale={draft.offer.stale}
+          onRestore={restoreDraft}
+          onDiscard={draft.discard}
+          describe={describeDraft}
+        />
+      ) : null}
       <div
         role="group"
         aria-label="Sales accounts"

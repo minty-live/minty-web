@@ -14,9 +14,18 @@
  * The name counts only where the viewer may rename (an admin): a disabled field is never dirty.
  * An emptied name is still a change (the leave guard must hold it), but `nameMissing` stops the
  * form sending it: Flask refuses an empty name.
+ *
+ * What is typed is also kept as a browser draft (`settings.details`, `@minty/shared/drafts`; the
+ * owner's decisions doc L1): 2 s after the last change, offered when the page opens again
+ * (`offer`, Restore / Discard), stale - shown, never put back - once the saved values changed. A
+ * save that went through (`clearDraft`) and "Discard changes" (`reset`) remove it.
  */
 
 import { useState } from "react";
+
+import { fingerprint, useAutoSaveDraft, type DraftOffer } from "@minty/shared/drafts";
+
+import { useDraftScope } from "@/lib/draftScope";
 
 import type { IntegrationPage } from "@/features/company-settings/api/companySettings";
 
@@ -34,11 +43,18 @@ export type DetailsDraft = {
   dirty: boolean;
   /** The viewer may rename and the name is blank - nothing may be sent until one is typed. */
   nameMissing: boolean;
-  /** "Discard changes": the saved values back. */
+  /** "Discard changes": the saved values back, and the browser draft gone. */
   reset: () => void;
+  /** A browser draft from an earlier visit, waiting for Restore or Discard. */
+  offer: DraftOffer<DetailsFields> | null;
+  restoreDraft: () => void;
+  discardDraft: () => void;
+  /** After a save that went through. */
+  clearDraft: () => void;
 };
 
-type Fields = { name: string; country: string; currency: string };
+export type DetailsFields = { name: string; country: string; currency: string };
+type Fields = DetailsFields;
 
 const savedFields = (page: IntegrationPage | null): Fields => ({
   name: page?.company.name ?? "",
@@ -65,6 +81,19 @@ export function useDetailsDraft(page: IntegrationPage | null): DetailsDraft {
   if (page?.can_rename && fields.name.trim() !== saved.name) changes.name = fields.name.trim();
   if (fields.country && fields.country !== saved.country) changes.country_code = fields.country;
   if (fields.currency && fields.currency !== saved.currency) changes.currency_id = fields.currency;
+  const dirty = Object.keys(changes).length > 0;
+
+  const scope = useDraftScope(page?.company.id);
+  const auto = useAutoSaveDraft<Fields>({
+    scope,
+    form: "settings.details",
+    record: "-",
+    shape: 1,
+    ready: Boolean(page?.can_edit),
+    basedOn: fingerprint(saved),
+    value: fields,
+    dirty: Boolean(page?.can_edit) && dirty,
+  });
 
   return {
     name: fields.name,
@@ -74,8 +103,26 @@ export function useDetailsDraft(page: IntegrationPage | null): DetailsDraft {
     setCountry: (value) => setDraft((was) => ({ ...was, country: value })),
     setCurrency: (value) => setDraft((was) => ({ ...was, currency: value })),
     changes,
-    dirty: Object.keys(changes).length > 0,
+    dirty,
     nameMissing: Boolean(page?.can_rename) && !fields.name.trim(),
-    reset: () => setDraft(savedFields(page)),
+    reset: () => {
+      auto.clear();
+      setDraft(savedFields(page));
+    },
+    offer: auto.offer,
+    restoreDraft: () => {
+      const kept = auto.restore()?.value;
+      if (!kept) return;
+      // a value no longer on its list stays as saved
+      const country = page?.countries.some((c) => c.code === kept.country);
+      const currency = page?.currencies.some((c) => c.id === kept.currency);
+      setDraft({
+        name: page?.can_rename && typeof kept.name === "string" ? kept.name : saved.name,
+        country: country ? kept.country : saved.country,
+        currency: currency ? kept.currency : saved.currency,
+      });
+    },
+    discardDraft: auto.discard,
+    clearDraft: auto.clear,
   };
 }

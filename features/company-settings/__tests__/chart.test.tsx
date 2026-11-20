@@ -4,9 +4,11 @@
 // view-only person shown the lists alone (General's own view-only line says why). accounts-api is
 // answered per path and method; every call names the company as ?entity=.
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { draftKey, writeDraft } from "@minty/shared/drafts";
 
 import { ToastProvider } from "@/components/ui/Toast";
 import { setAuth } from "@/lib/auth";
@@ -554,5 +556,155 @@ describe("the add form opens inline (owner, 2026-11-12: no dialog)", () => {
     await user.keyboard("{Escape}");
     expect(chart.queryByRole("group", { name: "Add an account" })).toBeNull();
     expect(chart.getByRole("button", { name: /Add an account/ })).toBeInTheDocument();
+  });
+});
+
+// Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the add / edit account
+// form keeps what was typed in this browser 2 s after the last change (record `new` or the
+// account's id), offered when the form opens again (Restore / Discard); a save that went through,
+// Cancel and Discard remove it; an account saved since makes it stale (shown, never put back).
+describe("the account form's auto-saved draft", () => {
+  const NEW = draftKey({ userId: "u1", entityId: ID }, "settings.account", "new");
+  const WAGES = draftKey({ userId: "u1", entityId: ID }, "settings.account", "a-wages");
+  const wait2s = () =>
+    act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+  const mount = () =>
+    render(
+      <ToastProvider>
+        <ChartSection entityId={COMPANY.id} entityName={COMPANY.name} />
+      </ToastProvider>,
+    );
+  const reads = {
+    "GET /api/me/company/accounts": () => json(accounts()),
+    "GET /api/me/company/contacts": () => json(contacts()),
+  };
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  async function typeParking(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: /Add an account/ }),
+    );
+    const form = within(screen.getByRole("group", { name: "Add an account" }));
+    await user.type(form.getByRole("combobox", { name: /Account/ }), "Parking");
+    await user.click(form.getByRole("option", { name: "+ Add 'Parking' as a new account" }));
+    await user.selectOptions(form.getByLabelText(/Type/), "expense");
+    return form;
+  }
+
+  it("a new account: kept 2 s after typing, offered when Add opens again, Restore puts it back", async () => {
+    api(reads);
+    const first = mount();
+    await loaded();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await typeParking(user);
+    await wait2s();
+    const kept = JSON.parse(localStorage.getItem(NEW) ?? "null");
+    expect(kept.value).toMatchObject({
+      pick: "new",
+      input: { name: "Parking", type: "expense", code: "478" },
+    });
+    first.unmount();
+
+    mount();
+    await loaded();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: /Add an account/ }),
+    );
+    const form = within(screen.getByRole("group", { name: "Add an account" }));
+    expect(await form.findByText(/You have unsaved changes from \d\d:\d\d\./)).toBeInTheDocument();
+    expect(form.queryByLabelText(/^Name/)).toBeNull();
+    await user.click(form.getByRole("button", { name: "Restore" }));
+    expect(form.getByLabelText(/^Name/)).toHaveValue("Parking");
+    expect(form.getByLabelText(/Type/)).toHaveValue("expense");
+    expect(form.getByLabelText(/Code/)).toHaveValue("478");
+  });
+
+  it("Cancel closes the form and its draft goes with it", async () => {
+    api(reads);
+    mount();
+    await loaded();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const form = await typeParking(user);
+    await wait2s();
+    expect(localStorage.getItem(NEW)).not.toBeNull();
+    await user.click(form.getByRole("button", { name: "Cancel" }));
+    await wait2s();
+    expect(localStorage.getItem(NEW)).toBeNull();
+  });
+
+  it("Discard removes it and leaves the form empty", async () => {
+    api(reads);
+    const first = mount();
+    await loaded();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await typeParking(user);
+    await wait2s();
+    first.unmount();
+
+    mount();
+    await loaded();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: /Add an account/ }),
+    );
+    const form = within(screen.getByRole("group", { name: "Add an account" }));
+    await user.click(await form.findByRole("button", { name: "Discard" }));
+    expect(localStorage.getItem(NEW)).toBeNull();
+    expect(form.getByRole("combobox", { name: /Account/ })).toHaveValue("");
+  });
+
+  it("a save that went through removes it", async () => {
+    api({
+      ...reads,
+      "POST /api/me/company/accounts": () => json({ account: {}, message: "Parking added." }, 201),
+    });
+    mount();
+    await loaded();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const form = await typeParking(user);
+    await wait2s();
+    expect(localStorage.getItem(NEW)).not.toBeNull();
+    await user.click(form.getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("Parking added.")).toBeInTheDocument();
+    await wait2s();
+    expect(localStorage.getItem(NEW)).toBeNull();
+  });
+
+  it("an edit saved since by someone else: shown, never put back", async () => {
+    writeDraft(WAGES, {
+      v: 1,
+      form: "settings.account",
+      record: "a-wages",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: "an-older-save",
+      value: {
+        pick: "new",
+        text: "",
+        input: { code: "477", name: "Staff wages", type: "expense", description: "" },
+        codeTouched: true,
+      },
+      files: [],
+      missing: [],
+    });
+    api(reads);
+    mount();
+    await loaded();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Edit 477 - Wages" }),
+    );
+    const form = within(screen.getByRole("group", { name: "Edit Wages" }));
+    expect(
+      await form.findByText(/This was saved again after your unsaved changes/),
+    ).toBeInTheDocument();
+    expect(form.queryByRole("button", { name: "Restore" })).toBeNull();
+    await user.click(form.getByRole("button", { name: "Show what I typed" }));
+    expect(form.getByText("Staff wages", { selector: "dd" })).toBeInTheDocument();
+    expect(form.getByLabelText(/^Name/)).toHaveValue("Wages");
   });
 });

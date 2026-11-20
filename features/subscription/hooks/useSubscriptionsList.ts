@@ -285,7 +285,8 @@ export type UseSubscriptionsListResult = {
   changePrompt: ChangePrompt | null;
   dismissChangePrompt: () => void;
   /** Its Confirm: the cancellation is applied, with the reason typed in it (required by the dialog for a paid cancellation; none for a trial stop). */
-  applyChangePrompt: (reason?: string) => Promise<void>;
+  /** True when the cancellation went through. */
+  applyChangePrompt: (reason?: string) => Promise<boolean>;
   changeBusy: boolean;
   /**
    * "Activate Subscription" on a row nobody pays for: opens "Billing Accounts", whose Confirm
@@ -800,8 +801,9 @@ export function useSubscriptionsList({
   // Whatever asked STAYS UP, busy, until the answer takes its place - the result and its modal,
   // 06·B, "Billing Accounts" asked again, a toast - so a payment never runs with nothing on the
   // screen saying so.
+  /** True when the change went through. */
   const apply = useCallback(
-    async (prompt: ApplyRequest) => {
+    async (prompt: ApplyRequest): Promise<boolean> => {
       const { entity, change, page: before } = prompt;
       const closeAsking = () => {
         setChangePrompt(null);
@@ -816,19 +818,19 @@ export function useSubscriptionsList({
         });
         if (applied.needsCard) {
           await askAgainForCard(prompt, applied.needsCard);
-          return;
+          return false;
         }
         if (applied.declined) {
           // The bank said no: 06·B asks to try again; the ticks stay pending.
           closeAsking();
           setDeclined({ prompt, ...applied.declined });
-          return;
+          return false;
         }
         if (applied.refused) {
           showToast(applied.refused, "error");
           closeAsking();
           summary.reload();
-          return;
+          return false;
         }
         const after = await getModulePage(entity.entity_id);
         summary.resetTicks();
@@ -845,10 +847,12 @@ export function useSubscriptionsList({
         // already reloads; the successful one was the exception.
         summary.reload();
         reload();
+        return true;
       } catch (err) {
         showToast(sentence(err), "error");
         closeAsking();
         summary.reload();
+        return false;
       } finally {
         setChangeBusy(false);
       }
@@ -859,8 +863,8 @@ export function useSubscriptionsList({
   // bills never asks here - Billing Accounts asks first, and its modal celebrates once paid.)
   const applyChangePrompt = useCallback(
     async (reason?: string) => {
-      if (!changePrompt || changeBusy) return;
-      await apply({ ...changePrompt, celebrate: null, reason });
+      if (!changePrompt || changeBusy) return false;
+      return apply({ ...changePrompt, celebrate: null, reason });
     },
     [changePrompt, changeBusy, apply],
   );

@@ -4,9 +4,11 @@
 // 2026-11-11). minty-petty-cash-api is answered per path and method; every call names the
 // company in its path and never with X-Entity-Id.
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { draftKey, writeDraft } from "@minty/shared/drafts";
 
 import { DISCARD_CHANGES, GO_BACK_UPPER, LEAVE_TITLE } from "@/components/ui/LeaveDialog";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -941,5 +943,261 @@ describe("PettyCashSettingsScreen - leaving with unsaved Xero choices", () => {
     await userEvent.click(screen.getByRole("link", { name: "Users" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(went).toEqual([expect.stringContaining("/settings/users")]);
+  });
+});
+
+// Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): each card keeps what was
+// chosen in this browser 2 s after the last change, per person and company; coming back asks
+// first (Restore / Discard); its own Save, and "Discard changes", remove it.
+describe("PettyCashSettingsScreen - auto-saved drafts", () => {
+  let went: string[];
+  const onClick = (event: MouseEvent) => {
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (anchor instanceof HTMLAnchorElement) {
+      event.preventDefault();
+      went.push(anchor.getAttribute("href") ?? "");
+    }
+  };
+  const scope = { userId: "u1", entityId: ID };
+  const MAPPING = draftKey(scope, "settings.pc-mapping", "-");
+  const CODES = draftKey(scope, "settings.pc-codes", "-");
+  const SALES = draftKey(scope, "settings.pc-sales", "-");
+  const ON = { cash: true, electronic: true, delivery: true };
+  const wait2s = () =>
+    act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+  const mount = () =>
+    render(
+      <ToastProvider>
+        <PettyCashSettingsScreen company={COMPANY} />
+      </ToastProvider>,
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("fetch", fetchMock);
+    setAuth("h.eyJ1c2VyX2lkIjoidTEifQ.s", ID, "Olive Shop");
+    fetchMock.mockReset();
+    went = [];
+    window.addEventListener("click", onClick);
+  });
+  afterEach(() => {
+    window.removeEventListener("click", onClick);
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  async function pickOwnerDrawings(user: ReturnType<typeof userEvent.setup>) {
+    const mapping = card("Account mapping");
+    const sales = await mapping.findByRole("combobox", {
+      name: /Select account code for cash sales/,
+    });
+    await user.clear(sales);
+    await user.type(sales, "880");
+    await user.click(mapping.getByRole("option", { name: /Owner Drawings/ }));
+    return sales;
+  }
+
+  it("the mapping: kept 2 s after a choice, offered when the page opens again, Restore puts it back", async () => {
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    const first = mount();
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await pickOwnerDrawings(user);
+    expect(localStorage.getItem(MAPPING)).toBeNull();
+    await wait2s();
+    const kept = JSON.parse(localStorage.getItem(MAPPING) ?? "null");
+    expect(kept.value.cashsale_account).toBe("a2");
+    first.unmount();
+
+    mount();
+    await drawn();
+    const mapping = card("Account mapping");
+    const notice = await mapping.findByText(/You have unsaved changes from \d\d:\d\d\./);
+    expect(notice.closest("[data-draft-notice]")).toHaveAttribute("data-draft-notice", "fresh");
+    // nothing changes until the person picks
+    const sales = mapping.getByRole("combobox", { name: /Select account code for cash sales/ });
+    expect(sales).toHaveValue("Sales - 200");
+    await user.click(mapping.getByRole("button", { name: "Restore" }));
+    expect(sales).toHaveValue("Owner Drawings - 880");
+    expect(mapping.getByRole("button", { name: "Save Changes" })).toBeEnabled();
+    expect(mapping.queryByText(/You have unsaved changes/)).toBeNull();
+    // the other cards keep their own drafts: none here
+    expect(card("Petty Cash Account Code").queryByText(/unsaved changes/)).toBeNull();
+  });
+
+  it("Discard removes the mapping's draft and keeps the saved choices", async () => {
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    const first = mount();
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await pickOwnerDrawings(user);
+    await wait2s();
+    first.unmount();
+
+    mount();
+    await drawn();
+    const mapping = card("Account mapping");
+    await mapping.findByText(/You have unsaved changes/);
+    await user.click(mapping.getByRole("button", { name: "Discard" }));
+    expect(mapping.queryByText(/You have unsaved changes/)).toBeNull();
+    expect(localStorage.getItem(MAPPING)).toBeNull();
+    expect(
+      mapping.getByRole("combobox", { name: /Select account code for cash sales/ }),
+    ).toHaveValue("Sales - 200");
+  });
+
+  it("the mapping's own Save removes its draft", async () => {
+    let read = xero();
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(read),
+      "PUT /settings/xero/mapping": (body) => {
+        read = xero({ mapping: body as Record<MappingKey, string> });
+        return json({ ...read, message: "Account mapping saved.", first_save: false });
+      },
+    });
+    mount();
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await pickOwnerDrawings(user);
+    await wait2s();
+    expect(localStorage.getItem(MAPPING)).not.toBeNull();
+    await user.click(card("Account mapping").getByRole("button", { name: "Save Changes" }));
+    expect(await screen.findByText("Account mapping saved.")).toBeInTheDocument();
+    await wait2s();
+    expect(localStorage.getItem(MAPPING)).toBeNull();
+  });
+
+  it("saved by someone since: the draft is shown, never put back", async () => {
+    writeDraft(MAPPING, {
+      v: 1,
+      form: "settings.pc-mapping",
+      record: "-",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now() - 60_000,
+      basedOn: "an-older-save",
+      value: { ...SAVED, cashsale_account: "a2" },
+      files: [],
+      missing: [],
+    });
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    mount();
+    await drawn();
+    const mapping = card("Account mapping");
+    const notice = await mapping.findByText(/This was saved again after your unsaved changes/);
+    expect(notice.closest("[data-draft-notice]")).toHaveAttribute("data-draft-notice", "stale");
+    expect(mapping.queryByRole("button", { name: "Restore" })).toBeNull();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(mapping.getByRole("button", { name: "Show what I typed" }));
+    expect(mapping.getByText("Cash Sales account code").nextElementSibling).toHaveTextContent(
+      "Owner Drawings - 880",
+    );
+    expect(
+      mapping.getByRole("combobox", { name: /Select account code for cash sales/ }),
+    ).toHaveValue("Sales - 200");
+  });
+
+  it("another person's draft on this browser is never offered", async () => {
+    writeDraft(draftKey({ userId: "u2", entityId: ID }, "settings.pc-mapping", "-"), {
+      v: 1,
+      form: "settings.pc-mapping",
+      record: "-",
+      shape: 1,
+      userId: "u2",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: null,
+      value: { ...SAVED, cashsale_account: "a2" },
+      files: [],
+      missing: [],
+    });
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    mount();
+    await drawn();
+    await card("Account mapping").findByRole("combobox", {
+      name: /Select account code for cash sales/,
+    });
+    await act(async () => undefined);
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+  });
+
+  it("the account codes and the sales accounts keep drafts of their own", async () => {
+    api({
+      "GET /settings": () => json(settings({ sales_parts: ON })),
+      "GET /settings/xero": () => json(xero()),
+    });
+    const first = mount();
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(
+      await card("Petty Cash Account Code").findByRole("checkbox", { name: "404 - Bank Fees" }),
+    );
+    await user.click(
+      card("Sales accounts and methods").getByRole("checkbox", { name: /Sales - Delivery/ }),
+    );
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(CODES) ?? "null").value).toEqual(["400", "404"]);
+    expect(JSON.parse(localStorage.getItem(SALES) ?? "null").value).toEqual({
+      ...ON,
+      delivery: false,
+    });
+    expect(localStorage.getItem(MAPPING)).toBeNull();
+    first.unmount();
+
+    mount();
+    await drawn();
+    const codes = card("Petty Cash Account Code");
+    await codes.findByText(/You have unsaved changes/);
+    await user.click(codes.getByRole("button", { name: "Restore" }));
+    expect(codes.getByRole("checkbox", { name: "404 - Bank Fees" })).toBeChecked();
+    const sales = card("Sales accounts and methods");
+    await user.click(sales.getByRole("button", { name: "Restore" }));
+    expect(sales.getByRole("checkbox", { name: /Sales - Delivery/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(sales.getByText("1 change not saved yet")).toBeInTheDocument();
+  });
+
+  it("Discard changes on leaving removes every card's draft", async () => {
+    api({
+      "GET /settings": () => json(settings()),
+      "GET /settings/xero": () => json(xero()),
+    });
+    mount();
+    await drawn();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(
+      await card("Petty Cash Account Code").findByRole("checkbox", { name: "404 - Bank Fees" }),
+    );
+    await pickOwnerDrawings(user);
+    await wait2s();
+    expect(localStorage.getItem(CODES)).not.toBeNull();
+    expect(localStorage.getItem(MAPPING)).not.toBeNull();
+
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: DISCARD_CHANGES }),
+    );
+    expect(went).toEqual([expect.stringContaining("/settings/users")]);
+    await wait2s();
+    expect(localStorage.getItem(CODES)).toBeNull();
+    expect(localStorage.getItem(MAPPING)).toBeNull();
   });
 });

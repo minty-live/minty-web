@@ -13,11 +13,18 @@
  *   last code - 409); a save sends the rows turning ON first, then OFF, so it never passes through
  *   a moment with nothing ticked. Each row that went through is saved, whatever the others did.
  * - Elevated roles change them (`lib/role.ts`); everyone else sees them read-only, told why.
- * - Ticks not saved yet hold every way out of the page ("Leave without saving?").
+ * - Ticks not saved yet hold every way out of the page ("Leave without saving?"), and are kept as
+ *   a browser draft (`settings.payment-codes`, `@minty/shared/drafts`; the owner's decisions doc
+ *   L1): 2 s after the last tick, offered when the page opens again (Restore / Discard), stale -
+ *   shown, never put back - once the saved ticks changed; removed by a Save that went through and
+ *   by "Discard changes".
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { fingerprint, useAutoSaveDraft } from "@minty/shared/drafts";
+import { DraftNotice } from "@minty/shared/ui";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
 import { LeaveDialog } from "@/components/ui/LeaveDialog";
@@ -27,6 +34,7 @@ import { ReadOnlyNotice, SettingsCard } from "@/components/ui/SettingsShell";
 import { Tick } from "@/components/ui/Tick";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
+import { useDraftScope } from "@/lib/draftScope";
 import { useLeaveGuard } from "@minty/shared/leaveGuard";
 
 import {
@@ -124,9 +132,43 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
     return false;
   }, [selectedIds, savedIds]);
 
+  // The ticks as a browser draft, against the ticks the API holds (sorted, so order never counts).
+  const draftScope = useDraftScope(entityId);
+  const ticks = useMemo(() => [...selectedIds].sort(), [selectedIds]);
+  const savedMark = useMemo(() => fingerprint([...savedIds].sort()), [savedIds]);
+  const draft = useAutoSaveDraft<string[]>({
+    scope: draftScope,
+    form: "settings.payment-codes",
+    record: "-",
+    shape: 1,
+    ready: !loading && !loadFailed && canEdit,
+    basedOn: savedMark,
+    value: ticks,
+    dirty: canEdit && hasChanges,
+  });
+  const clearDraft = draft.clear;
+  const restoreDraft = () => {
+    const kept = draft.restore()?.value;
+    if (!Array.isArray(kept)) return;
+    const known = new Set(rows.map((r) => r.id));
+    setSelectedIds(new Set(kept.filter((id) => known.has(id))));
+  };
+  const describeDraft = () => [
+    {
+      label: "Ticked",
+      value: rows
+        .filter((r) => draft.offer?.value.includes(r.id))
+        .map((r) => r.label)
+        .join(", "),
+    },
+  ];
+
   // A save that went through makes `savedIds` the ticks, so `hasChanges` clears and the guard
   // stands down; a failed one leaves `savedIds` alone, so the page still asks.
-  const discardTicks = useCallback(() => setSelectedIds(new Set(savedIds)), [savedIds]);
+  const discardTicks = useCallback(() => {
+    clearDraft();
+    setSelectedIds(new Set(savedIds));
+  }, [savedIds, clearDraft]);
   const leave = useLeaveGuard(hasChanges, discardTicks);
 
   const changedIds = useMemo(() => {
@@ -172,6 +214,7 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
         (result): result is PromiseRejectedResult => result.status === "rejected",
       );
       if (failed.length === 0) {
+        clearDraft();
         showToast(PAYMENT_SETTINGS_COPY.saved, "success");
       } else {
         console.error("[payment settings] some account codes did not save", failed);
@@ -281,6 +324,15 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
       >
         {expanded ? (
           <div id="payment-account-codes" className="flex min-w-0 flex-col gap-3">
+            {draft.offer ? (
+              <DraftNotice
+                savedAt={draft.offer.savedAt}
+                stale={draft.offer.stale}
+                onRestore={restoreDraft}
+                onDiscard={draft.discard}
+                describe={describeDraft}
+              />
+            ) : null}
             {nothingWithoutXero ? (
               <XeroNotConnected href={integrationPath(company.id, company.name)} />
             ) : (

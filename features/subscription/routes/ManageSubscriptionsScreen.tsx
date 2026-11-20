@@ -13,6 +13,7 @@
  */
 
 import { LeaveDialog } from "@/components/ui/LeaveDialog";
+import { useDraftScope } from "@/lib/draftScope";
 import { HUB_PATHS } from "@/lib/hubPaths";
 
 import { AccountPickerDialog } from "@/features/subscription/components/BillingAccountDialogs";
@@ -40,6 +41,8 @@ import type { MenuItem } from "@/features/subscription/lib/portalRows";
 export function ManageSubscriptionsScreen(args: UseSubscriptionsListArgs) {
   const m = useSubscriptionsList(args);
   const nothingShown = m.active.length === 0 && m.suspended.length === 0;
+  // the cancellation reason's browser draft is per person and per company
+  const cancelDraftScope = useDraftScope(m.changePrompt?.entity.entity_id);
 
   const onMenu = (entity: Parameters<typeof m.toggleRow>[0], item: MenuItem) => {
     if (item === "request_transfer") m.requestTransfer(entity);
@@ -139,8 +142,10 @@ export function ManageSubscriptionsScreen(args: UseSubscriptionsListArgs) {
             m.changePrompt.modal.kind === "remove" ||
             m.changePrompt.modal.kind === "cancel_subscription"
           }
-          onConfirm={(reason) => void m.applyChangePrompt(reason)}
+          onConfirm={(reason) => m.applyChangePrompt(reason)}
           onBack={m.dismissChangePrompt}
+          // the reason's browser draft: per person and company, the company's one subscription
+          draft={{ scope: cancelDraftScope, record: m.changePrompt.entity.entity_id }}
         />
       )}
 

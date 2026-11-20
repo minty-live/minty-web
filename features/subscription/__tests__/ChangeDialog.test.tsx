@@ -2,9 +2,11 @@
 // title, the company, the sentences with their bold and coloured runs, Minty's mood, the
 // confirming button in its tone; Go back, Escape and the backdrop go back, nothing while busy.
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { draftKey } from "@minty/shared/drafts";
 
 import { SUMMARY_FIXTURES } from "@/features/subscription/__fixtures__/modulePage";
 import { ChangeDialog } from "@/features/subscription/components/ChangeDialog";
@@ -194,5 +196,102 @@ describe("ChangeDialog", () => {
     await userEvent.keyboard("{Escape}");
     expect(onBack).not.toHaveBeenCalled();
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+// Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the cancellation reason is
+// kept in this browser 2 s after the last keystroke, per person and company, offered when the
+// dialog opens again (Restore / Discard), and removed once the cancellation goes through.
+describe("ChangeDialog - the reason's auto-saved draft", () => {
+  const SCOPE = { userId: "u1", entityId: "e9" };
+  const KEY = draftKey(SCOPE, "subscription.cancel", "e9");
+  const wait2s = () =>
+    act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+  const mount = (onConfirm: (reason?: string) => void | Promise<boolean | void> = vi.fn()) =>
+    render(
+      <ChangeDialog
+        modal={buildChangeModal(SUMMARY_FIXTURES.M44, ["PETTY_CASH"])!}
+        entityName="Nexora Health Limited"
+        busy={false}
+        askReason
+        onConfirm={onConfirm}
+        onBack={vi.fn()}
+        draft={{ scope: SCOPE, record: "e9" }}
+      />,
+    );
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  it("kept 2 s after typing; opened again it asks, and Restore puts the words back", async () => {
+    const first = mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByRole("textbox"), "Too expensive");
+    expect(localStorage.getItem(KEY)).toBeNull();
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value).toEqual({
+      reason: "Too expensive",
+    });
+    first.unmount();
+
+    mount();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(
+      await dialog.findByText(/You have unsaved changes from \d\d:\d\d\./),
+    ).toBeInTheDocument();
+    expect(dialog.getByRole("textbox")).toHaveValue("");
+    await user.click(dialog.getByRole("button", { name: "Restore" }));
+    expect(dialog.getByRole("textbox")).toHaveValue("Too expensive");
+  });
+
+  it("Discard removes it", async () => {
+    const first = mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByRole("textbox"), "Too expensive");
+    await wait2s();
+    first.unmount();
+
+    mount();
+    const dialog = within(screen.getByRole("dialog"));
+    await user.click(await dialog.findByRole("button", { name: "Discard" }));
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(dialog.getByRole("textbox")).toHaveValue("");
+  });
+
+  it("removed when the cancellation goes through, kept when it does not", async () => {
+    let done = false;
+    const onConfirm = vi.fn(async () => done);
+    mount(onConfirm);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByRole("textbox"), "Too expensive");
+    await wait2s();
+    const confirm = screen.getByRole("button", { name: "Confirm Change" });
+    await user.click(confirm);
+    await wait2s();
+    expect(localStorage.getItem(KEY)).not.toBeNull(); // refused: kept
+    done = true;
+    await user.click(confirm);
+    await wait2s();
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("nothing is kept without a person to keep it for", async () => {
+    render(
+      <ChangeDialog
+        modal={buildChangeModal(SUMMARY_FIXTURES.M44, ["PETTY_CASH"])!}
+        entityName="Nexora Health Limited"
+        busy={false}
+        askReason
+        onConfirm={vi.fn()}
+        onBack={vi.fn()}
+        draft={{ scope: null, record: "e9" }}
+      />,
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByRole("textbox"), "Too expensive");
+    await wait2s();
+    expect(localStorage.length).toBe(0);
   });
 });

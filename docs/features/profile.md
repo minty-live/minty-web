@@ -81,7 +81,9 @@ features meet (pinned by `__tests__/reexports.test.ts`, which also holds that th
 
 ## Log Out and the way back
 
-_Log Out_ is the side menu's Logout (`lib/logout.ts`): the token goes, and a top-level form
+_Log Out_ is the side menu's Logout (`lib/logout.ts`): this person's auto-saved drafts in this
+browser go first (`clearDraftsForUser`, `@minty/shared/drafts`, within 500 ms; the session-expired
+401 path keeps them - `lib/__tests__/logout.test.ts`), then the token goes, and a top-level form
 POST to Minty's `/logout` (`postNavigate` in `lib/handoff.ts`; a GET answers 405, and a
 `strict-origin` referrer meta keeps the `Origin` it checks) ends the session everywhere. In the sheet, ‹ is the menu and × closes the sidebar, leaving the
 person on the page they were on - the sheet never adds a history entry, so it is not part of

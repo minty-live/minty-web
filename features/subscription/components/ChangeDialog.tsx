@@ -15,9 +15,17 @@
  * free text, required), capped at the audit column's 500 characters. Nothing is red on open; a
  * Confirm with nothing typed (spaces count as nothing) is refused with the sentence under the
  * box and focus moved to it, and typing clears it at once. Enter is a new line.
+ *
+ * The reason is kept as a browser draft (`subscription.cancel`, record the company's subscription -
+ * the company's id; `@minty/shared/drafts`, the owner's decisions doc L1): 2 s after the last
+ * keystroke, offered inside the box's section when the dialog opens again (Restore / Discard), and
+ * removed once the cancellation goes through (`onConfirm` resolving true) or on Discard.
  */
 
 import { useId, useRef, useState } from "react";
+
+import { useAutoSaveDraft, type DraftScope } from "@minty/shared/drafts";
+import { DraftNotice } from "@minty/shared/ui";
 
 import type { ChangeModal } from "@/features/subscription/lib/changeModal";
 import type { ResultPart } from "@/features/subscription/lib/changeResult";
@@ -51,6 +59,7 @@ export function ChangeDialog({
   askReason = false,
   onConfirm,
   onBack,
+  draft,
 }: {
   modal: ChangeModal;
   entityName: string;
@@ -59,9 +68,14 @@ export function ChangeDialog({
   hideBack?: boolean;
   /** A paid cancellation: ask why they are leaving - required. */
   askReason?: boolean;
-  /** The reason typed (only when `askReason`, never blank), else undefined. */
-  onConfirm: (reason?: string) => void;
+  /**
+   * The reason typed (only when `askReason`, never blank), else undefined. Resolving `true` says
+   * the change went through, and the reason's draft is removed.
+   */
+  onConfirm: (reason?: string) => void | Promise<boolean | void>;
   onBack: () => void;
+  /** Whose draft of the reason, and for which subscription (`askReason` only). */
+  draft?: { scope: DraftScope | null; record: string };
 }) {
   const { title } = modal;
   const bundle = title.module?.tone === "bundle";
@@ -76,15 +90,29 @@ export function ChangeDialog({
   const showError = refused && empty;
   const showCount = reason.length >= REASON_COUNT_FROM;
   const describedBy = [showError && errorId, showCount && countId].filter(Boolean).join(" ");
+  const kept = useAutoSaveDraft<{ reason: string }>({
+    scope: askReason && draft ? draft.scope : null,
+    form: "subscription.cancel",
+    record: draft?.record ?? "-",
+    shape: 1,
+    value: { reason },
+    dirty: !empty,
+  });
+  const restoreReason = () => {
+    const offer = kept.restore();
+    if (typeof offer?.value.reason === "string") setReason(offer.value.reason.slice(0, REASON_MAX));
+  };
 
   const confirm = () => {
-    if (!askReason) return onConfirm(undefined);
+    if (!askReason) return void onConfirm(undefined);
     if (empty) {
       setRefused(true);
       reasonRef.current?.focus();
       return;
     }
-    onConfirm(reason);
+    void Promise.resolve(onConfirm(reason)).then((done) => {
+      if (done === true) kept.clear();
+    });
   };
   return (
     <ConfirmDialog
@@ -121,6 +149,17 @@ export function ChangeDialog({
       ))}
       {askReason && (
         <div className="flex min-w-0 flex-col gap-2">
+          {kept.offer ? (
+            <DraftNotice
+              savedAt={kept.offer.savedAt}
+              stale={kept.offer.stale}
+              onRestore={restoreReason}
+              onDiscard={kept.discard}
+              describe={() => [
+                { label: "Why you're leaving", value: kept.offer?.value.reason ?? "" },
+              ]}
+            />
+          ) : null}
           <label htmlFor={reasonId} className="text-[14px] font-semibold text-text-primary">
             Tell us why you&apos;re leaving <RequiredMark />
             <span className="sr-only"> (required)</span>

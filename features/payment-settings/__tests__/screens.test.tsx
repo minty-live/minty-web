@@ -6,9 +6,11 @@
 // plus the hub's chrome and this page's leave guard. minty-payment-request-api is answered per
 // path and method; every call must name the company with X-Entity-Id.
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { draftKey, writeDraft } from "@minty/shared/drafts";
 
 import { DISCARD_CHANGES, GO_BACK_UPPER, LEAVE_TITLE } from "@/components/ui/LeaveDialog";
 import { SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
@@ -591,5 +593,148 @@ describe("leaving with ticks not saved", () => {
     await userEvent.click(screen.getByRole("link", { name: "Users" }));
     expect(screen.getByRole("dialog")).toHaveAccessibleName(LEAVE_TITLE);
     expect(went).toEqual([]);
+  });
+});
+
+// Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the ticks are kept in this
+// browser 2 s after the last change, per person and company, and offered when the page opens again
+// (Restore / Discard); a Save that went through, and "Discard changes", remove them.
+describe("auto-saved draft of the ticks", () => {
+  const KEY = draftKey({ userId: "u1", entityId: ID }, "settings.payment-codes", "-");
+  const wait2s = () =>
+    act(async () => {
+      vi.advanceTimersByTime(2100);
+    });
+  const mount = () =>
+    render(
+      <ToastProvider>
+        <PaymentSettingsScreen company={COMPANY} />
+      </ToastProvider>,
+    );
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  it("kept 2 s after a tick; the page opened again asks, and Restore puts the tick back", async () => {
+    serve();
+    const first = mount();
+    await codes();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tick(ACCOUNTS[2]));
+    expect(localStorage.getItem(KEY)).toBeNull();
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value).toEqual([
+      "account-200",
+      "account-310",
+      "account-429",
+    ]);
+    first.unmount();
+
+    mount();
+    await codes();
+    expect(
+      await screen.findByText(/You have unsaved changes from \d\d:\d\d\./),
+    ).toBeInTheDocument();
+    expect(tick(ACCOUNTS[2])).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(tick(ACCOUNTS[2])).toBeChecked();
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("Discard removes the draft and keeps the saved ticks", async () => {
+    serve();
+    const first = mount();
+    await codes();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tick(ACCOUNTS[2]));
+    await wait2s();
+    first.unmount();
+
+    mount();
+    await codes();
+    await screen.findByText(/You have unsaved changes from/);
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(tick(ACCOUNTS[2])).not.toBeChecked();
+  });
+
+  it("a Save that went through removes it", async () => {
+    serve();
+    mount();
+    await codes();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tick(ACCOUNTS[2]));
+    await wait2s();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    await user.click(saveButton());
+    await waitFor(() => expect(toastText()).toContain("Payment settings updated successfully"));
+    await wait2s();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("the saved ticks changed since: shown, never put back", async () => {
+    writeDraft(KEY, {
+      v: 1,
+      form: "settings.payment-codes",
+      record: "-",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: "an-older-save",
+      value: ["account-310"],
+      files: [],
+      missing: [],
+    });
+    serve();
+    mount();
+    await codes();
+    expect(
+      await screen.findByText(/This was saved again after your unsaved changes/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(screen.getByRole("button", { name: "Show what I typed" }));
+    expect(screen.getByText("310 - Cost of Goods Sold", { selector: "dd" })).toBeInTheDocument();
+    expect(tick(ACCOUNTS[2])).not.toBeChecked();
+  });
+
+  it("Discard changes on leaving removes it", async () => {
+    serve();
+    const went = navigationRecorder();
+    mount();
+    await codes();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tick(ACCOUNTS[2]));
+    await wait2s();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    await user.click(screen.getByRole("link", { name: "Users" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: DISCARD_CHANGES }),
+    );
+    expect(went).toEqual([expect.stringContaining("/settings/users")]);
+    await wait2s();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("someone who may not change these keeps no draft", async () => {
+    writeDraft(KEY, {
+      v: 1,
+      form: "settings.payment-codes",
+      record: "-",
+      shape: 1,
+      userId: "u1",
+      entityId: ID,
+      savedAt: Date.now(),
+      basedOn: null,
+      value: ["account-310"],
+      files: [],
+      missing: [],
+    });
+    serve({ rights: { can_edit: false, view_only: false } });
+    mount();
+    await codes();
+    await act(async () => undefined);
+    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
   });
 });
