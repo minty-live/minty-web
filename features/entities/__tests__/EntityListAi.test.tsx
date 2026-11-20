@@ -194,17 +194,32 @@ async function aiMode() {
 }
 
 describe("AI allowances on Select Company", () => {
-  it("is a superuser's mode beside Archive companies, one at a time", async () => {
+  // Tabs (owner, 2026-11-20): AI allowances, Archive companies, Refresh - no "Done". The open
+  // mode's tab looks selected; clicking it again closes it, the other tab switches to that mode.
+  it("is a superuser's tab beside Archive companies: again closes it, the other switches", async () => {
     serve(SUPERUSER);
     show();
     const ai = await screen.findByRole("button", { name: "AI allowances" });
-    expect(screen.getByRole("button", { name: "Archive companies" })).toBeInTheDocument();
+    const archive = screen.getByRole("button", { name: "Archive companies" });
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+    expect(ai).toHaveAttribute("aria-pressed", "false");
 
     await userEvent.click(ai);
-    expect(screen.getByRole("button", { name: "Done" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("button", { name: "Archive companies" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.getByRole("button", { name: "Archive companies" })).toBeInTheDocument();
+    expect(ai).toHaveAttribute("aria-pressed", "true");
+    expect(ai.className).toMatch(/bg-state-selected/);
+    expect(archive).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+
+    // the other tab moves there
+    await userEvent.click(archive);
+    expect(archive).toHaveAttribute("aria-pressed", "true");
+    expect(ai).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getAllByRole("button", { name: /^Archive company / }).length).toBeGreaterThan(0);
+
+    // the open tab again closes it
+    await userEvent.click(archive);
+    expect(archive).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /^Archive company / })).toBeNull();
   });
 
   it("nobody else gets it", async () => {

@@ -278,9 +278,10 @@ test.describe("the entity list", () => {
     const archive = main.getByRole("button", { name: `Archive company ${first.name}` });
     // browsing: no Archive on any row until manage mode is on
     await expect(main.getByRole("button", { name: /^Archive company / })).toHaveCount(0);
-    await main.getByRole("button", { name: "Archive companies" }).click();
-    const done = main.getByRole("button", { name: "Done" });
-    await expect(done).toBeVisible();
+    const tab = main.getByRole("button", { name: "Archive companies" });
+    await tab.click();
+    const done = tab; // the open tab is how manage mode closes (no "Done", owner 2026-11-20)
+    await expect(done).toHaveAttribute("aria-pressed", "true");
 
     for (const width of [360, 768, 1440]) {
       await page.setViewportSize({ width, height: 800 });

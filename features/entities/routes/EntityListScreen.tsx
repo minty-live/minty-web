@@ -14,15 +14,20 @@
  * (The "+" was "Create company" in the Minty cat's pop-up 2026-11-05 to 2026-11-11; owner.)
  *
  * Archived companies (2026-11-10, superusers only): "Archive companies" under the search - the
- * list's manage mode, where each company offers Archive, asked first ("Done" leaves it) - the
+ * list's manage mode, where each company offers Archive, asked first - the
  * All / Active / Archived switch above the search, and each archived company's Restore, asked
  * first. Nobody else sees any of it.
  *
  * AI allowances (owner, 2026-11-18; a list mode like Archive since 2026-11-19, no page of its own):
  * a superuser's "AI allowances" beside "Archive companies" turns each row into the company's AI
  * allowance - what is left of its grants, its reads - with Manage opening the company: its grants,
- * the "Give a grant" form and its last reads (`components/AiGrantDialog.tsx`). One mode at a time;
- * its button reads Done.
+ * the "Give a grant" form and its last reads (`components/AiGrantDialog.tsx`). One mode at a time.
+ *
+ * Tabs (owner, 2026-11-20): AI allowances, Archive companies, Refresh - no "Done". The open mode's
+ * tab looks selected; clicking it again closes the mode, clicking the other tab moves there.
+ *
+ * Refresh (2026-11-20, superusers): reads the list again without reloading the page - companies
+ * made, archived or changed elsewhere since - the rows staying until the new list arrives.
  */
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -47,7 +52,6 @@ import {
   ARCHIVE_TITLE,
   MANAGE_AI,
   MANAGE_ARCHIVE,
-  MANAGE_DONE,
   RESTORE,
   RESTORE_TEXT,
   RESTORE_TITLE,
@@ -55,6 +59,15 @@ import {
 
 const MODE_BUTTON =
   "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border border-border-default bg-white px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus";
+/** A mode tab, the open one looking selected like the All / Active / Archived switch above it
+ * (owner, 2026-11-20). Its colours never sit beside MODE_BUTTON's: two classes setting one property
+ * are decided by the stylesheet's order, not the class list's. */
+const MODE_TAB = (on: boolean) =>
+  `inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[12px] border px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus ${
+    on
+      ? "border-action-primary bg-state-selected text-text-link"
+      : "border-border-default bg-white text-text-primary hover:bg-surface-sunk"
+  }`;
 
 export function EntityListScreen(args: UseEntityListArgs) {
   const list = useEntityList(args);
@@ -76,26 +89,34 @@ export function EntityListScreen(args: UseEntityListArgs) {
               <CompanySearch value={list.query} onChange={list.setQuery} />
               {list.status === "ready" && list.isSuperuser ? (
                 <div className="-mt-2 flex flex-wrap justify-end gap-2">
-                  {!list.managing && list.canManage ? (
-                    <button
-                      type="button"
-                      onClick={list.toggleAiMode}
-                      aria-pressed={list.aiMode}
-                      className={MODE_BUTTON}
-                    >
-                      {list.aiMode ? MANAGE_DONE : MANAGE_AI}
-                    </button>
+                  {list.canManage ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={list.toggleAiMode}
+                        aria-pressed={list.aiMode}
+                        className={MODE_TAB(list.aiMode)}
+                      >
+                        {MANAGE_AI}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={list.toggleManaging}
+                        aria-pressed={list.managing}
+                        className={MODE_TAB(list.managing)}
+                      >
+                        {MANAGE_ARCHIVE}
+                      </button>
+                    </>
                   ) : null}
-                  {!list.aiMode && list.canManage ? (
-                    <button
-                      type="button"
-                      onClick={list.toggleManaging}
-                      aria-pressed={list.managing}
-                      className={MODE_BUTTON}
-                    >
-                      {list.managing ? MANAGE_DONE : MANAGE_ARCHIVE}
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={list.refresh}
+                    disabled={list.refreshing}
+                    className={`${MODE_BUTTON} disabled:cursor-wait disabled:opacity-60`}
+                  >
+                    {list.refreshing ? "Refreshing…" : "Refresh"}
+                  </button>
                 </div>
               ) : null}
               {list.aiMode && list.aiError ? (

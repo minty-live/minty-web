@@ -156,8 +156,14 @@ test.describe("AI allowances on Select Company", () => {
 
     const main = page.getByRole("main");
     await main.getByRole("button", { name: "AI allowances" }).click();
-    await expect(main.getByRole("button", { name: "Done" })).toBeVisible();
-    await expect(main.getByRole("button", { name: "Archive companies" })).toHaveCount(0);
+    await expect(main.getByRole("button", { name: "AI allowances" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(main.getByRole("button", { name: "Archive companies" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     const manage = main.getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` });
     await expect(manage).toBeVisible();
     await expect(main.getByText("4 reads · last 18 Nov 2026")).toBeVisible();
@@ -202,9 +208,9 @@ test.describe("AI allowances on Select Company", () => {
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(main.getByText("100% left · 0 of 50,000 tokens used")).toBeVisible();
 
-    // one mode at a time: Done, then Archive companies - its rows keep their badges too, and both
-    // modes' row actions are 44px icon buttons named for a screen reader (owner, 2026-11-19)
-    await main.getByRole("button", { name: "Done" }).click();
+    // one mode at a time: the Archive companies tab moves straight there (owner, 2026-11-20) - its
+    // rows keep their badges too, and both modes' row actions are 44px icon buttons named for a
+    // screen reader (owner, 2026-11-19)
     await main.getByRole("button", { name: "Archive companies" }).click();
     const archive = main.getByRole("button", { name: `Archive company ${FIVE.name}` });
     await expect(archive).toBeVisible();

@@ -33,9 +33,8 @@ export const ARCHIVE_COMPANY = "Archive company";
 export const ARCHIVE_TITLE = (name: string) => `Archive ${name}?`;
 export const ARCHIVE_TEXT = "It disappears for everyone. Only Minty support can bring it back.";
 export const ARCHIVED_DONE = "Company archived.";
-/** The list's manage mode (admins): "Archive companies" turns it on, "Done" off. */
+/** The list's manage mode (superusers): its "Archive companies" tab turns it on, and again off. */
 export const MANAGE_ARCHIVE = "Archive companies";
-export const MANAGE_DONE = "Done";
 /** A superuser's AI allowances mode (owner, 2026-11-19: like Archive companies, no page of its own). */
 export const MANAGE_AI = "AI allowances";
 export const FILTER_LABEL = "Show companies";

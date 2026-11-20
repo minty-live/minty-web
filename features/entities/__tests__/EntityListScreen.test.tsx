@@ -236,7 +236,7 @@ describe("EntityListScreen", () => {
       expect(manage).toHaveAttribute("aria-pressed", "false");
 
       await userEvent.click(manage);
-      expect(screen.getByRole("button", { name: "Done" })).toHaveAttribute("aria-pressed", "true");
+      expect(manage).toHaveAttribute("aria-pressed", "true");
       expect(
         screen.getByRole("button", { name: `Archive company ${first.name}` }),
       ).toBeInTheDocument();
@@ -253,7 +253,9 @@ describe("EntityListScreen", () => {
       expect(list().getAllByRole("img", { name: / module$/ }).length).toBeGreaterThan(0);
       expect(list().getByText("Setup in progress")).toBeInTheDocument();
 
-      await userEvent.click(screen.getByRole("button", { name: "Done" }));
+      // the open tab again closes manage mode (no "Done", owner 2026-11-20)
+      await userEvent.click(manage);
+      expect(manage).toHaveAttribute("aria-pressed", "false");
       expect(screen.queryByRole("button", { name: /^Archive company / })).toBeNull();
       expect(list().getByRole("link", { name: new RegExp(`^${first.name}`) })).toBeInTheDocument();
     });
@@ -317,6 +319,41 @@ describe("EntityListScreen", () => {
     await screen.findByRole("list", { name: "Your companies" });
 
     expect(screen.queryByRole("group", { name: "Show companies" })).toBeNull();
+  });
+
+  // Refresh (2026-11-20): a superuser reads the list again without reloading the page - companies
+  // made, archived or changed elsewhere since it was read. The rows stay while it loads.
+  describe("Refresh (superusers)", () => {
+    it("reads the list again, keeps the rows while it loads, then shows the new list", async () => {
+      serve(SUPERUSER);
+      show();
+      await screen.findByRole("list", { name: "Your companies" });
+      const before = list().getAllByRole("listitem").length;
+
+      let answer: (r: Response) => void = () => undefined;
+      fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (answer = r)));
+      await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+      expect(list().getAllByRole("listitem")).toHaveLength(before);
+
+      const added = { ...SUPERUSER.entities[0], id: "e-new", name: "Brand New Bakery" };
+      answer(
+        new Response(JSON.stringify({ ...SUPERUSER, entities: [...SUPERUSER.entities, added] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      expect(await list().findByText("Brand New Bakery")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("is not offered to someone who is not a superuser", async () => {
+      serve(LIST);
+      show();
+      await screen.findByRole("list", { name: "Your companies" });
+      expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+    });
   });
 
   describe("a superuser", () => {

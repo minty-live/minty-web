@@ -23,6 +23,8 @@
  *   superuser turns on "AI allowances" and each company's row shows what is left of its AI grants,
  *   asked of minty-accounts-api for exactly the rows listed (`?ids=`); "Manage" opens the company
  *   (`components/AiGrantDialog.tsx`), whose given grant updates the row. One mode at a time.
+ * - Refresh (2026-11-20): a superuser reads the list again (and, in AI mode, its allowances)
+ *   without reloading the page; the rows stay on screen until the new list arrives.
  */
 
 import { useRouter } from "next/navigation";
@@ -93,6 +95,8 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   // The hand-over is read once: the URL loses it below, and that must not re-read the list.
   const [handOver] = useState(flash);
   const [attempt, setAttempt] = useState(0);
+  // A Refresh in flight: the last list stays on screen until the new one arrives.
+  const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [query, setQuery] = useState("");
   const [archived, setArchivedState] = useState<ArchivedFilter>("all");
@@ -122,12 +126,15 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
       controller.signal,
     )
       .then((answer) => {
-        if (!controller.signal.aborted) setLoaded({ attempt, archived, answer, error: null });
+        if (controller.signal.aborted) return;
+        setLoaded({ attempt, archived, answer, error: null });
+        setRefreshing(false);
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         // A 401 has already sent the browser for a fresh token; there is nothing to show.
         if (err instanceof ApiError && err.status === 401) return;
+        setRefreshing(false);
         setLoaded({
           attempt,
           archived,
@@ -146,8 +153,11 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
     if (handOver) router.replace(ENTITIES_BASE_PATH);
   }, [loaded, handOver, router, showToast]);
 
+  // While refreshing, the list last read (same filter) is still the one shown.
+  const showingLast =
+    refreshing && loaded !== null && loaded.archived === archived && !loaded.error;
   const status: EntityListStatus =
-    loaded === null || loaded.attempt !== attempt || loaded.archived !== archived
+    loaded === null || (loaded.attempt !== attempt && !showingLast) || loaded.archived !== archived
       ? "loading"
       : loaded.error
         ? "error"
@@ -158,11 +168,15 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   );
   const rows = useMemo(() => filterRows(all, query), [all, query]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const aiOnRef = useRef(false);
   const setArchived = useCallback((next: ArchivedFilter) => setArchivedState(next), []);
   const isSuperuser = Boolean(loaded?.answer?.is_superuser);
   // Only a superuser archives (owner, 2026-11-10), so only they get manage mode.
   const canManage = isSuperuser && all.some(canArchive);
   const aiOn = aiMode && isSuperuser;
+  useEffect(() => {
+    aiOnRef.current = aiOn;
+  }, [aiOn]);
   // the companies AI mode asks about: every one listed that is not archived (the API's limit: 500)
   const aiIds = useMemo(
     () =>
@@ -222,6 +236,13 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
     query,
     setQuery,
     retry,
+    /** Read the list again (and the AI allowances in AI mode), the rows staying meanwhile. */
+    refreshing,
+    refresh: useCallback(() => {
+      setRefreshing(true);
+      setAttempt((n) => n + 1);
+      if (aiOnRef.current) setAiAttempt((n) => n + 1);
+    }, []),
     isSuperuser,
     archived,
     setArchived,
