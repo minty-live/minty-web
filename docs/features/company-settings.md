@@ -189,8 +189,13 @@ publishes to Xero from today. This can't be undone." with what is archived and c
 "Bringing your contacts over…" (frame 4); connected, it goes back to Integration ("Connected to
 Xero."); contacts Xero refused are named (frame 5: "N contacts didn't make it over / Your account
 matches are saved. Xero would not take these:" … Later / **Try again**), and the company stays
-disconnected until they are through. On a phone each row stacks (name over its select). Tests:
-`__tests__/matching.test.tsx`.
+disconnected until they are through. If daily closing's contacts aren't chosen yet (Finish's
+`pettycash_contacts_missing`; Minty's own books need none, Xero's need three - production,
+2026-11-23, Publish was refused), a `ConfirmDialog` asks first: "Choose your Petty Cash contacts /
+Petty Cash needs these contacts before it can publish to Xero:" with the missing ones ("The customer
+for cash sales", "The person who pays personally", "The person for the cash difference") -
+**Choose contacts** (the Petty Cash Settings tab) or Later (Integration). On a phone each row
+stacks (name over its select). Tests: `__tests__/matching.test.tsx`.
 
 **Phase 3 (owner, 2026-11-12).** The card's Matching state names why the matching is open (the
 accounts API's `matching.reason`): "Your new Xero organisation needs your accounts matched."

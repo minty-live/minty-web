@@ -298,6 +298,45 @@ describe("Matching a Minty company's accounts to Xero", () => {
     );
   });
 
+  // Production, 2026-11-23: Minty's books need no daily-closing contacts, Xero's need three, so the
+  // first Publish after Finish was refused. Finish names the missing ones and the page offers the way.
+  async function finishWith(missing: string[]) {
+    api({
+      "GET /api/me/company/xero/matching": () => json(MATCHED),
+      "POST /api/me/company/xero/matching/finish": () =>
+        json({
+          ...MATCHED,
+          pending: { accounts: false, contacts: false },
+          connected: true,
+          pettycash_contacts_missing: missing,
+        }),
+    });
+    wrap(<MatchingScreen company={COMPANY} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Finish" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: MATCH_COPY.confirmTitle })).getByRole("button", {
+        name: "Finish",
+      }),
+    );
+    return screen.findByRole("dialog", { name: MATCH_COPY.contactsTitle });
+  }
+
+  it("after Finish, missing Petty Cash contacts open Petty Cash Settings", async () => {
+    const dialog = await finishWith(["director", "discrepancy"]);
+    expect(within(dialog).getByText(MATCH_COPY.contactNames.director)).toBeInTheDocument();
+    expect(within(dialog).getByText(MATCH_COPY.contactNames.discrepancy)).toBeInTheDocument();
+    expect(within(dialog).queryByText(MATCH_COPY.contactNames.cash_sale)).not.toBeInTheDocument();
+    expect(router.push).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: MATCH_COPY.contactsOpen }));
+    expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/\/settings\/petty-cash$/));
+  });
+
+  it("after Finish, Later goes back to Integration", async () => {
+    const dialog = await finishWith(["cash_sale", "director", "discrepancy"]);
+    await userEvent.click(within(dialog).getByRole("button", { name: MATCH_COPY.contactsLater }));
+    expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/\/settings\/integration$/));
+  });
+
   it("frame 5: contacts Xero refused are named, with Try again", async () => {
     let tries = 0;
     api({

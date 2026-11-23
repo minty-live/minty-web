@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { AppHeader } from "@/components/ui/AppHeader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { SETTINGS_INPUT_OK } from "@/components/ui/settingsFields";
@@ -37,8 +38,13 @@ import {
   type MatchOption,
   type MatchRow,
   type MatchingPage,
+  type PettyCashContact,
 } from "@/features/company-settings/api/companySettings";
-import { generalPath, integrationPath } from "@/features/company-settings/lib/paths";
+import {
+  generalPath,
+  integrationPath,
+  pettyCashTabPath,
+} from "@/features/company-settings/lib/paths";
 
 export const MATCH_COPY = {
   title: "Match your accounts to Xero",
@@ -94,6 +100,17 @@ export const MATCH_COPY = {
   later: "Later",
   tryAgain: "Try again",
   connected: "Connected to Xero.",
+  // Production, 2026-11-23: Xero's daily closing needs three contacts Minty's own books didn't.
+  contactsTitle: "Choose your Petty Cash contacts",
+  contactsBody: "Petty Cash needs these contacts before it can publish to Xero:",
+  contactNames: {
+    cash_sale: "The customer for cash sales",
+    director: "The person who pays personally",
+    discrepancy: "The person for the cash difference",
+  },
+  contactsNote: "Choose them in Petty Cash Settings.",
+  contactsOpen: "Choose contacts",
+  contactsLater: "Later",
   nothing: "There's nothing to match with Xero for this company.",
   backToIntegration: "Back to Integration",
 } as const;
@@ -237,6 +254,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [failed, setFailed] = useState<string[]>([]);
+  const [missingContacts, setMissingContacts] = useState<PettyCashContact[]>([]);
   const integration = integrationPath(company.id, company.name);
 
   const run = useCallback(
@@ -281,6 +299,11 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
     if (answer.error) showToast(answer.error, "error");
     if (answer.connected) {
       showToast(MATCH_COPY.connected, "success");
+      // Xero's rules need daily closing's contacts: ask before leaving, so Publish isn't refused.
+      if (answer.pettycash_contacts_missing?.length) {
+        setMissingContacts(answer.pettycash_contacts_missing);
+        return;
+      }
       router.push(integration);
       return;
     }
@@ -320,6 +343,27 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
   const toGo = page.total - page.matched;
   const progress = page.total ? Math.round((page.matched / page.total) * 100) : 100;
   const contactsOnly = !page.pending.accounts && page.pending.contacts;
+  // After Finish (nothing pending any more, so it sits over either frame below).
+  const contactsDialog = missingContacts.length ? (
+    <ConfirmDialog
+      title={MATCH_COPY.contactsTitle}
+      image="surprised"
+      entityName={company.name}
+      busy={false}
+      confirmLabel={MATCH_COPY.contactsOpen}
+      backLabel={MATCH_COPY.contactsLater}
+      onConfirm={() => router.push(pettyCashTabPath(company.id, company.name))}
+      onBack={() => router.push(integration)}
+    >
+      <p className="mt-6 text-[15px] leading-snug">{MATCH_COPY.contactsBody}</p>
+      <ul className="mt-2 list-disc pl-5 text-[15px] leading-snug">
+        {missingContacts.map((key) => (
+          <li key={key}>{MATCH_COPY.contactNames[key]}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[15px] leading-snug">{MATCH_COPY.contactsNote}</p>
+    </ConfirmDialog>
+  ) : null;
 
   if (!page.pending.accounts && !page.pending.contacts && !busy) {
     return (
@@ -328,6 +372,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
         <a href={integration} className={SETTINGS_OUTLINE}>
           {MATCH_COPY.backToIntegration}
         </a>
+        {contactsDialog}
       </Frame>
     );
   }
@@ -564,6 +609,8 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
           <p className="mt-2">{MATCH_COPY.failedNote}</p>
         </SettingsDialog>
       ) : null}
+
+      {contactsDialog}
     </Frame>
   );
 }

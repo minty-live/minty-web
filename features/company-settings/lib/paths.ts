@@ -17,6 +17,11 @@ export function integrationPath(entityId: string, entityName: string): string {
   return companySettingsPath(entityId, entityName, "integration");
 }
 
+/** The Petty Cash Settings tab (another feature's; a feature never imports one) - where matching sends a company still missing daily closing's contacts. */
+export function pettyCashTabPath(entityId: string, entityName: string): string {
+  return companySettingsPath(entityId, entityName, "petty-cash");
+}
+
 /** Match your accounts to Xero (Settings Phase 2): under Integration, where a Minty company's connect lands. */
 export function matchingPath(entityId: string, entityName: string): string {
   return `${integrationPath(entityId, entityName)}/match`;

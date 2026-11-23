@@ -210,6 +210,8 @@ export type MatchRow = {
 
 export type MatchOption = { id: string; code: string; name: string; kind: string | null };
 
+export type PettyCashContact = "cash_sale" | "director" | "discrepancy";
+
 export type MatchingPage = {
   organisation: string | null;
   reason?: MatchReason | null;
@@ -225,6 +227,8 @@ export type MatchingPage = {
   failed_contacts: string[];
   connected?: boolean;
   error?: string;
+  /** Finish / Try again only: daily closing's contacts still to choose - Xero's rules need them. */
+  pettycash_contacts_missing?: PettyCashContact[];
   /** GET only: this person may refresh from Xero (and pick). */
   can_edit?: boolean;
 };
