@@ -134,32 +134,67 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("the two lists", () => {
-  it("show Edit, Delete and Merge on the company's rows; an account linked to Xero is changed in Xero only", async () => {
+  it("show Edit, Delete and Merge on the company's rows while Xero is off", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/accounts": () => json(accounts()),
       "GET /api/me/company/contacts": () => json(contacts()),
     });
     show();
     await loaded();
 
     const chart = card("Chart of accounts");
-    expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
-    // linked to Xero: changed in Xero only (the user, 2026-11-19, with doc A1); still mergeable (M1)
-    expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
-    expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
-    expect(chart.getByRole("button", { name: "Merge 469 - Rent" })).toBeInTheDocument();
-    expect(chart.getByText("In Xero")).toBeInTheDocument();
-    expect(
-      chart.getByText("Accounts linked to Xero are changed in Xero, and Minty follows."),
-    ).toBeInTheDocument();
+    expect(await chart.findByText("477 - Wages")).toBeInTheDocument();
     // a copy of Minty's is the company's own too (owner, 2026-11-12), marked where it came from
     expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
     expect(chart.getByRole("button", { name: "Delete 477 - Wages" })).toBeInTheDocument();
+    expect(chart.getByRole("button", { name: "Merge 477 - Wages" })).toBeInTheDocument();
+    expect(chart.getByRole("button", { name: /Add an account/ })).toBeInTheDocument();
     expect(chart.getByText("Comes with Minty")).toBeInTheDocument();
 
     const people = card("Contacts");
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
     expect(people.getByRole("button", { name: "Delete Walk-in Customer" })).toBeInTheDocument();
+    expect(people.getByRole("button", { name: /Add a contact/ })).toBeInTheDocument();
+  });
+
+  it("while Xero is connected no account is added, edited or deleted here, contacts still are - Merge stays (the user, 2026-11-23)", async () => {
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/contacts": () => json(contacts({ xero_live: true })),
+    });
+    show();
+    await loaded();
+
+    const chart = card("Chart of accounts");
+    expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
+    expect(chart.getByText("In Xero")).toBeInTheDocument();
+    for (const row of ["469 - Rent", "477 - Wages"]) {
+      expect(chart.queryByRole("button", { name: `Edit ${row}` })).toBeNull();
+      expect(chart.queryByRole("button", { name: `Delete ${row}` })).toBeNull();
+      expect(chart.getByRole("button", { name: `Merge ${row}` })).toBeInTheDocument();
+    }
+    expect(chart.queryByRole("button", { name: /Add an account/ })).toBeNull();
+    expect(
+      chart.getByText(
+        "Your company is connected to Xero, so accounts are added and changed in Xero, and Minty follows.",
+      ),
+    ).toBeInTheDocument();
+    expect(chart.queryByText(/linked to Xero are changed/)).toBeNull();
+
+    // contacts are still added here (in Xero too, C5): Minty's own keep Edit and Delete
+    const people = card("Contacts");
+    for (const row of ["Kee Wah", "Walk-in Customer"]) {
+      expect(people.getByRole("button", { name: `Edit ${row}` })).toBeInTheDocument();
+      expect(people.getByRole("button", { name: `Delete ${row}` })).toBeInTheDocument();
+      expect(people.getByRole("button", { name: `Merge ${row}` })).toBeInTheDocument();
+    }
+    expect(people.getByRole("button", { name: /Add a contact/ })).toBeInTheDocument();
+    expect(people.queryByText(/connected to Xero/)).toBeNull();
+    expect(
+      people.getByText(/A contact you add here goes to Xero too when Xero is connected\./),
+    ).toBeInTheDocument();
+    // it is Xero, not the person's role: no view-only line
+    expect(screen.queryByText(/only an Accountant or an Admin/)).toBeNull();
   });
 
   it("while Xero is off, a row linked to Xero is marked so and offers no Edit or Delete (the API refuses them)", async () => {
@@ -319,7 +354,7 @@ describe("an account", () => {
 
   it("a refused Save shows the API's field sentence under the field and keeps the form", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/accounts": () => json(accounts()),
       "GET /api/me/company/contacts": () => json(contacts()),
       "PATCH /api/me/company/accounts/a-wages": () =>
         json(
@@ -347,7 +382,7 @@ describe("an account", () => {
   it("a used account can't be deleted: the bin says why, sends nothing and offers Merge (owner, 2026-11-18)", async () => {
     const own = accounts().accounts.map((a) => ({ ...a, in_xero: false }));
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true, accounts: own })),
+      "GET /api/me/company/accounts": () => json(accounts({ accounts: own })),
       "GET /api/me/company/contacts": () => json(contacts()),
     });
     show();
@@ -370,7 +405,7 @@ describe("an account", () => {
 
   it("an unused one asks first, then is deleted", async () => {
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/accounts": () => json(accounts()),
       "GET /api/me/company/contacts": () => json(contacts()),
       "DELETE /api/me/company/accounts/a-wages": () => json({ message: "Wages deleted." }),
     });
@@ -415,7 +450,7 @@ describe("merging and Xero (owner's decisions doc M1-M4, A3, 2026-11-19)", () =>
     expect(map.getAttribute("href")).toMatch(/\/settings\/integration\/match\?account=a-rent$/);
   });
 
-  it("a contact linked to Xero is changed in Xero only: no Edit or Delete, still Merge (the user, 2026-11-19)", async () => {
+  it("live on Xero, a contact linked to Xero is changed in Xero only: no Edit or Delete, still Merge; Minty's own keep both (the user, 2026-11-19, 2026-11-23)", async () => {
     const linked = {
       id: "c-abc",
       name: "ABC Supplies",
@@ -426,7 +461,7 @@ describe("merging and Xero (owner's decisions doc M1-M4, A3, 2026-11-19)", () =>
       used: false,
     };
     api({
-      "GET /api/me/company/accounts": () => json(accounts({ xero_live: true })),
+      "GET /api/me/company/accounts": () => json(accounts()),
       "GET /api/me/company/contacts": () =>
         json(contacts({ xero_live: true, contacts: [...contacts().contacts, linked] })),
     });

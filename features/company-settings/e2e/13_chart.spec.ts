@@ -65,7 +65,7 @@ function account(id: string, code: string, name: string, over = {}) {
   };
 }
 
-async function arrive(page: Page): Promise<Sent[]> {
+async function arrive(page: Page, live = false): Promise<Sent[]> {
   const sent: Sent[] = [];
   const state = {
     accounts: [
@@ -122,13 +122,13 @@ async function arrive(page: Page): Promise<Sent[]> {
               description: "",
             },
           ],
-          xero_live: false,
+          xero_live: live,
           permissions: ALL,
         },
       });
     if (req.method() === "GET" && path === "/contacts")
       return route.fulfill({
-        json: { contacts: state.contacts, xero_live: false, permissions: ALL },
+        json: { contacts: state.contacts, xero_live: live, permissions: ALL },
       });
     sent.push({ method: req.method(), path, body });
     if (req.method() === "POST" && path === "/accounts") {
@@ -267,5 +267,35 @@ for (const width of [360, 768, 1440]) {
     await expect(page.getByRole("dialog", { name: "Merge Wages" })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: `test-results/13_chart_merge_${width}.png`, fullPage: true });
+  });
+}
+
+// Live on Xero (the user, 2026-11-23): no Add, Edit or Delete anywhere - Merge stays - and each card
+// says where the change is made.
+for (const width of [360, 768, 1440]) {
+  test(`live on Xero: no account to add, edit or delete, contacts still, Merge kept, at ${width}px`, async ({
+    page,
+  }) => {
+    await requireApp();
+    await page.setViewportSize({ width, height: 900 });
+    const sent = await arrive(page, true);
+    const chart = page.getByRole("region", { name: "Chart of accounts" });
+    const people = page.getByRole("region", { name: "Contacts" });
+    await expect(
+      chart.getByText(
+        "Your company is connected to Xero, so accounts are added and changed in Xero, and Minty follows.",
+      ),
+    ).toBeVisible();
+    await expect(chart.getByRole("button", { name: /^Add an account$/ })).toHaveCount(0);
+    await expect(chart.getByRole("button", { name: /^(Edit|Delete) / })).toHaveCount(0);
+    await expect(chart.getByRole("button", { name: "Merge 477 - Wages" })).toBeVisible();
+    // contacts are saved in Minty first, live or not (the user, 2026-11-23)
+    await expect(people.getByRole("button", { name: /Add a contact/ })).toBeVisible();
+    await expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeVisible();
+    await expect(people.getByRole("button", { name: "Delete Kee Wah" })).toBeVisible();
+    await expect(people.getByRole("button", { name: "Merge Kee Wah" })).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: `test-results/13_chart_live_${width}.png`, fullPage: true });
+    expect(sent).toEqual([]);
   });
 }

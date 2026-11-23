@@ -7,7 +7,9 @@
  * card's top-right button) and Edit open a form inline at the top of the card, above the list - no
  * dialog, as Petty Cash Settings' Add New Method (owner, 2026-11-12) - checked as typed
  * (`lib/rules.ts`); Delete asks first, saying what happens to records and to Xero. Every change is
- * the API's at once.
+ * the API's at once. While the company is live on Xero (`xero_live`) the chart has no Add, Edit or
+ * Delete at all - Xero's to change, and the API refuses them (the user, 2026-11-23); contacts are still
+ * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. Merge stays.
  */
 
 import {
@@ -78,12 +80,15 @@ function XeroBadge({ live }: { live: boolean }) {
   return <Badge>{live ? "In Xero" : "Linked to Xero"}</Badge>;
 }
 
-/** Under the search: a row linked to Xero is changed in Xero, never here (the user, 2026-11-19 -
+/** Under the search. While Xero is connected no account is added, changed or deleted here (the user,
+ * 2026-11-23; accounts only); otherwise a row linked to Xero is changed in Xero (the user, 2026-11-19 -
  * accounts, with the owner's decisions doc A1; then contacts the same day). */
-function FromXeroNote({ what }: { what: string }) {
+function FromXeroNote({ what, live }: { what: "Accounts" | "Contacts"; live: boolean }) {
   return (
     <p className="text-[13px] text-set-ink-2">
-      {what} linked to Xero are changed in Xero, and Minty follows.
+      {live
+        ? `Your company is connected to Xero, so ${what.toLowerCase()} are added and changed in Xero, and Minty follows.`
+        : `${what} linked to Xero are changed in Xero, and Minty follows.`}
     </p>
   );
 }
@@ -297,6 +302,8 @@ export function AccountsCard({
 }) {
   const [query, setQuery] = useState("");
   const { permissions: may } = read;
+  // live on Xero: added, changed and deleted in Xero only - Merge stays (the user, 2026-11-23)
+  const here = !read.xero_live;
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const shown = read.accounts.filter(
@@ -312,12 +319,16 @@ export function AccountsCard({
       lead="The accounts your reports and payment requests post to."
       readOnly={!may.add && !may.edit && !may.delete}
       action={
-        may.add && !form ? <AddButton label="Add an account" busy={busy} onClick={onAdd} /> : null
+        may.add && here && !form ? (
+          <AddButton label="Add an account" busy={busy} onClick={onAdd} />
+        ) : null
       }
     >
       {form}
       <Search label="Search accounts by name or code" value={query} onChange={setQuery} />
-      {read.accounts.some((a) => a.in_xero) ? <FromXeroNote what="Accounts" /> : null}
+      {read.xero_live || read.accounts.some((a) => a.in_xero) ? (
+        <FromXeroNote what="Accounts" live={read.xero_live} />
+      ) : null}
       {groups.length === 0 ? (
         <p className="text-sm text-set-mute" role="status">
           {read.accounts.length ? "No accounts match your search." : "No accounts yet."}
@@ -360,8 +371,8 @@ export function AccountsCard({
                       ) : undefined
                     }
                     // linked to Xero: changed in Xero only (the user, 2026-11-19)
-                    canEdit={a.own && may.edit && !a.in_xero}
-                    canDelete={a.own && may.delete && !a.in_xero}
+                    canEdit={a.own && may.edit && here && !a.in_xero}
+                    canDelete={a.own && may.delete && here && !a.in_xero}
                     canMerge={a.own && may.delete}
                     busy={busy}
                     onEdit={() => onEdit(a)}
@@ -794,7 +805,7 @@ export function ContactsCard({
     >
       {form}
       <Search label="Search contacts" value={query} onChange={setQuery} />
-      {read.contacts.some((c) => c.in_xero) ? <FromXeroNote what="Contacts" /> : null}
+      {read.contacts.some((c) => c.in_xero) ? <FromXeroNote what="Contacts" live={false} /> : null}
       {shown.length === 0 ? (
         <p className="text-sm text-set-mute" role="status">
           {read.contacts.length ? "No contacts match your search." : "No contacts yet."}

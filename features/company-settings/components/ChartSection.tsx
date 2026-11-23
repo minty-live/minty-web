@@ -2,9 +2,9 @@
 
 /**
  * The company's chart of accounts and its contacts, on General under the company's details (owner,
- * 2026-11-12: its own tab first, merged into General the same day). Added, edited and deleted here,
- * with or without Xero (Minty never creates an account in Xero; a contact added while live is linked or
- * made there as a supplier; a row linked to Xero is changed in Xero only - Merge stays).
+ * 2026-11-12: its own tab first, merged into General the same day). Accounts are added, edited and
+ * deleted here only while Xero is off (the user, 2026-11-23); contacts live or not - a contact added
+ * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only - Merge stays.
  * Both lists are read at once; each change is the API's, its sentence shown as a toast, then both
  * are read again. General's view-only line covers it: the same roles change both.
  */

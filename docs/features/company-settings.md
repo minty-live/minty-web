@@ -270,10 +270,17 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   contacts - marked **Comes with Minty** (`source` `template`), a label of where they came from.
   Minty's own list is never touched. Only the hidden system accounts daily closing needs stay out of
   the list.
-- **With or without Xero.** A company live on Xero gets every change there first ("Your change is
-  made in Xero too"); when Xero says no, its reason shows under the field or as a toast, and
-  nothing changes. Without Xero the changes are the company's own; a row already linked to Xero
-  waits for a reconnect (the API's sentence).
+- **Live on Xero: no account is added, changed or deleted here** (the user, 2026-11-23). While the
+  reads' `xero_live` is true, the Chart of accounts card has no Add button and no row has Edit or
+  Delete (Merge stays), and it says "Your company is connected to Xero, so accounts are added and
+  changed in Xero, and Minty follows." The API refuses all three (409, "This company is connected to
+  Xero, so accounts are added and changed in Xero. Make the change there, and Minty follows."). It is
+  Xero, not the role: the card isn't drawn view-only.
+- **Contacts, live or not** (the user, 2026-11-23): Add a contact stays. While live it is made in
+  Xero too (C5: Xero's contact of the name linked, else made there as a supplier), so it is then
+  linked and changed in Xero only; a contact made in Minty and not in Xero yet keeps Edit and Delete.
+- **Xero off** (disconnected, part-way through matching, or never connected): the changes are the
+  company's own; a row already linked to Xero waits for Xero (below).
 - **Add an account** works as Petty Cash Settings' Add New Method (owner, 2026-11-12): an
   **Account** dropdown of Minty's accounts (`minty_accounts` in the read: the starter chart for the
   company's country, every business type's, one per name, less the hidden system rows and any the
@@ -293,19 +300,18 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   (owner, 2026-11-12, as Petty Cash Settings' Add New Method); the card's Add button hides while
   the form is open; Cancel or Escape closes it.
 - **Deleted, then added again** (the same account code, name and type, or the same contact name):
-  the deleted one comes back - in Xero too - with "<name> is back.", never a second one.
-- **Delete asks first**: "Delete <name>?" - "This can't be undone.", plus "It's archived in Xero
-  too." when it is linked.
+  the deleted one comes back with "<name> is back.", never a second one. Nothing is restored in Xero.
+- **Delete asks first**: "Delete <name>?" - "This can't be undone." (`deleteNote`'s "It's archived
+  in Xero too." for a linked row is never reached since 2026-11-19: a linked row has no Delete.)
 - **A used account or contact can't be deleted** (owner, 2026-11-18; the read's `used`): its bin
   opens "<name> can't be deleted" - "<name> is already used in your records or Petty Cash
   Settings, so it can't be deleted." - with only Close, and sends nothing. The API refuses it too
   (409, the same sentence, shown as a toast when the list was out of date).
 - **A row linked to Xero while Xero is off** (disconnected, or part-way through matching; the
   reads' `xero_live` is false, 2026-11-18): its badge reads "Linked to Xero" rather than "In Xero",
-  it has no Edit or Delete (the API refuses both, 409 "Reconnect Xero to change it"), and the card
-  says "Accounts linked to Xero can be changed while Xero is connected." ("Contacts ..." on the
-  contacts card). The form's "made in Xero too" lines and the delete's "archived in Xero too" are
-  therefore only ever shown while Xero is live.
+  it has no Edit or Delete (the API refuses both, 409 "This account comes from Xero. Change it in
+  Xero, and Minty follows."), and the card says "Accounts linked to Xero are changed in Xero, and
+  Minty follows." ("Contacts ..." on the contacts card).
 - **A view-only person** sees both lists and "You can see these, but only an Accountant or an
   Admin can change them."
 - Each list has a search; a long list scrolls in its own box (at most `min(28rem, 60vh)`), the
@@ -316,7 +322,8 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
 failed read, the account form's auto-saved draft: offered and restored, Cancel, Discard, a save,
-stale); e2e `13_chart.spec.ts`.
+stale; live on Xero: no Add, Edit or Delete, Merge kept); e2e `13_chart.spec.ts` (live on Xero at
+360 / 768 / 1440 too).
 
 ## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
 
@@ -327,7 +334,8 @@ stale); e2e `13_chart.spec.ts`.
   deleted" box has **Merge instead**.
 - **An account or contact linked to Xero is changed in Xero only** (the user, 2026-11-19): no Edit or
   Delete on it (Merge stays), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
-  and Minty follows."
+  and Minty follows." Since 2026-11-23 (the user) a company live on Xero has no Add, Edit or Delete on
+  any account - see "The rules the page shows".
 - **An account gone from Xero (A3)**: badge "Archived in Xero", the doc's sentence and **Map it** - the
   matching page for that one account (`.../settings/integration/match?account=<id>`, `MatchingScreen`'s
   `OneAccount`): the account as a matching row, the Xero accounts of its kind, Save. A Xero account another
