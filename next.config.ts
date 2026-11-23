@@ -88,6 +88,8 @@ const nextConfig: NextConfig = {
    * stalls ~2 s per request. Production is unaffected.
    */
   allowedDevOrigins: ["127.0.0.1"],
+  /** `next upgrade --agent` reads this: security releases only (2026-11-23, 16.4.2 → 16.4.6). */
+  experimental: { agentUpgrade: "security" },
 };
 
 export default nextConfig;
