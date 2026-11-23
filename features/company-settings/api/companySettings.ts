@@ -225,6 +225,8 @@ export type MatchingPage = {
   failed_contacts: string[];
   connected?: boolean;
   error?: string;
+  /** GET only: this person may refresh from Xero (and pick). */
+  can_edit?: boolean;
 };
 
 const MATCHING = "/api/me/company/xero/matching";
@@ -246,8 +248,16 @@ export function pickMatch(
   });
 }
 
-export function refreshMatching(entityId: string): Promise<MatchingPage> {
-  return mintyFetch<MatchingPage>(`${MATCHING}/refresh`, { method: "POST", query: q(entityId) });
+/** `throttle` (the page opening): the API skips Xero when it read the chart under 2 minutes ago. */
+export function refreshMatching(
+  entityId: string,
+  { throttle = false }: { throttle?: boolean } = {},
+): Promise<MatchingPage> {
+  return mintyFetch<MatchingPage>(`${MATCHING}/refresh`, {
+    method: "POST",
+    query: q(entityId),
+    ...(throttle ? { json: { throttle: true } } : {}),
+  });
 }
 
 export function finishMatching(entityId: string): Promise<MatchingPage> {

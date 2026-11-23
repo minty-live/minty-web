@@ -176,6 +176,40 @@ describe("Matching a Minty company's accounts to Xero", () => {
     expect(screen.getByRole("button", { name: "Disconnect from Xero" })).toBeInTheDocument();
   });
 
+  it("opening the page reads Xero again, so a bank made there meanwhile can be picked (2026-11-23)", async () => {
+    const bankRow = row("a-pc", "1000", "Petty Cash", { type: "bank", kind: "bank", used: true });
+    const stale = matchingPage({
+      groups: [{ key: "cash_bank", title: "Cash & bank", rows: [bankRow] }],
+      options: [{ id: "x-rent", code: "469", name: "Rent", kind: "expense" }],
+      can_edit: true,
+    });
+    const refreshed = {
+      ...stale,
+      options: [{ id: "x-b1", code: "1011", name: "Bank 1", kind: "bank" as const }],
+    };
+    const bodies: unknown[] = [];
+    api({
+      "GET /api/me/company/xero/matching": () => json(stale),
+      "POST /api/me/company/xero/matching/refresh": (_url, init) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return json(refreshed);
+      },
+    });
+    wrap(<MatchingScreen company={COMPANY} />);
+    const select = await screen.findByRole("combobox", { name: /Petty Cash/ });
+    await waitFor(() =>
+      expect(within(select).getByRole("option", { name: "1011 · Bank 1" })).toBeInTheDocument(),
+    );
+    expect(bodies).toEqual([{ throttle: true }]);
+  });
+
+  it("someone who may only look isn't sent to Xero on opening", async () => {
+    api({ "GET /api/me/company/xero/matching": () => json(matchingPage({ can_edit: false })) });
+    wrap(<MatchingScreen company={COMPANY} />);
+    await screen.findByRole("combobox", { name: /Rent/ });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("frame 3/3b: picks save at once, Finish waits for the used accounts, the suggestion leads the list", async () => {
     const picks: unknown[] = [];
     api({

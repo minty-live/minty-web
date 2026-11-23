@@ -180,7 +180,9 @@ matched; a suggestion leads the select in its own "Suggested" group. The select 
 one with its own chevron (44px on a phone, 36px for a pointer). The page scrolls as one document (the
 header is sticky). Petty cash and the bank can't share a Xero account (refused with its sentence).
 Each pick saves at once (`PATCH /api/me/company/xero/matching`), so the page can be finished later;
-**Refresh from Xero** pulls an account made there meanwhile. **Finish** stays off, its reason beside
+**Refresh from Xero** pulls an account made there meanwhile, and opening the page does the same for
+someone who may edit (`{"throttle": true}`: at most every 2 minutes; production, 2026-11-23 - banks made
+in Xero after the connect never showed). **Finish** stays off, its reason beside
 it, while a used account has no match (the owner's rule; frame 3b's "Finish anyway" is not built),
 and asks first: "Finish matching? / Each matched account takes its Xero code and name, and Minty
 publishes to Xero from today. This can't be undone." with what is archived and combined. Then

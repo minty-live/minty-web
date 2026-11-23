@@ -239,20 +239,6 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
   const [failed, setFailed] = useState<string[]>([]);
   const integration = integrationPath(company.id, company.name);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchMatching(company.id, controller.signal).then(
-      (answer) => {
-        setError("");
-        setPage(answer);
-      },
-      (err: unknown) => {
-        if (!controller.signal.aborted) setError(refusal(err));
-      },
-    );
-    return () => controller.abort();
-  }, [company.id, attempt]);
-
   const run = useCallback(
     async (what: string, call: () => Promise<MatchingPage>): Promise<MatchingPage | null> => {
       setBusy(what);
@@ -269,6 +255,26 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
     },
     [showToast],
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMatching(company.id, controller.signal).then(
+      (answer) => {
+        if (controller.signal.aborted) return;
+        setError("");
+        setPage(answer);
+        // Opening the page reads Xero again (at most every 2 minutes), so an account made in Xero
+        // meanwhile - a bank, say - is there to pick (production, 2026-11-23).
+        if (answer.can_edit && answer.pending.accounts) {
+          void run("refresh", () => refreshMatching(company.id, { throttle: true }));
+        }
+      },
+      (err: unknown) => {
+        if (!controller.signal.aborted) setError(refusal(err));
+      },
+    );
+    return () => controller.abort();
+  }, [company.id, attempt, run]);
 
   const afterContacts = (answer: MatchingPage | null) => {
     if (!answer) return;
