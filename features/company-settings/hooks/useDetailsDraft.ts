@@ -16,9 +16,10 @@
  * form sending it: Flask refuses an empty name.
  *
  * What is typed is also kept as a browser draft (`settings.details`, `@minty/shared/drafts`; the
- * owner's decisions doc L1): 2 s after the last change, offered when the page opens again
- * (`offer`, Restore / Discard), stale - shown, never put back - once the saved values changed. A
- * save that went through (`clearDraft`) and "Discard changes" (`reset`) remove it.
+ * owner's decisions doc L1): 2 s after the last change, put back at once when the page opens again
+ * (`offer`, `DraftRestore`; no notice - the user, 2026-11-24), stale - dropped silently, never put
+ * back - once the saved values changed. A save that went through (`clearDraft`) and "Discard
+ * changes" (`reset`) remove it.
  */
 
 import { useState } from "react";
@@ -45,7 +46,7 @@ export type DetailsDraft = {
   nameMissing: boolean;
   /** "Discard changes": the saved values back, and the browser draft gone. */
   reset: () => void;
-  /** A browser draft from an earlier visit, waiting for Restore or Discard. */
+  /** A browser draft from an earlier visit, put back (or, stale, dropped) as the form opens. */
   offer: DraftOffer<DetailsFields> | null;
   restoreDraft: () => void;
   discardDraft: () => void;

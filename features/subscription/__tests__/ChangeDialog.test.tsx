@@ -2,7 +2,7 @@
 // title, the company, the sentences with their bold and coloured runs, Minty's mood, the
 // confirming button in its tone; Go back, Escape and the backdrop go back, nothing while busy.
 
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -200,8 +200,9 @@ describe("ChangeDialog", () => {
 });
 
 // Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the cancellation reason is
-// kept in this browser 2 s after the last keystroke, per person and company, offered when the
-// dialog opens again (Restore / Discard), and removed once the cancellation goes through.
+// kept in this browser 2 s after the last keystroke, per person and company, put back at once when
+// the dialog opens again - no notice (the user, 2026-11-24) - and removed once the cancellation
+// goes through.
 describe("ChangeDialog - the reason's auto-saved draft", () => {
   const SCOPE = { userId: "u1", entityId: "e9" };
   const KEY = draftKey(SCOPE, "subscription.cancel", "e9");
@@ -224,7 +225,7 @@ describe("ChangeDialog - the reason's auto-saved draft", () => {
   beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
   afterEach(() => vi.useRealTimers());
 
-  it("kept 2 s after typing; opened again it asks, and Restore puts the words back", async () => {
+  it("kept 2 s after typing; opened again the words are back at once, with no notice", async () => {
     const first = mount();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await user.type(screen.getByRole("textbox"), "Too expensive");
@@ -237,26 +238,10 @@ describe("ChangeDialog - the reason's auto-saved draft", () => {
 
     mount();
     const dialog = within(screen.getByRole("dialog"));
-    expect(
-      await dialog.findByText(/You have unsaved changes from \d\d:\d\d\./),
-    ).toBeInTheDocument();
-    expect(dialog.getByRole("textbox")).toHaveValue("");
-    await user.click(dialog.getByRole("button", { name: "Restore" }));
-    expect(dialog.getByRole("textbox")).toHaveValue("Too expensive");
-  });
-
-  it("Discard removes it", async () => {
-    const first = mount();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.type(screen.getByRole("textbox"), "Too expensive");
-    await wait2s();
-    first.unmount();
-
-    mount();
-    const dialog = within(screen.getByRole("dialog"));
-    await user.click(await dialog.findByRole("button", { name: "Discard" }));
-    expect(localStorage.getItem(KEY)).toBeNull();
-    expect(dialog.getByRole("textbox")).toHaveValue("");
+    await waitFor(() => expect(dialog.getByRole("textbox")).toHaveValue("Too expensive"));
+    expect(dialog.queryByText(/unsaved changes/)).toBeNull();
+    expect(dialog.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "Discard" })).toBeNull();
   });
 
   it("removed when the cancellation goes through, kept when it does not", async () => {

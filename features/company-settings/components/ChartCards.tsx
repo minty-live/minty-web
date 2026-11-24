@@ -24,7 +24,7 @@ import {
 } from "react";
 
 import { fingerprint, useAutoSaveDraft, type DraftScope } from "@minty/shared/drafts";
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import {
   SETTINGS_DANGER_FILL,
@@ -413,9 +413,9 @@ type AccountDraft = {
  * Editing is those fields alone.
  *
  * What is typed is kept as a browser draft (`settings.account`, record `new` or the account's id;
- * `@minty/shared/drafts`, the owner's decisions doc L1): 2 s after the last change, offered when the
- * form opens again (Restore / Discard), stale - shown, never put back - once the account was saved
- * since. Removed by a save that went through, by Cancel and by Discard.
+ * `@minty/shared/drafts`, the owner's decisions doc L1): 2 s after the last change, put back at once
+ * when the form opens again (no notice - the user, 2026-11-24), stale - dropped silently, never put
+ * back - once the account was saved since. Removed by a save that went through and by Cancel.
  */
 export function AccountForm({
   read,
@@ -500,18 +500,6 @@ export function AccountForm({
     if (kept.input) setInput({ ...EMPTY, ...kept.input });
     setCodeTouched(Boolean(kept.codeTouched) || !!editing);
   }
-  const describeDraft = () => {
-    const kept = draft.offer?.value;
-    if (!kept) return [];
-    const minty = read.minty_accounts.find((m) => m.id === kept.pick);
-    if (minty) return [{ label: "Account", value: minty.name }];
-    return [
-      { label: "Type", value: read.types.find((t) => t.value === kept.input?.type)?.label ?? "" },
-      { label: "Code", value: kept.input?.code ?? "" },
-      { label: "Name", value: kept.input?.name ?? "" },
-      { label: "Description", value: kept.input?.description ?? "" },
-    ];
-  };
 
   function set(field: keyof AccountInput, value: string) {
     // a field typed into drops the API's sentence about it
@@ -649,12 +637,10 @@ export function AccountForm({
       }
     >
       {draft.offer ? (
-        <DraftNotice
-          savedAt={draft.offer.savedAt}
+        <DraftRestore
           stale={draft.offer.stale}
           onRestore={restoreDraft}
           onDiscard={draft.discard}
-          describe={describeDraft}
         />
       ) : null}
       <form id="account-form" noValidate onSubmit={submit} className="flex flex-col gap-4">

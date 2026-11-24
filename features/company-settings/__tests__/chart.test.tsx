@@ -4,7 +4,7 @@
 // view-only person shown the lists alone (General's own view-only line says why). accounts-api is
 // answered per path and method; every call names the company as ?entity=.
 
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -596,8 +596,9 @@ describe("the add form opens inline (owner, 2026-11-12: no dialog)", () => {
 
 // Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the add / edit account
 // form keeps what was typed in this browser 2 s after the last change (record `new` or the
-// account's id), offered when the form opens again (Restore / Discard); a save that went through,
-// Cancel and Discard remove it; an account saved since makes it stale (shown, never put back).
+// account's id), put back at once when the form opens again - no notice (the user, 2026-11-24); a
+// save that went through and Cancel remove it; an account saved since makes it stale (dropped
+// silently, never put back).
 describe("the account form's auto-saved draft", () => {
   const NEW = draftKey({ userId: "u1", entityId: ID }, "settings.account", "new");
   const WAGES = draftKey({ userId: "u1", entityId: ID }, "settings.account", "a-wages");
@@ -629,7 +630,7 @@ describe("the account form's auto-saved draft", () => {
     return form;
   }
 
-  it("a new account: kept 2 s after typing, offered when Add opens again, Restore puts it back", async () => {
+  it("a new account: kept 2 s after typing, back at once when Add opens again, with no notice", async () => {
     api(reads);
     const first = mount();
     await loaded();
@@ -649,12 +650,11 @@ describe("the account form's auto-saved draft", () => {
       await card("Chart of accounts").findByRole("button", { name: /Add an account/ }),
     );
     const form = within(screen.getByRole("group", { name: "Add an account" }));
-    expect(await form.findByText(/You have unsaved changes from \d\d:\d\d\./)).toBeInTheDocument();
-    expect(form.queryByLabelText(/^Name/)).toBeNull();
-    await user.click(form.getByRole("button", { name: "Restore" }));
-    expect(form.getByLabelText(/^Name/)).toHaveValue("Parking");
+    expect(await form.findByLabelText(/^Name/)).toHaveValue("Parking");
     expect(form.getByLabelText(/Type/)).toHaveValue("expense");
     expect(form.getByLabelText(/Code/)).toHaveValue("478");
+    expect(form.queryByText(/unsaved changes/)).toBeNull();
+    expect(form.queryByRole("button", { name: "Restore" })).toBeNull();
   });
 
   it("Cancel closes the form and its draft goes with it", async () => {
@@ -668,26 +668,6 @@ describe("the account form's auto-saved draft", () => {
     await user.click(form.getByRole("button", { name: "Cancel" }));
     await wait2s();
     expect(localStorage.getItem(NEW)).toBeNull();
-  });
-
-  it("Discard removes it and leaves the form empty", async () => {
-    api(reads);
-    const first = mount();
-    await loaded();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await typeParking(user);
-    await wait2s();
-    first.unmount();
-
-    mount();
-    await loaded();
-    await user.click(
-      await card("Chart of accounts").findByRole("button", { name: /Add an account/ }),
-    );
-    const form = within(screen.getByRole("group", { name: "Add an account" }));
-    await user.click(await form.findByRole("button", { name: "Discard" }));
-    expect(localStorage.getItem(NEW)).toBeNull();
-    expect(form.getByRole("combobox", { name: /Account/ })).toHaveValue("");
   });
 
   it("a save that went through removes it", async () => {
@@ -707,7 +687,7 @@ describe("the account form's auto-saved draft", () => {
     expect(localStorage.getItem(NEW)).toBeNull();
   });
 
-  it("an edit saved since by someone else: shown, never put back", async () => {
+  it("an edit saved since by someone else: dropped silently, never put back", async () => {
     writeDraft(WAGES, {
       v: 1,
       form: "settings.account",
@@ -734,12 +714,9 @@ describe("the account form's auto-saved draft", () => {
       await card("Chart of accounts").findByRole("button", { name: "Edit 477 - Wages" }),
     );
     const form = within(screen.getByRole("group", { name: "Edit Wages" }));
-    expect(
-      await form.findByText(/This was saved again after your unsaved changes/),
-    ).toBeInTheDocument();
-    expect(form.queryByRole("button", { name: "Restore" })).toBeNull();
-    await user.click(form.getByRole("button", { name: "Show what I typed" }));
-    expect(form.getByText("Staff wages", { selector: "dd" })).toBeInTheDocument();
+    await waitFor(() => expect(localStorage.getItem(WAGES)).toBeNull());
     expect(form.getByLabelText(/^Name/)).toHaveValue("Wages");
+    expect(form.queryByText(/unsaved changes/)).toBeNull();
+    expect(form.queryByRole("button", { name: "Show what I typed" })).toBeNull();
   });
 });

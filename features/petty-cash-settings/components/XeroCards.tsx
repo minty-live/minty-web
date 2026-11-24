@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { fingerprint } from "@minty/shared/drafts";
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
 import { RequiredMark } from "@/components/ui/RequiredMark";
@@ -321,16 +321,6 @@ function MappingForm({
     });
   }
 
-  /** A stale draft, read-only: each field and what was chosen in it. */
-  const describeDraft = () => {
-    const contacts = draftContacts(draft.offer?.value.contacts);
-    return fields.map((f) => {
-      const id = draft.offer?.value.picked?.[f.key];
-      const option = [...f.options, ...contacts].find((o) => o.id === id);
-      return { label: f.label, value: option ? optionLabel(option) : "" };
-    });
-  };
-
   function pick(key: MappingKey, option: XeroOption) {
     setPicked((p) => ({ ...p, [key]: option.id }));
     setTexts((t) => ({ ...t, [key]: optionLabel(option) }));
@@ -475,12 +465,10 @@ function MappingForm({
       }}
     >
       {draft.offer ? (
-        <DraftNotice
-          savedAt={draft.offer.savedAt}
+        <DraftRestore
           stale={draft.offer.stale}
           onRestore={restoreDraft}
           onDiscard={draft.discard}
-          describe={describeDraft}
         />
       ) : null}
 
@@ -783,15 +771,6 @@ function CodesForm({
     const known = new Set(codes.map((r) => r.code));
     setTicked(new Set(kept.filter((code) => known.has(code))));
   }
-  const describeDraft = () => [
-    {
-      label: "Ticked",
-      value: codes
-        .filter((r) => draft.offer?.value.includes(r.code))
-        .map(codeLabel)
-        .join(", "),
-    },
-  ];
 
   function set(changes: string[], on: boolean) {
     setTicked((t) => {
@@ -825,12 +804,10 @@ function CodesForm({
       }}
     >
       {draft.offer ? (
-        <DraftNotice
-          savedAt={draft.offer.savedAt}
+        <DraftRestore
           stale={draft.offer.stale}
           onRestore={restoreDraft}
           onDiscard={draft.discard}
-          describe={describeDraft}
         />
       ) : null}
 

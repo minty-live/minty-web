@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { fingerprint } from "@minty/shared/drafts";
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
@@ -27,7 +27,6 @@ import {
   type CardDrafts,
 } from "@/features/petty-cash-settings/lib/drafts";
 import {
-  KIND,
   METHOD_TYPES,
   NEW_METHOD,
   NO_SALES_ACCOUNT,
@@ -178,22 +177,6 @@ export function SalesAccountsCard({
     if (!back) return;
     setMethods(back);
   };
-  const describeDraft = () => {
-    const value = draft.offer?.value;
-    const kept = draftMethods(value?.methods);
-    return [
-      ...SALES_PARTS.map((k) => ({
-        label: SALES_ACCOUNT[k].name,
-        value: value?.ticks?.[k] ? "On" : "Off",
-      })),
-      ...(kept
-        ? METHOD_TYPES.map((type) => ({
-            label: `${KIND[type].title} methods`,
-            value: kept[type].map((h) => h.name).join(", ") || "None",
-          }))
-        : []),
-    ];
-  };
 
   // The methods' actions, on the card's own lists: nothing is sent until Save changes.
   const change = useCallback(
@@ -292,12 +275,10 @@ export function SalesAccountsCard({
       testId="sales-accounts"
     >
       {draft.offer ? (
-        <DraftNotice
-          savedAt={draft.offer.savedAt}
+        <DraftRestore
           stale={draft.offer.stale}
           onRestore={restoreDraft}
           onDiscard={draft.discard}
-          describe={describeDraft}
         />
       ) : null}
       <div

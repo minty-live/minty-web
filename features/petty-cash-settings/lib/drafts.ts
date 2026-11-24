@@ -2,12 +2,12 @@
 
 /**
  * Each Petty Cash Settings card keeps its own auto-saved draft (`@minty/shared/drafts`, the owner's
- * decisions doc L1: this browser only, 2 s after the last change, Restore or Discard asked first,
- * never the real settings): Account mapping (`settings.pc-mapping`), Petty Cash Account Code
- * (`settings.pc-codes`) and the sales accounts (`settings.pc-sales`), each record `-`, each
- * `basedOn` the fingerprint of the values the API sent for that card - a save by anyone since
- * makes the draft stale (shown, never put back). Shape 2 (2026-11-20) for the two cards that hold
- * more than their picks: the mapping keeps its new contacts (`{picked, contacts}`) and the sales
+ * decisions doc L1: this browser only, 2 s after the last change, put back at once with no notice
+ * (the user, 2026-11-24), never the real settings): Account mapping (`settings.pc-mapping`), Petty
+ * Cash Account Code (`settings.pc-codes`) and the sales accounts (`settings.pc-sales`), each record
+ * `-`, each `basedOn` the fingerprint of the values the API sent for that card - a save by anyone
+ * since makes the draft stale (dropped silently, never put back). Shape 2 (2026-11-20) for the two
+ * cards that hold more than their picks: the mapping keeps its new contacts (`{picked, contacts}`) and the sales
  * accounts their methods (`{ticks, methods}`); a shape-1 draft from before is dropped.
  *
  * The cards remount on the page's "Discard changes" (its `resetKey`), and a form going away writes

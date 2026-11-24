@@ -13,7 +13,7 @@
 
 import { useState, type FormEvent } from "react";
 
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import { RequiredMark } from "@/components/ui/RequiredMark";
 
@@ -80,32 +80,16 @@ export function DetailsForm({
     .filter(Boolean)
     .join(" ");
 
-  // a browser draft from an earlier visit (useDetailsDraft): above the card, asked first
+  // a browser draft from an earlier visit (useDetailsDraft): put back at once, nothing asked
   const offer = draft.offer;
-  const describeDraft = () =>
-    offer
-      ? [
-          { label: "Entity name", value: offer.value.name },
-          {
-            label: "Country",
-            value: page.countries.find((c) => c.code === offer.value.country)?.name ?? "",
-          },
-          {
-            label: "Currency",
-            value: page.currencies.find((c) => c.id === offer.value.currency)?.name ?? "",
-          },
-        ]
-      : [];
 
   return (
     <form onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-4">
       {offer ? (
-        <DraftNotice
-          savedAt={offer.savedAt}
+        <DraftRestore
           stale={offer.stale}
           onRestore={draft.restoreDraft}
           onDiscard={draft.discardDraft}
-          describe={describeDraft}
         />
       ) : null}
       <SettingsCard

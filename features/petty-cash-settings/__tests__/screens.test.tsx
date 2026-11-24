@@ -1127,8 +1127,8 @@ describe("PettyCashSettingsScreen - leaving with unsaved Xero choices", () => {
 });
 
 // Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): each card keeps what was
-// chosen in this browser 2 s after the last change, per person and company; coming back asks
-// first (Restore / Discard); its own Save, and "Discard changes", remove it.
+// chosen in this browser 2 s after the last change, per person and company; coming back puts it
+// back at once, no notice (the user, 2026-11-24); its own Save, and "Discard changes", remove it.
 describe("PettyCashSettingsScreen - auto-saved drafts", () => {
   let went: string[];
   const onClick = (event: MouseEvent) => {
@@ -1179,7 +1179,7 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     return sales;
   }
 
-  it("the mapping: kept 2 s after a choice, offered when the page opens again, Restore puts it back", async () => {
+  it("the mapping: kept 2 s after a choice, back at once when the page opens again, with no notice", async () => {
     api({
       "GET /settings": () => json(settings()),
       "GET /settings/xero": () => json(xero()),
@@ -1198,41 +1198,17 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     mount();
     await drawn();
     const mapping = card("Account mapping");
-    const notice = await mapping.findByText(/You have unsaved changes from \d\d:\d\d\./);
-    expect(notice.closest("[data-draft-notice]")).toHaveAttribute("data-draft-notice", "fresh");
-    // nothing changes until the person picks
-    const sales = mapping.getByRole("combobox", { name: /Select account code for cash sales/ });
-    expect(sales).toHaveValue("Sales - 200");
-    await user.click(mapping.getByRole("button", { name: "Restore" }));
-    expect(sales).toHaveValue("Owner Drawings - 880");
-    expect(mapping.getByRole("button", { name: "Save Changes" })).toBeEnabled();
-    expect(mapping.queryByText(/You have unsaved changes/)).toBeNull();
-    // the other cards keep their own drafts: none here
-    expect(card("Petty Cash Account Code").queryByText(/unsaved changes/)).toBeNull();
-  });
-
-  it("Discard removes the mapping's draft and keeps the saved choices", async () => {
-    api({
-      "GET /settings": () => json(settings()),
-      "GET /settings/xero": () => json(xero()),
+    const sales = await mapping.findByRole("combobox", {
+      name: /Select account code for cash sales/,
     });
-    const first = mount();
-    await drawn();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await pickOwnerDrawings(user);
-    await wait2s();
-    first.unmount();
-
-    mount();
-    await drawn();
-    const mapping = card("Account mapping");
-    await mapping.findByText(/You have unsaved changes/);
-    await user.click(mapping.getByRole("button", { name: "Discard" }));
-    expect(mapping.queryByText(/You have unsaved changes/)).toBeNull();
-    expect(localStorage.getItem(MAPPING)).toBeNull();
+    await waitFor(() => expect(sales).toHaveValue("Owner Drawings - 880"));
+    expect(mapping.getByRole("button", { name: "Save Changes" })).toBeEnabled();
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(mapping.queryByRole("button", { name: "Restore" })).toBeNull();
+    // the other cards keep their own drafts: none here, so nothing changes there
     expect(
-      mapping.getByRole("combobox", { name: /Select account code for cash sales/ }),
-    ).toHaveValue("Sales - 200");
+      card("Petty Cash Account Code").getByRole("checkbox", { name: "404 - Bank Fees" }),
+    ).not.toBeChecked();
   });
 
   it("the mapping's own Save removes its draft", async () => {
@@ -1257,7 +1233,7 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     expect(localStorage.getItem(MAPPING)).toBeNull();
   });
 
-  it("saved by someone since: the draft is shown, never put back", async () => {
+  it("saved by someone since: the draft is dropped silently, never put back", async () => {
     writeDraft(MAPPING, {
       v: 1,
       form: "settings.pc-mapping",
@@ -1278,17 +1254,13 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     mount();
     await drawn();
     const mapping = card("Account mapping");
-    const notice = await mapping.findByText(/This was saved again after your unsaved changes/);
-    expect(notice.closest("[data-draft-notice]")).toHaveAttribute("data-draft-notice", "stale");
-    expect(mapping.queryByRole("button", { name: "Restore" })).toBeNull();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.click(mapping.getByRole("button", { name: "Show what I typed" }));
-    expect(mapping.getByText("Cash Sales account code").nextElementSibling).toHaveTextContent(
-      "Owner Drawings - 880",
-    );
+    await mapping.findByRole("combobox", { name: /Select account code for cash sales/ });
+    await waitFor(() => expect(localStorage.getItem(MAPPING)).toBeNull());
     expect(
       mapping.getByRole("combobox", { name: /Select account code for cash sales/ }),
     ).toHaveValue("Sales - 200");
+    expect(mapping.queryByText(/unsaved changes/)).toBeNull();
+    expect(mapping.queryByRole("button", { name: "Show what I typed" })).toBeNull();
   });
 
   it("another person's draft on this browser is never offered", async () => {
@@ -1315,7 +1287,9 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
       name: /Select account code for cash sales/,
     });
     await act(async () => undefined);
-    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(
+      card("Account mapping").getByRole("combobox", { name: /Select account code for cash sales/ }),
+    ).toHaveValue("Sales - 200");
   });
 
   it("the account codes and the sales accounts keep drafts of their own", async () => {
@@ -1348,11 +1322,10 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     mount();
     await drawn();
     const codes = card("Petty Cash Account Code");
-    await codes.findByText(/You have unsaved changes/);
-    await user.click(codes.getByRole("button", { name: "Restore" }));
-    expect(codes.getByRole("checkbox", { name: "404 - Bank Fees" })).toBeChecked();
+    await waitFor(() =>
+      expect(codes.getByRole("checkbox", { name: "404 - Bank Fees" })).toBeChecked(),
+    );
     const sales = card("Sales accounts and methods");
-    await user.click(sales.getByRole("button", { name: "Restore" }));
     expect(sales.getByRole("checkbox", { name: /Sales - Delivery/ })).toHaveAttribute(
       "aria-checked",
       "false",
@@ -1382,7 +1355,10 @@ describe("PettyCashSettingsScreen - auto-saved drafts", () => {
     mount();
     await drawn();
     await act(async () => undefined);
-    expect(card("Sales accounts and methods").queryByText(/unsaved changes/)).toBeNull();
+    expect(
+      card("Sales accounts and methods").getByRole("checkbox", { name: /Sales - Delivery/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(localStorage.getItem(SALES)).toBeNull();
   });
 
   it("Discard changes on leaving removes every card's draft", async () => {
@@ -1552,7 +1528,7 @@ describe("PettyCashSettingsScreen - a new contact in the mapping", () => {
     expect(writes()).toEqual([]);
   });
 
-  it("the draft keeps the held contact (shape 2) and Restore chooses it again", async () => {
+  it("the draft keeps the held contact (shape 2) and coming back chooses it again", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     api({
       "GET /settings": () => json(settings()),
@@ -1578,9 +1554,7 @@ describe("PettyCashSettingsScreen - a new contact in the mapping", () => {
     show();
     await drawn();
     const mapping = card("Account mapping");
-    await mapping.findByText(/You have unsaved changes/);
-    await user.click(mapping.getByRole("button", { name: "Restore" }));
-    expect(await customer()).toHaveValue("Nina Ng");
+    await waitFor(async () => expect(await customer()).toHaveValue("Nina Ng"));
     expect(mapping.getByRole("button", { name: "Save Changes" })).toBeEnabled();
     expect(writes()).toEqual([]);
   });

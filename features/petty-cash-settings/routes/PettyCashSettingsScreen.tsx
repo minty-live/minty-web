@@ -18,7 +18,7 @@
  *
  * What a person may change is the API's `permissions`; a cashier sees it all read-only. Unsaved
  * card choices hold the page ("Leave without saving?") and are kept as browser drafts per card
- * (`lib/drafts.ts`: Restore or Discard when the page opens again).
+ * (`lib/drafts.ts`: put back at once when the page opens again, no notice).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

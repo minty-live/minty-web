@@ -756,9 +756,9 @@ describe("IntegrationScreen", () => {
 });
 
 // Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the company's details as
-// typed are kept in this browser 2 s after the last change, per person and company, and offered
-// when General opens again (Restore / Discard); a save that went through and "Discard changes"
-// remove them; a value saved since makes the draft stale (shown, never put back).
+// typed are kept in this browser 2 s after the last change, per person and company, and put back
+// at once when General opens again - no notice (the user, 2026-11-24); a save that went through
+// and "Discard changes" remove them; a value saved since makes the draft stale (dropped silently).
 describe("GeneralScreen - auto-saved draft of the details", () => {
   const KEY = draftKey({ userId: "u1", entityId: ID }, "settings.details", "-");
   const wait2s = () =>
@@ -783,7 +783,7 @@ describe("GeneralScreen - auto-saved draft of the details", () => {
     while (recorders.length) recorders.pop()?.();
   });
 
-  it("kept 2 s after typing; General opened again asks, and Restore puts the values back", async () => {
+  it("kept 2 s after typing; General opened again puts the values back at once, with no notice", async () => {
     flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
     const first = mount();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -801,30 +801,11 @@ describe("GeneralScreen - auto-saved draft of the details", () => {
 
     mount();
     const again = await screen.findByRole("textbox", { name: /^Entity name/ });
-    expect(
-      await screen.findByText(/You have unsaved changes from \d\d:\d\d\./),
-    ).toBeInTheDocument();
-    expect(again).toHaveValue("Olive Shop");
-    await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(again).toHaveValue("Olive Shop Ltd");
+    await waitFor(() => expect(again).toHaveValue("Olive Shop Ltd"));
     expect(screen.getByLabelText(/^Country\s*\*?$/)).toHaveValue("SG");
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
-    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
-  });
-
-  it("Discard removes it and keeps the saved values", async () => {
-    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
-    const first = mount();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.type(await screen.findByRole("textbox", { name: /^Entity name/ }), " Ltd");
-    await wait2s();
-    first.unmount();
-
-    mount();
-    await screen.findByText(/You have unsaved changes from/);
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    expect(localStorage.getItem(KEY)).toBeNull();
-    expect(screen.getByRole("textbox", { name: /^Entity name/ })).toHaveValue("Olive Shop");
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
   });
 
   it("a save that went through removes it", async () => {
@@ -863,7 +844,7 @@ describe("GeneralScreen - auto-saved draft of the details", () => {
     expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value.name).toBe("Olive Shop Ltd");
   });
 
-  it("the details saved since: shown, never put back", async () => {
+  it("the details saved since: dropped silently, never put back", async () => {
     writeDraft(KEY, {
       v: 1,
       form: "settings.details",
@@ -879,14 +860,11 @@ describe("GeneralScreen - auto-saved draft of the details", () => {
     });
     flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
     mount();
-    expect(
-      await screen.findByText(/This was saved again after your unsaved changes/),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.click(screen.getByRole("button", { name: "Show what I typed" }));
-    expect(screen.getByText("Singapore Dollar", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /^Entity name/ })).toHaveValue("Olive Shop");
+    const name = await screen.findByRole("textbox", { name: /^Entity name/ });
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
+    expect(name).toHaveValue("Olive Shop");
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show what I typed" })).toBeNull();
   });
 
   it("Discard changes on leaving removes it", async () => {

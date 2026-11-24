@@ -15,16 +15,16 @@
  * - Elevated roles change them (`lib/role.ts`); everyone else sees them read-only, told why.
  * - Ticks not saved yet hold every way out of the page ("Leave without saving?"), and are kept as
  *   a browser draft (`settings.payment-codes`, `@minty/shared/drafts`; the owner's decisions doc
- *   L1): 2 s after the last tick, offered when the page opens again (Restore / Discard), stale -
- *   shown, never put back - once the saved ticks changed; removed by a Save that went through and
- *   by "Discard changes".
+ *   L1): 2 s after the last tick, put back at once when the page opens again (no notice - the
+ *   user, 2026-11-24), stale - dropped silently, never put back - once the saved ticks changed;
+ *   removed by a Save that went through and by "Discard changes".
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { fingerprint, useAutoSaveDraft } from "@minty/shared/drafts";
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import { XeroNotConnected } from "@/components/ui/XeroNotConnected";
 import { LeaveDialog } from "@/components/ui/LeaveDialog";
@@ -153,15 +153,6 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
     const known = new Set(rows.map((r) => r.id));
     setSelectedIds(new Set(kept.filter((id) => known.has(id))));
   };
-  const describeDraft = () => [
-    {
-      label: "Ticked",
-      value: rows
-        .filter((r) => draft.offer?.value.includes(r.id))
-        .map((r) => r.label)
-        .join(", "),
-    },
-  ];
 
   // A save that went through makes `savedIds` the ticks, so `hasChanges` clears and the guard
   // stands down; a failed one leaves `savedIds` alone, so the page still asks.
@@ -325,12 +316,10 @@ export function AccountCodeSettings({ company }: { company: { id: string; name: 
         {expanded ? (
           <div id="payment-account-codes" className="flex min-w-0 flex-col gap-3">
             {draft.offer ? (
-              <DraftNotice
-                savedAt={draft.offer.savedAt}
+              <DraftRestore
                 stale={draft.offer.stale}
                 onRestore={restoreDraft}
                 onDiscard={draft.discard}
-                describe={describeDraft}
               />
             ) : null}
             {nothingWithoutXero ? (

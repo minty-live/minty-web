@@ -18,14 +18,14 @@
  *
  * The reason is kept as a browser draft (`subscription.cancel`, record the company's subscription -
  * the company's id; `@minty/shared/drafts`, the owner's decisions doc L1): 2 s after the last
- * keystroke, offered inside the box's section when the dialog opens again (Restore / Discard), and
- * removed once the cancellation goes through (`onConfirm` resolving true) or on Discard.
+ * keystroke, put back at once when the dialog opens again (no notice - the user, 2026-11-24), and
+ * removed once the cancellation goes through (`onConfirm` resolving true).
  */
 
 import { useId, useRef, useState } from "react";
 
 import { useAutoSaveDraft, type DraftScope } from "@minty/shared/drafts";
-import { DraftNotice } from "@minty/shared/ui";
+import { DraftRestore } from "@minty/shared/ui";
 
 import type { ChangeModal } from "@/features/subscription/lib/changeModal";
 import type { ResultPart } from "@/features/subscription/lib/changeResult";
@@ -150,14 +150,10 @@ export function ChangeDialog({
       {askReason && (
         <div className="flex min-w-0 flex-col gap-2">
           {kept.offer ? (
-            <DraftNotice
-              savedAt={kept.offer.savedAt}
+            <DraftRestore
               stale={kept.offer.stale}
               onRestore={restoreReason}
               onDiscard={kept.discard}
-              describe={() => [
-                { label: "Why you're leaving", value: kept.offer?.value.reason ?? "" },
-              ]}
             />
           ) : null}
           <label htmlFor={reasonId} className="text-[14px] font-semibold text-text-primary">

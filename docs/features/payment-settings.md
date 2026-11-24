@@ -64,10 +64,10 @@ Payment." - the old copy, kept), in a `SettingsCard`, folding under a 44px chevr
 - **Auto-saved draft** (the owner's decisions doc L1, 2026-11-20; `@minty/shared/drafts`): the
   ticks are kept in this browser 2 s after the last change (`settings.payment-codes`, record `-`,
   per person and company - `lib/draftScope.ts`), never saved to the API. When the page opens again
-  the card asks first ("You have unsaved changes from 10:42." - Restore / Discard); if the saved
-  ticks changed since (`basedOn` = their fingerprint) it is stale - shown, never put back. Removed
-  by a Save that went through, by Discard changes, by Discard, after 7 days and by an explicit
-  sign-out; kept through the session expiry. Someone who may not change the codes keeps none.
+  the ticks are put back at once, with no notice (`DraftRestore`; the user, 2026-11-24); if the
+  saved ticks changed since (`basedOn` = their fingerprint) it is stale - dropped silently, never
+  put back. Removed by a Save that went through, by Discard changes, after 7 days and by an
+  explicit sign-out; kept through the session expiry. Someone who may not change the codes keeps none.
 
 Dropped in the move: the old pill row (`SettingsPills`), `?tab=` switching and its placeholder -
 the hub's tab row replaces them.

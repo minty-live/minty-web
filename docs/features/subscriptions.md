@@ -979,10 +979,10 @@ The dialog family (`components/ui/ModalFrame`, `components/ui/ConfirmDialog`, `L
   Billing Accounts asks). Nothing reads the reasons yet. The reason is kept as a browser draft
   (the owner's decisions doc L1, 2026-11-20; `@minty/shared/drafts`, `subscription.cancel`, record
   the company's id - the client holds no subscription id and a company has one subscription - per
-  person and company): 2 s after the last keystroke; when the dialog opens again it asks first
-  inside the box's section ("You have unsaved changes from 10:42." - Restore / Discard); removed
-  once the cancellation goes through (`applyChangePrompt` resolves true), by Discard, after 7 days
-  and by an explicit sign-out; a refused cancellation keeps it. Preselected: the
+  person and company): 2 s after the last keystroke; when the dialog opens again the words are
+  put back at once, with no notice (`DraftRestore`; the user, 2026-11-24); removed once the
+  cancellation goes through (`applyChangePrompt` resolves true), after 7 days and by an explicit
+  sign-out; a refused cancellation keeps it. Preselected: the
   account the company is on, else the first that can take it. The rows the API would refuse are shown disabled with their reason
   (`lib/billingAccounts.ts` `nominationChoice`): another account whose collection is failing
   ("Payment failed") or with no card ("No card"), and - while the company itself is past due -

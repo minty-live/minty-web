@@ -597,8 +597,9 @@ describe("leaving with ticks not saved", () => {
 });
 
 // Auto-saved drafts (the owner's decisions doc L1; @minty/shared/drafts): the ticks are kept in this
-// browser 2 s after the last change, per person and company, and offered when the page opens again
-// (Restore / Discard); a Save that went through, and "Discard changes", remove them.
+// browser 2 s after the last change, per person and company, and put back at once when the page
+// opens again - no notice (the user, 2026-11-24); a Save that went through, and "Discard changes",
+// remove them; ticks saved since make the draft stale (dropped silently).
 describe("auto-saved draft of the ticks", () => {
   const KEY = draftKey({ userId: "u1", entityId: ID }, "settings.payment-codes", "-");
   const wait2s = () =>
@@ -614,7 +615,7 @@ describe("auto-saved draft of the ticks", () => {
   beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
   afterEach(() => vi.useRealTimers());
 
-  it("kept 2 s after a tick; the page opened again asks, and Restore puts the tick back", async () => {
+  it("kept 2 s after a tick; the page opened again puts the tick back at once, with no notice", async () => {
     serve();
     const first = mount();
     await codes();
@@ -631,31 +632,10 @@ describe("auto-saved draft of the ticks", () => {
 
     mount();
     await codes();
-    expect(
-      await screen.findByText(/You have unsaved changes from \d\d:\d\d\./),
-    ).toBeInTheDocument();
-    expect(tick(ACCOUNTS[2])).not.toBeChecked();
-    await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(tick(ACCOUNTS[2])).toBeChecked();
+    await waitFor(() => expect(tick(ACCOUNTS[2])).toBeChecked());
     expect(saveButton()).toBeEnabled();
-  });
-
-  it("Discard removes the draft and keeps the saved ticks", async () => {
-    serve();
-    const first = mount();
-    await codes();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.click(tick(ACCOUNTS[2]));
-    await wait2s();
-    first.unmount();
-
-    mount();
-    await codes();
-    await screen.findByText(/You have unsaved changes from/);
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
-    expect(localStorage.getItem(KEY)).toBeNull();
-    expect(tick(ACCOUNTS[2])).not.toBeChecked();
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
   });
 
   it("a Save that went through removes it", async () => {
@@ -672,7 +652,7 @@ describe("auto-saved draft of the ticks", () => {
     expect(localStorage.getItem(KEY)).toBeNull();
   });
 
-  it("the saved ticks changed since: shown, never put back", async () => {
+  it("the saved ticks changed since: dropped silently, never put back", async () => {
     writeDraft(KEY, {
       v: 1,
       form: "settings.payment-codes",
@@ -689,14 +669,11 @@ describe("auto-saved draft of the ticks", () => {
     serve();
     mount();
     await codes();
-    expect(
-      await screen.findByText(/This was saved again after your unsaved changes/),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.click(screen.getByRole("button", { name: "Show what I typed" }));
-    expect(screen.getByText("310 - Cost of Goods Sold", { selector: "dd" })).toBeInTheDocument();
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
+    expect(tick(ACCOUNTS[0])).toBeChecked();
     expect(tick(ACCOUNTS[2])).not.toBeChecked();
+    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show what I typed" })).toBeNull();
   });
 
   it("Discard changes on leaving removes it", async () => {
@@ -735,6 +712,7 @@ describe("auto-saved draft of the ticks", () => {
     mount();
     await codes();
     await act(async () => undefined);
-    expect(screen.queryByText(/You have unsaved changes from/)).toBeNull();
+    expect(tick(ACCOUNTS[0])).toBeChecked();
+    expect(tick(ACCOUNTS[2])).not.toBeChecked();
   });
 });

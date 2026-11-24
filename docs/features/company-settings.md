@@ -115,19 +115,17 @@ guard could not see.
 What is typed is kept IN THIS BROWSER as a separate copy, 2 seconds after the last change
 (`@minty/shared/drafts` v0.28, `useAutoSaveDraft`), per person and company (`lib/draftScope.ts`:
 the token's `user_id` and the settings page's company) - never the real settings, which only the
-person's own Save writes. Coming back asks first, above the card (`DraftNotice`): "You have unsaved
-changes from 10:42." - **Restore** or **Discard**; nothing changes until they pick. If the saved
-values changed since (`basedOn` = the fingerprint of what the API sent), the draft is stale: "This
-was saved again after your unsaved changes from 10:42, so we haven't put them back." with Show what
-I typed, never restored.
+person's own Save writes. Coming back puts the draft back at once, with no notice (`DraftRestore`,
+v0.33; the user, 2026-11-24 - until then `DraftNotice` asked "You have unsaved changes from
+10:42." - Restore / Discard). If the saved values changed since (`basedOn` = the fingerprint of
+what the API sent), the draft is stale and dropped silently, never restored.
 
 - **The details** (`settings.details`, record `-`, `hooks/useDetailsDraft.ts`): removed by a save
-  that went through, by "Discard changes" (the guard's reset) and by Discard. A refused save keeps
-  it. A restored country or currency no longer on its list stays as saved.
+  that went through and by "Discard changes" (the guard's reset). A refused save keeps it. A restored country or currency no longer on its list stays as saved.
 - **The add / edit account form** (`settings.account`, record `new` or the account's id,
-  `ChartCards.tsx` `AccountForm`; `basedOn` the account's saved fields, none for a new one): the
-  notice shows inside the form when Add (or that account's Edit) opens again. Removed by a save
-  that went through, by **Cancel** (and Escape) and by Discard.
+  `ChartCards.tsx` `AccountForm`; `basedOn` the account's saved fields, none for a new one): put
+  back when Add (or that account's Edit) opens again. Removed by a save that went through and by
+  **Cancel** (and Escape).
 - Removed too after 7 days, and by an explicit sign-out (`lib/logout.ts`: `clearDraftsForUser`
   before the token goes) - never by the 60-minute session expiry (the 401 path), which drafts exist
   to survive. Another person on the same browser never sees them.
@@ -239,8 +237,8 @@ success case leaves the page, so a toast would not outlive it.
 offers, the address as text, a role change, a refused removal keeping its dialog, the invite, the
 cooldown, the flashed notice; General: SET-G's card and "No changes to save yet", a save of only
 what changed, the empty name, read-only, the leave guard's cases, the auto-saved draft - kept after
-2 s, offered, Restore, Discard, removed by a save and by Discard changes, kept by a refused save,
-stale; Integration: SET-1, SET-2 and
+2 s, put back at once with no notice, removed by a save and by Discard changes, kept by a refused
+save, stale dropped; Integration: SET-1, SET-2 and
 SET-2b, the disconnected and reconnect-needed states, read-only, the refused connect and its
 move), `__tests__/reexports.test.ts`, `lib/__tests__/settingsTabs.test.ts`,
 `e2e/12_company_settings.spec.ts` (what only a real browser shows: the browser's own Back held by
@@ -321,8 +319,8 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
-failed read, the account form's auto-saved draft: offered and restored, Cancel, Discard, a save,
-stale; live on Xero: no Add, Edit or Delete, Merge kept); e2e `13_chart.spec.ts` (live on Xero at
+failed read, the account form's auto-saved draft: put back at once, Cancel, a save, stale
+dropped; live on Xero: no Add, Edit or Delete, Merge kept); e2e `13_chart.spec.ts` (live on Xero at
 360 / 768 / 1440 too).
 
 ## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
