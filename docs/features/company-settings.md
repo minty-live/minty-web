@@ -177,6 +177,7 @@ pill Matching, **Continue matching**.
 The page (frame 3, under "Connect to Xero") has two steps (the user, 2026-11-24).
 
 **Accounts.**
+
 - **Every account needs its own Xero account**: used or not (nothing is archived any more), and never
   one another account has (accounts are never merged).
 - The progress: "N of M matched", "K to go", a bar, and "K accounts still need a Xero account before
@@ -203,6 +204,7 @@ The page (frame 3, under "Connect to Xero") has two steps (the user, 2026-11-24)
 **Contacts** - only when there are contacts to ask, and never for a change of the matches (the API's
 `contacts.required`). The accounts step's button is then **Next: contacts** ("Step 1 of 2 · Accounts";
 off, its reason beside it, until every account is matched). The step asks:
+
 - **Suppliers**: each supplier not yet in the organisation takes its Xero contact (the one of its name
   is picked for it) or **New in Xero** ("Minty adds it to Xero the first time it's published.").
 - **Petty Cash contacts**: each daily-closing contact still empty ("The customer for cash sales", "The
@@ -215,10 +217,11 @@ find more") and saves at once (`PATCH .../xero/matching/contacts`). "Back to acc
 
 **Finish** stays off, its reason beside it, until every account (and every contact) has its answer. It
 asks first: "Finish matching? / Each matched account takes its Xero code and name - its Minty code stays
+
 - and Minty publishes to Xero from today. This can't be undone." Then "Connecting to Xero…", and it goes
-back to Integration ("Connected to Xero."). A company the old rules left disconnected (before
-2026-11-19) gets **Try again**. On a phone each row stacks (name over its picker). Tests:
-`__tests__/matching.test.tsx`.
+  back to Integration ("Connected to Xero."). A company the old rules left disconnected (before
+  2026-11-19) gets **Try again**. On a phone each row stacks (name over its picker). Tests:
+  `__tests__/matching.test.tsx`.
 
 **Phase 3 (owner, 2026-11-12).** The card's Matching state names why the matching is open (the
 accounts API's `matching.reason`): "Your new Xero organisation needs your accounts matched."
