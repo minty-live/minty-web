@@ -261,19 +261,21 @@ for (const width of [360, 768, 1440]) {
       .getByRole("dialog", { name: "Rent can't be deleted" })
       .getByRole("button", { name: "Close", exact: true })
       .click();
-    // an account gone from Xero says so; the merge dialog fits too (doc A3, M1)
+    // an account gone from Xero says so (doc A3); accounts are never merged, contacts are (2026-11-24),
+    // and the contact merge dialog fits too
     await expect(page.getByRole("link", { name: "Map Old Rent to a Xero account" })).toBeVisible();
-    await page.getByRole("button", { name: "Merge 477 - Wages" }).click();
-    await expect(page.getByRole("dialog", { name: "Merge Wages" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Merge 477 - Wages" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Merge Kee Wah" }).click();
+    await expect(page.getByRole("dialog", { name: "Merge Kee Wah" })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: `test-results/13_chart_merge_${width}.png`, fullPage: true });
   });
 }
 
-// Live on Xero (the user, 2026-11-23): no Add, Edit or Delete anywhere - Merge stays - and each card
-// says where the change is made.
+// Live on Xero (the user, 2026-11-23): no Add, Edit or Delete on accounts, and no account Merge either
+// (2026-11-24: accounts are never merged); contacts keep theirs. Each card says where the change is made.
 for (const width of [360, 768, 1440]) {
-  test(`live on Xero: no account to add, edit or delete, contacts still, Merge kept, at ${width}px`, async ({
+  test(`live on Xero: no account to add, edit, delete or merge, contacts still, at ${width}px`, async ({
     page,
   }) => {
     await requireApp();
@@ -288,7 +290,7 @@ for (const width of [360, 768, 1440]) {
     ).toBeVisible();
     await expect(chart.getByRole("button", { name: /^Add an account$/ })).toHaveCount(0);
     await expect(chart.getByRole("button", { name: /^(Edit|Delete) / })).toHaveCount(0);
-    await expect(chart.getByRole("button", { name: "Merge 477 - Wages" })).toBeVisible();
+    await expect(chart.getByRole("button", { name: /^Merge / })).toHaveCount(0);
     // contacts are saved in Minty first, live or not (the user, 2026-11-23)
     await expect(people.getByRole("button", { name: /Add a contact/ })).toBeVisible();
     await expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeVisible();

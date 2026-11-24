@@ -9,7 +9,9 @@
  * (`lib/rules.ts`); Delete asks first, saying what happens to records and to Xero. Every change is
  * the API's at once. While the company is live on Xero (`xero_live`) the chart has no Add, Edit or
  * Delete at all - Xero's to change, and the API refuses them (the user, 2026-11-23); contacts are still
- * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. Merge stays.
+ * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. Contacts
+ * keep Merge; accounts are never merged (the user, 2026-11-24 - each matches its own Xero account).
+ * An account shows its Minty code and, once linked, its Xero code beside it (Minty Code + Xero Code).
  */
 
 import {
@@ -51,7 +53,6 @@ import type {
   MintyAccount,
 } from "@/features/company-settings/api/chart";
 import {
-  accountClass,
   accountProblems,
   contactProblem,
   deleteNote,
@@ -286,7 +287,6 @@ export function AccountsCard({
   onAdd,
   onEdit,
   onDelete,
-  onMerge,
   mapHref,
 }: {
   read: AccountsRead;
@@ -296,18 +296,21 @@ export function AccountsCard({
   onAdd: () => void;
   onEdit: (account: Account) => void;
   onDelete: (account: Account) => void;
-  onMerge: (account: Account) => void;
   /** The matching page for one account (A3): where an account gone from Xero is mapped again. */
   mapHref: (account: Account) => string;
 }) {
   const [query, setQuery] = useState("");
   const { permissions: may } = read;
-  // live on Xero: added, changed and deleted in Xero only - Merge stays (the user, 2026-11-23)
+  // live on Xero: added, changed and deleted in Xero only (the user, 2026-11-23); never merged (2026-11-24)
   const here = !read.xero_live;
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const shown = read.accounts.filter(
-      (a) => !q || a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q),
+      (a) =>
+        !q ||
+        a.name.toLowerCase().includes(q) ||
+        a.code.toLowerCase().includes(q) ||
+        (a.xero_code ?? "").toLowerCase().includes(q),
     );
     return read.types
       .map((t) => ({ label: t.label, rows: shown.filter((a) => a.type === t.value) }))
@@ -348,6 +351,8 @@ export function AccountsCard({
                     detail={a.description || undefined}
                     badges={
                       <>
+                        {/* Minty Code + Xero Code (the user, 2026-11-24): the title's is Minty's */}
+                        {a.in_xero && a.xero_code ? <span>Xero code {a.xero_code}</span> : null}
                         {a.gone_from_xero ? (
                           <Badge>Archived in Xero</Badge>
                         ) : a.in_xero ? (
@@ -373,11 +378,9 @@ export function AccountsCard({
                     // linked to Xero: changed in Xero only (the user, 2026-11-19)
                     canEdit={a.own && may.edit && here && !a.in_xero}
                     canDelete={a.own && may.delete && here && !a.in_xero}
-                    canMerge={a.own && may.delete}
                     busy={busy}
                     onEdit={() => onEdit(a)}
                     onDelete={() => onDelete(a)}
-                    onMerge={() => onMerge(a)}
                   />
                 ))}
               </ul>
@@ -926,7 +929,8 @@ export function DeleteDialog({
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  /** D3 (owner's decisions doc, 2026-11-19): a used one can't be deleted, but can be merged. */
+  /** D3 (owner's decisions doc, 2026-11-19): a used contact can't be deleted, but can be merged.
+   * Accounts are never merged (the user, 2026-11-24). */
   onMerge?: () => void;
 }) {
   if (row.used) {
@@ -982,33 +986,28 @@ export function DeleteDialog({
 export type MergeSide = { id: string; name: string };
 
 /**
- * Merge two accounts or two contacts (owner's decisions doc M1-M4): the other one picked, then
- * which of the two is kept. No new record is made and Xero isn't touched; the next step asks once
- * more (`mergeNote`). Accounts merge only within one class (an expense into an expense).
+ * Merge two contacts (owner's decisions doc M1-M4): the other one picked, then which of the two is
+ * kept. No new record is made and Xero isn't touched; the next step asks once more (`mergeNote`).
+ * Accounts are never merged (the user, 2026-11-24).
  */
 export function MergeDialog({
-  kind,
   row,
   others,
-  into,
   busy,
   onClose,
   onNext,
 }: {
-  kind: "account" | "contact";
   row: MergeSide;
   others: (MergeSide & { label: string })[];
-  /** Preselected (from the matching page's "merge instead"). */
-  into?: string;
   busy: boolean;
   onClose: () => void;
   onNext: (merged: MergeSide, kept: MergeSide) => void;
 }) {
   const id = useId();
-  const [other, setOther] = useState(into && others.some((o) => o.id === into) ? into : "");
+  const [other, setOther] = useState("");
   const [keep, setKeep] = useState<"this" | "other">("other");
   const picked = others.find((o) => o.id === other);
-  const reason = picked ? null : `Choose the ${kind} to merge ${row.name} with.`;
+  const reason = picked ? null : `Choose the contact to merge ${row.name} with.`;
   return (
     <SettingsDialog
       title={`Merge ${row.name}`}
@@ -1045,7 +1044,7 @@ export function MergeDialog({
             onChange={(e) => setOther(e.target.value)}
             className={`${SETTINGS_INPUT} ${SETTINGS_INPUT_OK} min-h-11`}
           >
-            <option value="">Choose {kind === "account" ? "an account" : "a contact"}</option>
+            <option value="">Choose a contact</option>
             {others.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.label}
@@ -1055,9 +1054,7 @@ export function MergeDialog({
         </label>
         {others.length === 0 ? (
           <p className="text-[13px] text-set-ink-2">
-            {kind === "account"
-              ? `There's no other account of this kind to merge ${row.name} with.`
-              : `There's no other contact to merge ${row.name} with.`}
+            There&apos;s no other contact to merge {row.name} with.
           </p>
         ) : null}
         <fieldset className="flex min-w-0 flex-col gap-2" disabled={busy || !picked}>
@@ -1072,7 +1069,7 @@ export function MergeDialog({
                 className="size-5 shrink-0 accent-action-tick"
               />
               <span className="min-w-0 [overflow-wrap:anywhere]">
-                Keep {side === "this" ? row.name : (picked?.name ?? `the other ${kind}`)}
+                Keep {side === "this" ? row.name : (picked?.name ?? "the other contact")}
               </span>
             </label>
           ))}
@@ -1084,20 +1081,6 @@ export function MergeDialog({
         ) : null}
       </div>
     </SettingsDialog>
-  );
-}
-
-/** The accounts an account can merge with: the others of its class (`accountClass`). */
-export function mergeableAccounts(
-  read: AccountsRead,
-  row: Account,
-): (MergeSide & { label: string })[] {
-  const cls = accountClass(row.type);
-  return (
-    read.accounts
-      // an account gone from Xero is never the one kept (the API refuses it); it can still be merged away
-      .filter((a) => a.id !== row.id && accountClass(a.type) === cls && !a.gone_from_xero)
-      .map((a) => ({ id: a.id, name: a.name, label: a.code ? `${a.code} - ${a.name}` : a.name }))
   );
 }
 

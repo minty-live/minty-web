@@ -12,7 +12,10 @@ export type Rights = { add: boolean; edit: boolean; delete: boolean };
 
 export type Account = {
   id: string;
+  /** Minty's code (the user, 2026-11-24: Minty Code + Xero Code). */
   code: string;
+  /** Xero's code once the account is linked to Xero; empty otherwise. */
+  xero_code?: string;
   name: string;
   type: string;
   type_label: string;
@@ -110,16 +113,10 @@ export const deleteContact = (entityId: string, id: string) =>
     query: on(entityId),
   });
 
-/** Merge two accounts or two contacts (owner's decisions doc M1-M4): every record of `id` moves to
- * `into`, `id` leaves every list; no new record, Xero not touched. accounts-api's own route. */
+/** Merge two contacts (owner's decisions doc M1-M4): every record of `id` moves to `into`, `id`
+ * leaves every list; no new record, Xero not touched. accounts-api's own route. Accounts are never
+ * merged (the user, 2026-11-24). */
 export type MergeAnswer = { message: string; moved: Record<string, number> };
-
-export const mergeAccount = (entityId: string, id: string, into: string) =>
-  mintyFetch<MergeAnswer>(`/api/me/company/accounts/${encodeURIComponent(id)}/merge`, {
-    method: "POST",
-    json: { into },
-    query: on(entityId),
-  });
 
 export const mergeContact = (entityId: string, id: string, into: string) =>
   mintyFetch<MergeAnswer>(`/api/me/company/contacts/${encodeURIComponent(id)}/merge`, {

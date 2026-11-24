@@ -3,21 +3,25 @@
 /**
  * `/entity/<shortid>/<name>/settings/integration/match` - Match your accounts to Xero (Settings
  * Phase 2, 2026-11-11; Figma 353:999 frames 3, 3b, 4, 5 - the visual design; the rules are the
- * owner's, from Minty `docs/modernisation/xero_optional_database.md` §4).
+ * owner's, from Minty `docs/modernisation/xero_optional_database.md` §4, and the user's of
+ * 2026-11-24).
  *
- * Where a company that kept its books in Minty lands after signing in to Xero. Every one of its
- * accounts is a row with a Xero account to pick (same code and type was picked for it); each pick
- * saves at once, so the page can be left and finished later. Finish is the replace: it asks first
- * (what will be archived and combined; it can't be undone) and is refused while an account a record
- * uses has no match. Then the suppliers go to Xero ("Bringing your contacts over…"); any Xero
- * refuses are named, with Try again, and Xero stays disconnected until they are through.
+ * Where a company lands after signing in to Xero when its accounts need matching. Two steps:
+ * - Accounts: every account is a row with a Xero account to pick (same code and type was picked for
+ *   it; on a reconnect the ones already linked come picked). Every account needs its own Xero
+ *   account - used or not, and never one another account has - so the ones still to match come
+ *   first. Each pick saves at once, so the page can be left and finished later.
+ * - Contacts (when there are any to ask): each supplier takes its Xero contact (the one of its name
+ *   is picked for it) or stays new in Xero, and each daily-closing contact still empty takes a Xero
+ *   contact - asked here, before Finish, never after it.
+ * Finish asks first (it can't be undone), then connects.
  */
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { AppHeader } from "@/components/ui/AppHeader";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Combo, type ComboRow } from "@/components/ui/Combo";
 import { SETTINGS_OUTLINE, SETTINGS_PRIMARY } from "@/components/ui/settingsButtons";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { SETTINGS_INPUT_OK } from "@/components/ui/settingsFields";
@@ -31,49 +35,52 @@ import {
   fetchMatching,
   finishMatching,
   mapMatchOne,
+  pickContactMatch,
   pickMatch,
   refreshMatching,
   retryContacts,
+  type ContactAnswer,
+  type MatchContactOption,
+  type MatchContactPick,
   type MatchOnePage,
   type MatchOption,
   type MatchRow,
   type MatchingPage,
-  type PettyCashContact,
 } from "@/features/company-settings/api/companySettings";
-import {
-  generalPath,
-  integrationPath,
-  pettyCashTabPath,
-} from "@/features/company-settings/lib/paths";
+import { generalPath, integrationPath } from "@/features/company-settings/lib/paths";
 
 export const MATCH_COPY = {
   title: "Match your accounts to Xero",
-  lead: "Tell us where each Minty account should post. We've filled in the ones whose code and type match.",
+  lead: "Every Minty account needs its own Xero account. We've filled in the ones whose code and type match.",
   matched: (n: number, total: number) => `${n} of ${total} matched`,
   toGo: (n: number) => `${n} to go`,
   blocking: (n: number) =>
-    `${n} ${n === 1 ? "account your records use still needs" : "accounts your records use still need"} a Xero match before you can finish.`,
-  allUsedMatched:
-    "Every account your records use is matched. Any you leave blank aren't used, so they'll be archived when you finish.",
+    `${n} ${n === 1 ? "account still needs" : "accounts still need"} a Xero account before you can go on.`,
+  allMatched: "Every account has its Xero account.",
   minty: "Minty account",
   xero: "Xero account",
   choose: "Choose a Xero account",
   suggested: "Suggested",
   allAccounts: "All accounts",
   matchedRow: "Matched",
+  heldBy: (name: string) => `matched to ${name}`,
   conflict: (code: string, name: string) =>
     `Xero's ${code} is ${name}, a different type - choose the account to use.`,
-  combined: (names: string[]) => `Combined with ${names.join(", ")}`,
   nothingFits:
-    "Nothing in Xero looks right? Pick the closest account, or create the one you want in Xero and come back - Refresh from Xero pulls it in.",
+    "Nothing in Xero fits? Each Minty account needs its own Xero account: add the missing one in Xero, then Refresh from Xero pulls it in.",
   refresh: "Refresh from Xero",
   refreshing: "Refreshing…",
   back: "Back",
   finish: "Finish",
-  finishBlocked: "Match the accounts marked * to finish.",
+  finishBlocked: "Match every account marked * to finish.",
+  next: "Next: contacts",
+  nextBlocked: "Match every account marked * to go on.",
+  stepAccounts: "Step 1 of 2 · Accounts",
+  stepContacts: "Step 2 of 2 · Contacts",
+  backToAccounts: "Back to accounts",
   confirmTitle: "Finish matching?",
   confirmBody:
-    "Each matched account takes its Xero code and name, and Minty publishes to Xero from today. This can't be undone.",
+    "Each matched account takes its Xero code and name - its Minty code stays - and Minty publishes to Xero from today. This can't be undone.",
   // Phase 3 (2026-11-12): why the page is open
   changeTitle: "Change your matches",
   changeLead:
@@ -81,36 +88,40 @@ export const MATCH_COPY = {
   newOrgTitle: "Match your accounts to your new Xero organisation",
   newOrgLead:
     "This company now connects to a different Xero organisation. Tell us where each account should post there.",
-  newAccountsTitle: "Match the accounts added while Xero was disconnected",
-  newAccountsLead: "Tell us where each new account should post in Xero.",
+  newAccountsTitle: "Match your accounts again",
+  newAccountsLead:
+    "Some accounts were added while Xero was disconnected. The accounts already matched are filled in; the ones still to match come first.",
   confirmChange:
     "Only records published from now on use the new matches. Records already in Xero stay as they are.",
   confirmNewOrg: (org: string | null) =>
     `Only records from today go to ${org || "your new organisation"}. Older records stay with your previous Xero organisation.`,
   cancel: "Cancel",
-  willArchive: "Not used, so archived:",
-  willCombine: (xero: string, accounts: string[]) =>
-    `${accounts.join(" and ")} become one: ${xero}`,
   goBack: "Go back",
-  contacts: "Bringing your contacts over…",
-  failedTitle: (n: number) =>
-    n === 1 ? "One contact didn't make it over" : `${n} contacts didn't make it over`,
-  failedBody: "Your account matches are saved. Xero would not take these:",
-  failedNote: "We'll only send these again. Xero stays disconnected until they're through.",
-  later: "Later",
-  tryAgain: "Try again",
-  connected: "Connected to Xero.",
-  // Production, 2026-11-23: Xero's daily closing needs three contacts Minty's own books didn't.
-  contactsTitle: "Choose your Petty Cash contacts",
-  contactsBody: "Petty Cash needs these contacts before it can publish to Xero:",
+  finishing: "Connecting to Xero…",
+  // the contacts step (the user, 2026-11-24: before Finish, not a warning after it)
+  contactsTitle: "Choose your contacts in Xero",
+  contactsLead:
+    "Tell us which Xero contact each one is. We've filled in the ones with the same name.",
+  suppliers: "Suppliers",
+  dailyClosing: "Petty Cash contacts",
   contactNames: {
     cash_sale: "The customer for cash sales",
     director: "The person who pays personally",
     discrepancy: "The person for the cash difference",
   },
-  contactsNote: "Choose them in Petty Cash Settings.",
-  contactsOpen: "Choose contacts",
-  contactsLater: "Later",
+  chooseContact: "Choose a Xero contact",
+  newInXero: "New in Xero",
+  newHint: "Minty adds it to Xero the first time it's published.",
+  noContact: "No contact found",
+  keepTyping: "Keep typing to find more",
+  contactsBlocking: (n: number) =>
+    `${n} ${n === 1 ? "contact still needs" : "contacts still need"} an answer before you can finish.`,
+  contactsDone: "Every contact has its answer.",
+  contactsFinishBlocked: "Choose a contact for every one marked * to finish.",
+  // a company the old rules left disconnected (before 2026-11-19)
+  failedNote: "We'll only send these again. Xero stays disconnected until they're through.",
+  tryAgain: "Try again",
+  connected: "Connected to Xero.",
   nothing: "There's nothing to match with Xero for this company.",
   backToIntegration: "Back to Integration",
 } as const;
@@ -133,29 +144,38 @@ function Row({
   row,
   options,
   busy,
+  showGroup = false,
   onPick,
 }: {
   row: MatchRow;
   options: MatchOption[];
   busy: boolean;
+  /** In the "Not matched yet" section: the account's own group under its name. */
+  showGroup?: boolean;
   onPick: (xeroAccountId: string | null) => void;
 }) {
   const fitting = options.filter((o) => o.kind === row.kind);
   const suggestion =
     !row.pick && row.suggestion ? fitting.find((o) => o.id === row.suggestion) : undefined;
   const picked = row.pick?.xero_account_id ?? "";
-  const needed = row.used && !row.pick;
+  const needed = !row.pick;
   // Xero's codes can be long (4000_01_01): the code runs with the name instead of a fixed column.
   const code = shownCode(row.code, row.name);
   const label = `${code ? `${code} ` : ""}${row.name}`;
-  const note = row.conflict
-    ? MATCH_COPY.conflict(row.conflict.code, row.conflict.name)
-    : row.combined_with.length
-      ? MATCH_COPY.combined(row.combined_with)
-      : null;
+  const note = row.conflict ? MATCH_COPY.conflict(row.conflict.code, row.conflict.name) : null;
+  // One Minty account per Xero account (the user, 2026-11-24): one another account has is shown,
+  // never picked.
+  const option = (o: MatchOption) => {
+    const held = o.held_by && o.id !== picked ? o.held_by : null;
+    return (
+      <option key={o.id} value={o.id} disabled={Boolean(held)}>
+        {held ? `${optionLabel(o)} - ${MATCH_COPY.heldBy(held)}` : optionLabel(o)}
+      </option>
+    );
+  };
   return (
-    // Frame 3's row: the code, the name (a red * when a record uses it), a tick once matched, and
-    // the Xero account; one line each from a tablet up, the select under the name on a phone.
+    // Frame 3's row: the code, the name (a red *: every account needs a match), a tick once matched,
+    // and the Xero account; one line each from a tablet up, the select under the name on a phone.
     <li className="flex min-w-0 flex-col gap-2 border-b border-set-line px-4 py-2.5 last:border-b-0 md:flex-row md:items-center md:gap-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span data-account className="min-w-0 flex-1 break-words text-[14px] text-set-ink">
@@ -165,11 +185,10 @@ function Row({
             </>
           ) : null}
           {row.name}
-          {row.used ? (
-            <>
-              <RequiredMark />
-              <span className="sr-only"> (required)</span>
-            </>
+          <RequiredMark />
+          <span className="sr-only"> (required)</span>
+          {showGroup && row.group ? (
+            <span className="block text-[12.5px] text-set-mute">{row.group}</span>
           ) : null}
           {note ? <span className="block text-[12.5px] text-set-ink-2">{note}</span> : null}
         </span>
@@ -190,33 +209,21 @@ function Row({
         <select
           value={picked}
           disabled={busy}
-          aria-required={row.used}
+          aria-required
           aria-invalid={needed ? true : undefined}
           onChange={(e) => onPick(e.target.value || null)}
           className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed ? "border-status-warning-ink focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
         >
           <option value="">{MATCH_COPY.choose}</option>
           {suggestion ? (
-            <optgroup label={MATCH_COPY.suggested}>
-              <option value={suggestion.id}>{optionLabel(suggestion)}</option>
-            </optgroup>
+            <optgroup label={MATCH_COPY.suggested}>{option(suggestion)}</optgroup>
           ) : null}
           {suggestion ? (
             <optgroup label={MATCH_COPY.allAccounts}>
-              {fitting
-                .filter((o) => o.id !== suggestion.id)
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {optionLabel(o)}
-                  </option>
-                ))}
+              {fitting.filter((o) => o.id !== suggestion.id).map(option)}
             </optgroup>
           ) : (
-            fitting.map((o) => (
-              <option key={o.id} value={o.id}>
-                {optionLabel(o)}
-              </option>
-            ))
+            fitting.map(option)
           )}
         </select>
         <span
@@ -226,6 +233,135 @@ function Row({
           expand_more
         </span>
       </label>
+    </li>
+  );
+}
+
+const NEW = "__new__";
+/** A searchable list stays quick with thousands of contacts: the first matches, then "keep typing". */
+const CONTACTS_SHOWN = 50;
+
+function contactLabel(pick: MatchContactPick | null, options: MatchContactOption[]): string {
+  if (!pick) return "";
+  if (pick.new) return MATCH_COPY.newInXero;
+  return options.find((o) => o.id === pick.xero_contact_id)?.name ?? "";
+}
+
+/** The shared searchable picker (Petty Cash Settings' Combo): a Xero contact, or - for a supplier -
+ * new in Xero. Keyed by the current answer, so the box shows it again after a save. */
+function ContactPicker({
+  id,
+  label,
+  pick,
+  options,
+  allowNew,
+  busy,
+  onPick,
+}: {
+  id: string;
+  label: string;
+  pick: MatchContactPick | null;
+  options: MatchContactOption[];
+  allowNew: boolean;
+  busy: boolean;
+  onPick: (answer: ContactAnswer) => void;
+}) {
+  const current = contactLabel(pick, options);
+  const [text, setText] = useState(current);
+  const rows = (query: string): ComboRow[] => {
+    const q = query.trim().toLowerCase();
+    const out: ComboRow[] = [];
+    if (allowNew && (!q || MATCH_COPY.newInXero.toLowerCase().includes(q))) {
+      out.push({
+        key: NEW,
+        label: MATCH_COPY.newInXero,
+        sub: MATCH_COPY.newHint,
+        selected: pick?.new,
+      });
+    }
+    const found = options.filter((o) => !q || o.name.toLowerCase().includes(q));
+    out.push(
+      ...found.slice(0, CONTACTS_SHOWN).map((o, i) => ({
+        key: o.id,
+        label: o.name,
+        selected: o.id === pick?.xero_contact_id,
+        divided: allowNew && i === 0 && out.length > 0,
+      })),
+    );
+    if (!found.length) out.push({ key: "none", label: MATCH_COPY.noContact, info: true });
+    if (found.length > CONTACTS_SHOWN)
+      out.push({ key: "more", label: MATCH_COPY.keepTyping, info: true });
+    return out;
+  };
+  return (
+    <div className="min-w-0 md:w-[42%] md:shrink-0">
+      <label htmlFor={id} className="sr-only">
+        Xero contact for {label}
+      </label>
+      <Combo
+        id={id}
+        value={text}
+        placeholder={MATCH_COPY.chooseContact}
+        disabled={busy}
+        required
+        rotateChevron
+        rows={rows}
+        onText={setText}
+        onPick={(key) => onPick(key === NEW ? { new: true } : { xero_contact_id: key })}
+        onBlur={() => setText(current)}
+      />
+    </div>
+  );
+}
+
+function ContactRow({
+  id,
+  name,
+  pick,
+  options,
+  allowNew,
+  busy,
+  onPick,
+}: {
+  id: string;
+  name: string;
+  pick: MatchContactPick | null;
+  options: MatchContactOption[];
+  allowNew: boolean;
+  busy: boolean;
+  onPick: (answer: ContactAnswer) => void;
+}) {
+  return (
+    <li className="flex min-w-0 flex-col gap-2 border-b border-set-line px-4 py-2.5 last:border-b-0 md:flex-row md:items-center md:gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="min-w-0 flex-1 break-words text-[14px] text-set-ink">
+          {name}
+          <RequiredMark />
+          <span className="sr-only"> (required)</span>
+          {pick?.new ? (
+            <span className="block text-[12.5px] text-set-mute">{MATCH_COPY.newHint}</span>
+          ) : null}
+        </span>
+        {pick ? (
+          <span
+            className="material-symbols-outlined shrink-0 text-set-ok-ink"
+            aria-label={MATCH_COPY.matchedRow}
+            role="img"
+          >
+            check
+          </span>
+        ) : null}
+      </div>
+      <ContactPicker
+        key={`${pick?.xero_contact_id ?? ""}${pick?.new ? NEW : ""}`}
+        id={id}
+        label={name}
+        pick={pick}
+        options={options}
+        allowNew={allowNew}
+        busy={busy}
+        onPick={onPick}
+      />
     </li>
   );
 }
@@ -245,24 +381,54 @@ export function MatchingScreen({
   );
 }
 
+/** Where each row sits, as the page last opened or refreshed: a pick saves at once and the API
+ * answers with the row in its group, but the row stays where the person is working. */
+type Layout = { key: string; title: string; ids: string[] }[];
+
+function layoutOf(page: MatchingPage): Layout {
+  return page.groups.map((g) => ({
+    key: g.key,
+    title: g.title,
+    ids: g.rows.map((r) => r.account_id),
+  }));
+}
+
+function laidOut(page: MatchingPage, layout: Layout | null) {
+  const byId = new Map(page.groups.flatMap((g) => g.rows).map((r) => [r.account_id, r]));
+  const placed = layout?.flatMap((g) => g.ids) ?? [];
+  if (!layout || placed.length !== byId.size || placed.some((id) => !byId.has(id))) {
+    return page.groups;
+  }
+  return layout.map((g) => ({
+    key: g.key,
+    title: g.title,
+    rows: g.ids.map((id) => byId.get(id) as MatchRow),
+  }));
+}
+
 function FullMatching({ company }: { company: { id: string; name: string } }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [page, setPage] = useState<MatchingPage | null>(null);
+  const [layout, setLayout] = useState<Layout | null>(null);
+  const [step, setStep] = useState<"accounts" | "contacts">("accounts");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [failed, setFailed] = useState<string[]>([]);
-  const [missingContacts, setMissingContacts] = useState<PettyCashContact[]>([]);
   const integration = integrationPath(company.id, company.name);
 
   const run = useCallback(
-    async (what: string, call: () => Promise<MatchingPage>): Promise<MatchingPage | null> => {
+    async (
+      what: string,
+      call: () => Promise<MatchingPage>,
+      relayout = false,
+    ): Promise<MatchingPage | null> => {
       setBusy(what);
       try {
         const answer = await call();
         setPage(answer);
+        if (relayout) setLayout(layoutOf(answer));
         return answer;
       } catch (err) {
         showToast(refusal(err), "error");
@@ -281,10 +447,11 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
         if (controller.signal.aborted) return;
         setError("");
         setPage(answer);
+        setLayout(layoutOf(answer));
         // Opening the page reads Xero again (at most every 2 minutes), so an account made in Xero
         // meanwhile - a bank, say - is there to pick (production, 2026-11-23).
         if (answer.can_edit && answer.pending.accounts) {
-          void run("refresh", () => refreshMatching(company.id, { throttle: true }));
+          void run("refresh", () => refreshMatching(company.id, { throttle: true }), true);
         }
       },
       (err: unknown) => {
@@ -294,20 +461,13 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
     return () => controller.abort();
   }, [company.id, attempt, run]);
 
-  const afterContacts = (answer: MatchingPage | null) => {
+  const afterFinish = (answer: MatchingPage | null) => {
     if (!answer) return;
     if (answer.error) showToast(answer.error, "error");
     if (answer.connected) {
       showToast(MATCH_COPY.connected, "success");
-      // Xero's rules need daily closing's contacts: ask before leaving, so Publish isn't refused.
-      if (answer.pettycash_contacts_missing?.length) {
-        setMissingContacts(answer.pettycash_contacts_missing);
-        return;
-      }
       router.push(integration);
-      return;
     }
-    setFailed(answer.failed_contacts.length ? answer.failed_contacts : failed);
   };
 
   if (!page) {
@@ -321,6 +481,17 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
             setAttempt((n) => n + 1);
           }}
         />
+      </Frame>
+    );
+  }
+
+  if (!page.pending.accounts && !page.pending.contacts && !busy) {
+    return (
+      <Frame back={integration}>
+        <p className="text-sm text-set-ink-2">{MATCH_COPY.nothing}</p>
+        <a href={integration} className={SETTINGS_OUTLINE}>
+          {MATCH_COPY.backToIntegration}
+        </a>
       </Frame>
     );
   }
@@ -340,48 +511,44 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
       : reason === "new_org"
         ? MATCH_COPY.confirmNewOrg(page.organisation)
         : MATCH_COPY.confirmBody;
-  const toGo = page.total - page.matched;
-  const progress = page.total ? Math.round((page.matched / page.total) * 100) : 100;
+  const contacts = page.contacts;
+  const askContacts =
+    Boolean(contacts?.required) && contacts.suppliers.length + contacts.slots.length > 0;
+  const onContacts = askContacts && step === "contacts";
+  const contactsLeft = askContacts ? contacts.blocking : 0;
   const contactsOnly = !page.pending.accounts && page.pending.contacts;
-  // After Finish (nothing pending any more, so it sits over either frame below).
-  const contactsDialog = missingContacts.length ? (
-    <ConfirmDialog
-      title={MATCH_COPY.contactsTitle}
-      image="surprised"
-      entityName={company.name}
-      busy={false}
-      confirmLabel={MATCH_COPY.contactsOpen}
-      backLabel={MATCH_COPY.contactsLater}
-      onConfirm={() => router.push(pettyCashTabPath(company.id, company.name))}
-      onBack={() => router.push(integration)}
-    >
-      <p className="mt-6 text-[15px] leading-snug">{MATCH_COPY.contactsBody}</p>
-      <ul className="mt-2 list-disc pl-5 text-[15px] leading-snug">
-        {missingContacts.map((key) => (
-          <li key={key}>{MATCH_COPY.contactNames[key]}</li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[15px] leading-snug">{MATCH_COPY.contactsNote}</p>
-    </ConfirmDialog>
-  ) : null;
 
-  if (!page.pending.accounts && !page.pending.contacts && !busy) {
-    return (
-      <Frame back={integration}>
-        <p className="text-sm text-set-ink-2">{MATCH_COPY.nothing}</p>
-        <a href={integration} className={SETTINGS_OUTLINE}>
-          {MATCH_COPY.backToIntegration}
-        </a>
-        {contactsDialog}
-      </Frame>
-    );
-  }
+  const finishButton = (blocked: boolean, reasonId: string, reasonText: string) => (
+    <>
+      {blocked ? (
+        <span id={reasonId} className="text-[13px] text-set-ink-2">
+          {reasonText}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className={SETTINGS_PRIMARY}
+        disabled={busy !== null || blocked}
+        aria-describedby={blocked ? reasonId : undefined}
+        onClick={() => setConfirming(true)}
+      >
+        {MATCH_COPY.finish}
+      </button>
+    </>
+  );
 
   return (
     <Frame back={integration}>
       <div className="flex min-w-0 flex-col gap-1">
-        <h2 className="text-[26px] font-bold text-set-ink">{heading}</h2>
-        <p className="text-[14px] text-set-ink-2">{lead}</p>
+        {askContacts ? (
+          <p className="text-[12.5px] font-medium text-set-mute">
+            {onContacts ? MATCH_COPY.stepContacts : MATCH_COPY.stepAccounts}
+          </p>
+        ) : null}
+        <h2 className="text-[26px] font-bold text-set-ink">
+          {onContacts ? MATCH_COPY.contactsTitle : heading}
+        </h2>
+        <p className="text-[14px] text-set-ink-2">{onContacts ? MATCH_COPY.contactsLead : lead}</p>
       </div>
 
       {contactsOnly ? (
@@ -395,14 +562,91 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
               type="button"
               className={SETTINGS_PRIMARY}
               disabled={busy !== null}
-              onClick={() =>
-                void run("contacts", () => retryContacts(company.id)).then(afterContacts)
-              }
+              onClick={() => void run("finish", () => retryContacts(company.id)).then(afterFinish)}
             >
               {MATCH_COPY.tryAgain}
             </button>
           </div>
         </section>
+      ) : onContacts ? (
+        <>
+          <section
+            aria-live="polite"
+            className="rounded-[14px] border border-border-selected bg-set-ok-bg p-4 text-[13px] text-set-ink-2"
+          >
+            {contactsLeft ? MATCH_COPY.contactsBlocking(contactsLeft) : MATCH_COPY.contactsDone}
+          </section>
+          {[
+            {
+              key: "suppliers",
+              title: MATCH_COPY.suppliers,
+              rows: contacts.suppliers.map((s) => ({
+                id: `contact-${s.contact_id}`,
+                name: s.name,
+                pick: s.pick,
+                allowNew: true,
+                target: { contact_id: s.contact_id },
+              })),
+            },
+            {
+              key: "slots",
+              title: MATCH_COPY.dailyClosing,
+              rows: contacts.slots.map((s) => ({
+                id: `slot-${s.slot}`,
+                name: MATCH_COPY.contactNames[s.slot],
+                pick: s.pick,
+                allowNew: false,
+                target: { slot: s.slot },
+              })),
+            },
+          ]
+            .filter((group) => group.rows.length)
+            .map((group) => (
+              <section
+                key={group.key}
+                className="min-w-0 rounded-[14px] border border-set-edge bg-white"
+              >
+                <h3 className="border-b border-set-line px-4 pt-4 pb-1.5 text-[12.5px] font-medium text-set-mute">
+                  {group.title}
+                </h3>
+                <ul className="min-w-0">
+                  {group.rows.map((r) => (
+                    <ContactRow
+                      key={r.id}
+                      id={r.id}
+                      name={r.name}
+                      pick={r.pick}
+                      options={contacts.options}
+                      allowNew={r.allowNew}
+                      busy={busy !== null}
+                      onPick={(answer) =>
+                        void run("pick", () =>
+                          pickContactMatch(company.id, { ...r.target, ...answer }),
+                        )
+                      }
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-set-line pt-4">
+            <button
+              type="button"
+              className={SETTINGS_OUTLINE}
+              disabled={busy !== null}
+              onClick={() => setStep("accounts")}
+            >
+              {MATCH_COPY.backToAccounts}
+            </button>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {finishButton(
+                contactsLeft > 0 || page.blocking > 0,
+                "finish-reason",
+                page.blocking ? MATCH_COPY.finishBlocked : MATCH_COPY.contactsFinishBlocked,
+              )}
+            </div>
+          </div>
+        </>
       ) : (
         <>
           <section
@@ -413,22 +657,27 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
               <span className="text-lg font-bold text-set-ink">
                 {MATCH_COPY.matched(page.matched, page.total)}
               </span>
-              {toGo > 0 ? (
-                <span className="text-[13px] text-set-ink-2">{MATCH_COPY.toGo(toGo)}</span>
+              {page.blocking > 0 ? (
+                <span className="text-[13px] text-set-ink-2">{MATCH_COPY.toGo(page.blocking)}</span>
               ) : null}
             </p>
             <div
               className="h-1.5 overflow-hidden rounded-full bg-state-selected"
               role="progressbar"
               aria-label={MATCH_COPY.matched(page.matched, page.total)}
-              aria-valuenow={progress}
+              aria-valuenow={page.total ? Math.round((page.matched / page.total) * 100) : 100}
               aria-valuemin={0}
               aria-valuemax={100}
             >
-              <div className="h-full rounded-full bg-set-tab" style={{ width: `${progress}%` }} />
+              <div
+                className="h-full rounded-full bg-set-tab"
+                style={{
+                  width: `${page.total ? Math.round((page.matched / page.total) * 100) : 100}%`,
+                }}
+              />
             </div>
             <p className="text-[13px] text-set-ink-2">
-              {page.blocking ? MATCH_COPY.blocking(page.blocking) : MATCH_COPY.allUsedMatched}
+              {page.blocking ? MATCH_COPY.blocking(page.blocking) : MATCH_COPY.allMatched}
             </p>
           </section>
 
@@ -437,7 +686,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
               <span className="flex-1">{MATCH_COPY.minty}</span>
               <span className="w-[44%]">{MATCH_COPY.xero}</span>
             </div>
-            {page.groups.map((group) => {
+            {laidOut(page, layout).map((group) => {
               const done = group.rows.filter((r) => r.pick).length;
               return (
                 <div key={group.key} className="min-w-0">
@@ -451,6 +700,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                         row={row}
                         options={page.options}
                         busy={busy !== null}
+                        showGroup={group.key === "unmatched"}
                         onPick={(id) =>
                           void run("pick", () => pickMatch(company.id, row.account_id, id))
                         }
@@ -469,7 +719,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                 type="button"
                 className={SETTINGS_OUTLINE}
                 disabled={busy !== null}
-                onClick={() => void run("refresh", () => refreshMatching(company.id))}
+                onClick={() => void run("refresh", () => refreshMatching(company.id), true)}
               >
                 {busy === "refresh" ? MATCH_COPY.refreshing : MATCH_COPY.refresh}
               </button>
@@ -495,20 +745,29 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                   {MATCH_COPY.cancel}
                 </button>
               ) : null}
-              {page.blocking ? (
-                <span id="finish-reason" className="text-[13px] text-set-ink-2">
-                  {MATCH_COPY.finishBlocked}
-                </span>
-              ) : null}
-              <button
-                type="button"
-                className={SETTINGS_PRIMARY}
-                disabled={busy !== null || page.blocking > 0}
-                aria-describedby={page.blocking ? "finish-reason" : undefined}
-                onClick={() => setConfirming(true)}
-              >
-                {MATCH_COPY.finish}
-              </button>
+              {askContacts ? (
+                <>
+                  {page.blocking ? (
+                    <span id="next-reason" className="text-[13px] text-set-ink-2">
+                      {MATCH_COPY.nextBlocked}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={SETTINGS_PRIMARY}
+                    disabled={busy !== null || page.blocking > 0}
+                    aria-describedby={page.blocking ? "next-reason" : undefined}
+                    onClick={() => {
+                      setStep("contacts");
+                      window.scrollTo?.({ top: 0 });
+                    }}
+                  >
+                    {MATCH_COPY.next}
+                  </button>
+                </>
+              ) : (
+                finishButton(page.blocking > 0, "finish-reason", MATCH_COPY.finishBlocked)
+              )}
             </div>
           </div>
         </>
@@ -535,7 +794,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                 disabled={busy !== null}
                 onClick={() => {
                   setConfirming(false);
-                  void run("finish", () => finishMatching(company.id)).then(afterContacts);
+                  void run("finish", () => finishMatching(company.id)).then(afterFinish);
                 }}
               >
                 {MATCH_COPY.finish}
@@ -544,20 +803,10 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
           }
         >
           <p>{confirmBody}</p>
-          {page.will_archive.length ? (
-            <p className="mt-2">
-              {MATCH_COPY.willArchive} {page.will_archive.join(", ")}
-            </p>
-          ) : null}
-          {page.will_combine.map((c) => (
-            <p key={c.xero} className="mt-2">
-              {MATCH_COPY.willCombine(c.xero, c.accounts)}
-            </p>
-          ))}
         </SettingsDialog>
       ) : null}
 
-      {busy === "finish" || busy === "contacts" ? (
+      {busy === "finish" ? (
         <div
           className="fixed inset-0 z-[210] flex items-center justify-center bg-overlay-scrim p-4"
           role="status"
@@ -566,51 +815,10 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
             <span className="material-symbols-outlined animate-spin text-set-tab" aria-hidden>
               progress_activity
             </span>
-            {MATCH_COPY.contacts}
+            {MATCH_COPY.finishing}
           </div>
         </div>
       ) : null}
-
-      {failed.length && busy === null ? (
-        <SettingsDialog
-          title={MATCH_COPY.failedTitle(failed.length)}
-          onClose={() => router.push(integration)}
-          actions={
-            <>
-              <button
-                type="button"
-                className={SETTINGS_OUTLINE}
-                onClick={() => router.push(integration)}
-              >
-                {MATCH_COPY.later}
-              </button>
-              <button
-                type="button"
-                className={SETTINGS_PRIMARY}
-                onClick={() => {
-                  setFailed([]);
-                  void run("contacts", () => retryContacts(company.id)).then(afterContacts);
-                }}
-              >
-                {MATCH_COPY.tryAgain}
-              </button>
-            </>
-          }
-        >
-          <p>{MATCH_COPY.failedBody}</p>
-          <ul className="mt-2 flex flex-col gap-1 rounded-[12px] border border-set-danger-line/40 p-3">
-            {failed.map((name) => (
-              <li key={name} className="flex items-center gap-2 text-set-ink">
-                <span className="size-2 shrink-0 rounded-full bg-set-danger-line" aria-hidden />
-                {name}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2">{MATCH_COPY.failedNote}</p>
-        </SettingsDialog>
-      ) : null}
-
-      {contactsDialog}
     </Frame>
   );
 }
@@ -635,7 +843,7 @@ function Frame({ back, children }: { back: string; children: React.ReactNode }) 
  * One account mapped again (the owner's decisions doc A3, 2026-11-19): its Xero account was archived
  * or removed, so the person picks the one to use - the matching page's own row, the account's
  * kind only. Only that account's link changes: no records move. A Xero account another account
- * already holds is refused with "merge instead", which opens the merge on General.
+ * already has is refused - accounts are never merged (the user, 2026-11-24) - and named.
  */
 function OneAccount({
   company,
@@ -651,9 +859,7 @@ function OneAccount({
   const [attempt, setAttempt] = useState(0);
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mergeInto, setMergeInto] = useState<{ id: string; name: string; sentence: string } | null>(
-    null,
-  );
+  const [refused, setRefused] = useState("");
   const general = generalPath(company.id, company.name);
 
   useEffect(() => {
@@ -688,17 +894,14 @@ function OneAccount({
   const save = async () => {
     if (!pick) return;
     setBusy(true);
+    setRefused("");
     try {
       const answer = await mapMatchOne(company.id, accountId, pick);
       showToast(answer.message, "success");
       router.push(general);
     } catch (err) {
-      const body =
-        err instanceof ApiError
-          ? (err.body as { merge_into?: { id: string; name: string } })
-          : null;
-      if (body?.merge_into) {
-        setMergeInto({ ...body.merge_into, sentence: refusal(err) });
+      if (err instanceof ApiError && err.status === 409) {
+        setRefused(refusal(err));
       } else {
         showToast(refusal(err), "error");
       }
@@ -717,28 +920,23 @@ function OneAccount({
         {page.message ? <p className="text-[14px] text-set-ink-2">{page.message}</p> : null}
       </header>
       <ul className="m-0 list-none rounded-[12px] border border-set-line p-0">
-        <Row row={row} options={page.options} busy={busy} onPick={setPick} />
+        <Row
+          row={row}
+          options={page.options}
+          busy={busy}
+          onPick={(id) => {
+            setRefused("");
+            setPick(id);
+          }}
+        />
       </ul>
-      {mergeInto ? (
-        <div
-          className="flex min-w-0 flex-col gap-3 rounded-[12px] border border-set-line p-4"
+      {refused ? (
+        <p
+          className="rounded-[12px] border border-set-line p-4 text-[14px] text-set-ink"
           role="alert"
         >
-          <p className="text-[14px] text-set-ink">{mergeInto.sentence}</p>
-          <div>
-            <button
-              type="button"
-              className={SETTINGS_PRIMARY}
-              onClick={() =>
-                router.push(
-                  `${general}?merge=${encodeURIComponent(accountId)}&into=${encodeURIComponent(mergeInto.id)}`,
-                )
-              }
-            >
-              Merge into {mergeInto.name}
-            </button>
-          </div>
-        </div>
+          {refused}
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <button

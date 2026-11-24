@@ -204,19 +204,44 @@ export type MatchRow = {
   type: string | null;
   /** Which Xero accounts fit: a bank only a bank; otherwise the same class. */
   kind: string | null;
-  /** An expense or bill line, a daily-closing account or a sales method uses it: Finish needs it matched. */
+  /** The account's own group ("Running the business") - shown in the "Not matched yet" section. */
+  group?: string;
+  /** An expense or bill line, a daily-closing account or a sales method uses it. Every account
+   * needs a match all the same (the user, 2026-11-24). */
   used: boolean;
   system: boolean;
   pick: { xero_account_id: string; auto: boolean } | null;
   suggestion: string | null;
   /** Xero has the same code with another type: never picked for the person. */
   conflict: { code: string; name: string } | null;
-  combined_with: string[];
 };
 
-export type MatchOption = { id: string; code: string; name: string; kind: string | null };
+/** `held_by`: the account that has this Xero account - one Minty account each (2026-11-24). */
+export type MatchOption = {
+  id: string;
+  code: string;
+  name: string;
+  kind: string | null;
+  held_by?: string | null;
+};
 
 export type PettyCashContact = "cash_sale" | "director" | "discrepancy";
+
+/** A contacts-step answer: a Xero contact, or (a supplier only) new in Xero - its first publish puts it there. */
+export type MatchContactPick = { xero_contact_id: string | null; auto: boolean; new: boolean };
+export type MatchContactOption = { id: string; name: string };
+
+/** The contacts step (the user, 2026-11-24): asked before Finish. `required` is false for a change. */
+export type MatchContacts = {
+  required: boolean;
+  suppliers: { contact_id: string; name: string; pick: MatchContactPick | null }[];
+  slots: { slot: PettyCashContact; pick: MatchContactPick | null }[];
+  options: MatchContactOption[];
+  /** Suppliers and slots with no answer - Finish is refused until it is 0. */
+  blocking: number;
+};
+
+export type ContactAnswer = { xero_contact_id: string | null } | { new: true };
 
 export type MatchingPage = {
   organisation: string | null;
@@ -225,10 +250,9 @@ export type MatchingPage = {
   options: MatchOption[];
   matched: number;
   total: number;
-  /** Used accounts with no match - Finish is refused until it is 0. */
+  /** Accounts with no match - Finish is refused until it is 0. */
   blocking: number;
-  will_archive: string[];
-  will_combine: { xero: string; accounts: string[] }[];
+  contacts: MatchContacts;
   pending: { accounts: boolean; contacts: boolean; reason?: MatchReason | null };
   failed_contacts: string[];
   connected?: boolean;
@@ -267,6 +291,18 @@ export function refreshMatching(
     method: "POST",
     query: q(entityId),
     ...(throttle ? { json: { throttle: true } } : {}),
+  });
+}
+
+/** One answer of the contacts step: a supplier's (`contact_id`) or a daily-closing contact's (`slot`). */
+export function pickContactMatch(
+  entityId: string,
+  answer: ({ contact_id: string } | { slot: PettyCashContact }) & ContactAnswer,
+): Promise<MatchingPage> {
+  return mintyFetch<MatchingPage>(`${MATCHING}/contacts`, {
+    method: "PATCH",
+    query: q(entityId),
+    json: answer,
   });
 }
 
@@ -324,8 +360,8 @@ export function fetchMatchOne(
   });
 }
 
-/** Link the account to the Xero account picked. A 409 whose body has `merge_into` means another
- * account already holds it: merge instead. */
+/** Link the account to the Xero account picked. A 409 means another account already has it -
+ * accounts are never merged (the user, 2026-11-24). */
 export function mapMatchOne(
   entityId: string,
   accountId: string,

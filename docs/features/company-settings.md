@@ -174,38 +174,57 @@ finished (`matching.accounts`, or after Finish `matching.contacts`) the card is 
 **Matching isn't finished** / "Your accounts stay in Minty until you finish matching them to Xero.",
 pill Matching, **Continue matching**.
 
-The page (frame 3, under "Connect to Xero"): the progress ("N of M matched", "K to go", a bar, and
-either "K accounts your records use still need a Xero match before you can finish." or that the
-blank ones aren't used and will be archived), every own account by group ("Cash & bank · 1 of 2
-matched"), each with its Xero account (a native select of the accounts that fit: a bank only a bank,
-else the same class; "Choose a Xero account"). Rows show **Needed** when a record uses them and they
-have no match (the house red `*` on the name, "(required)" for a screen reader, and frame 3b's
-orange select), a same-code other-type conflict or "Combined with …" under the name, and a tick once
-matched; a suggestion leads the select in its own "Suggested" group. The select is the frames' compact
-one with its own chevron (44px on a phone, 36px for a pointer). The page scrolls as one document (the
-header is sticky). Petty cash and the bank can't share a Xero account (refused with its sentence).
-Each pick saves at once (`PATCH /api/me/company/xero/matching`), so the page can be finished later;
-**Refresh from Xero** pulls an account made there meanwhile, and opening the page does the same for
-someone who may edit (`{"throttle": true}`: at most every 2 minutes; production, 2026-11-23 - banks made
-in Xero after the connect never showed). **Finish** stays off, its reason beside
-it, while a used account has no match (the owner's rule; frame 3b's "Finish anyway" is not built),
-and asks first: "Finish matching? / Each matched account takes its Xero code and name, and Minty
-publishes to Xero from today. This can't be undone." with what is archived and combined. Then
-"Bringing your contacts over…" (frame 4); connected, it goes back to Integration ("Connected to
-Xero."); contacts Xero refused are named (frame 5: "N contacts didn't make it over / Your account
-matches are saved. Xero would not take these:" … Later / **Try again**), and the company stays
-disconnected until they are through. If daily closing's contacts aren't chosen yet (Finish's
-`pettycash_contacts_missing`; Minty's own books need none, Xero's need three - production,
-2026-11-23, Publish was refused), a `ConfirmDialog` asks first: "Choose your Petty Cash contacts /
-Petty Cash needs these contacts before it can publish to Xero:" with the missing ones ("The customer
-for cash sales", "The person who pays personally", "The person for the cash difference") -
-**Choose contacts** (the Petty Cash Settings tab) or Later (Integration). On a phone each row
-stacks (name over its select). Tests: `__tests__/matching.test.tsx`.
+The page (frame 3, under "Connect to Xero") has two steps (the user, 2026-11-24).
+
+**Accounts.**
+- **Every account needs its own Xero account**: used or not (nothing is archived any more), and never
+  one another account has (accounts are never merged).
+- The progress: "N of M matched", "K to go", a bar, and "K accounts still need a Xero account before
+  you can go on." or "Every account has its Xero account."
+- **The accounts still to match come first**, under "Not matched yet", each with its own group under
+  its name. Then the matched ones by group ("Cash & bank · 1 of 2 matched"). A row picked stays where
+  it is until the page is read again (opening it, Refresh), so nothing jumps while the person works.
+- **Each row**: the house red `*` on every name (screen readers hear "(required)") and frame 3b's
+  orange select until matched, a same-code other-type conflict under the name, and a tick once
+  matched.
+- **Its Xero account** is a native select of the accounts that fit (a bank only a bank, else the same
+  class; "Choose a Xero account"). A Xero account another account has is listed but disabled -
+  "<code> · <name> - matched to <account>". A suggestion leads the select in its own "Suggested"
+  group (never one another account has). The select is the frames' compact one with its own chevron
+  (44px on a phone, 36px for a pointer).
+- **Picks**: each saves at once (`PATCH /api/me/company/xero/matching`), so the page can be finished
+  later. Petty cash and the bank can't share a Xero account (refused with its sentence).
+- **Refresh from Xero** pulls an account made there meanwhile ("Nothing in Xero fits? Each Minty account
+  needs its own Xero account: add the missing one in Xero, then Refresh from Xero pulls it in."). Opening
+  the page does the same for someone who may edit (`{"throttle": true}`: at most every 2 minutes;
+  production, 2026-11-23 - banks made in Xero after the connect never showed).
+- The page scrolls as one document (the header is sticky).
+
+**Contacts** - only when there are contacts to ask, and never for a change of the matches (the API's
+`contacts.required`). The accounts step's button is then **Next: contacts** ("Step 1 of 2 · Accounts";
+off, its reason beside it, until every account is matched). The step asks:
+- **Suppliers**: each supplier not yet in the organisation takes its Xero contact (the one of its name
+  is picked for it) or **New in Xero** ("Minty adds it to Xero the first time it's published.").
+- **Petty Cash contacts**: each daily-closing contact still empty ("The customer for cash sales", "The
+  person who pays personally", "The person for the cash difference") takes a Xero contact. Xero's books
+  need them (production, 2026-11-23: Publish was refused after Finish). This replaces the "Choose your
+  Petty Cash contacts" question that came after Finish.
+
+Each answer is `components/ui/Combo` (the searchable picker, the first 50 matches then "Keep typing to
+find more") and saves at once (`PATCH .../xero/matching/contacts`). "Back to accounts" returns.
+
+**Finish** stays off, its reason beside it, until every account (and every contact) has its answer. It
+asks first: "Finish matching? / Each matched account takes its Xero code and name - its Minty code stays
+- and Minty publishes to Xero from today. This can't be undone." Then "Connecting to Xero…", and it goes
+back to Integration ("Connected to Xero."). A company the old rules left disconnected (before
+2026-11-19) gets **Try again**. On a phone each row stacks (name over its picker). Tests:
+`__tests__/matching.test.tsx`.
 
 **Phase 3 (owner, 2026-11-12).** The card's Matching state names why the matching is open (the
 accounts API's `matching.reason`): "Your new Xero organisation needs your accounts matched."
 (`new_org`), "Some accounts were added while Xero was disconnected. Match them to finish reconnecting."
-(`new_accounts`), or **Changing your matches** with **Continue changing** (`change`; publishing goes
+(`new_accounts` - the page then shows every account, the ones already matched filled in and the new ones
+first: "Match your accounts again"), or **Changing your matches** with **Continue changing** (`change`; publishing goes
 on). A connected company's card offers **Change matches** (`XERO_SETTINGS_UPDATE`): it starts the
 change (`POST .../xero/matching/change`) and opens the same page, every account on its current Xero
 account, with **Cancel** beside Finish. The page's heading, lead and Finish confirm follow the reason:
@@ -277,7 +296,7 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   the list.
 - **Live on Xero: no account is added, changed or deleted here** (the user, 2026-11-23). While the
   reads' `xero_live` is true, the Chart of accounts card has no Add button and no row has Edit or
-  Delete (Merge stays), and it says "Your company is connected to Xero, so accounts are added and
+  Delete, and it says "Your company is connected to Xero, so accounts are added and
   changed in Xero, and Minty follows." The API refuses all three (409, "This company is connected to
   Xero, so accounts are added and changed in Xero. Make the change there, and Minty follows."). It is
   Xero, not the role: the card isn't drawn view-only.
@@ -317,6 +336,11 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   it has no Edit or Delete (the API refuses both, 409 "This account comes from Xero. Change it in
   Xero, and Minty follows."), and the card says "Accounts linked to Xero are changed in Xero, and
   Minty follows." ("Contacts ..." on the contacts card).
+- **Minty Code + Xero Code** (the user, 2026-11-24): a row's title is its Minty code and name; once
+  linked, "Xero code <code>" sits beside its badges (the read's `xero_code`). Xero never overwrites the
+  Minty code (minty-db v0.18). The search finds either code.
+- **Accounts are never merged** (the user, 2026-11-24): no account row has Merge, and "<name> can't be
+  deleted" offers no Merge instead for an account. Contacts keep theirs.
 - **A view-only person** sees both lists and "You can see these, but only an Accountant or an
   Admin can change them."
 - Each list has a search; a long list scrolls in its own box (at most `min(28rem, 60vh)`), the
@@ -327,24 +351,26 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
 failed read, the account form's auto-saved draft: put back at once, Cancel, a save, stale
-dropped; live on Xero: no Add, Edit or Delete, Merge kept); e2e `13_chart.spec.ts` (live on Xero at
-360 / 768 / 1440 too).
+dropped; live on Xero: no Add, Edit, Delete or Merge on accounts; both codes; a contact merge);
+e2e `13_chart.spec.ts` (live on Xero at 360 / 768 / 1440 too).
 
 ## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
 
-- **Merge (M1-M4, D3)**: every company-made account and contact row has **Merge** (`call_merge`). The
-  dialog picks the other one (accounts: the same class only) and which one is kept, then `ConfirmDialog`
-  ("<merged>'s records move to <kept>, and <merged> leaves every list. Xero isn't changed. This can't be
-  undone."), then `POST /api/me/company/{accounts|contacts}/<id>/merge {into}`. The "<name> can't be
-  deleted" box has **Merge instead**.
+- **Merge (M1-M4, D3) - contacts only**: every company-made contact row has **Merge** (`call_merge`). The
+  dialog picks the other contact and which one is kept, then `ConfirmDialog` ("<merged>'s records move to
+  <kept>, and <merged> leaves every list. Xero isn't changed. This can't be undone."), then
+  `POST /api/me/company/contacts/<id>/merge {into}`. A used contact's "<name> can't be deleted" box has
+  **Merge instead**. Accounts are never merged (the user, 2026-11-24): no account Merge, and accounts-api's
+  account route is gone.
 - **An account or contact linked to Xero is changed in Xero only** (the user, 2026-11-19): no Edit or
-  Delete on it (Merge stays), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
+  Delete on it (a contact keeps Merge), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
   and Minty follows." Since 2026-11-23 (the user) a company live on Xero has no Add, Edit or Delete on
   any account - see "The rules the page shows".
 - **An account gone from Xero (A3)**: badge "Archived in Xero", the doc's sentence and **Map it** - the
   matching page for that one account (`.../settings/integration/match?account=<id>`, `MatchingScreen`'s
   `OneAccount`): the account as a matching row, the Xero accounts of its kind, Save. A Xero account another
-  account holds says "merge instead" and opens the merge on General (`?merge=<id>&into=<id>`).
+  account holds is refused and named in the page ("<other> is already linked to that Xero account. Choose a
+  different Xero account."); there is no merge.
 - Tests: `__tests__/chart.test.tsx`, `__tests__/matching.test.tsx`.
 
 **Disconnect during matching (the user, 2026-11-19)**: the Xero card's "Matching isn't finished" state

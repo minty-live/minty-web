@@ -86,32 +86,11 @@ export function usedNote(name: string): string {
   return `${name} is already used in your records or Petty Cash Settings, so it can't be deleted.`;
 }
 
-/** An account type's class (minty-db's generated `class`): only accounts of one class merge. */
-const CLASS: Record<string, string> = {
-  bank: "asset",
-  current: "asset",
-  fixed: "asset",
-  inventory: "asset",
-  noncurrent: "asset",
-  prepayment: "asset",
-  current_liability: "liability",
-  liability: "liability",
-  term_liability: "liability",
-  equity: "equity",
-  sales: "revenue",
-  revenue: "revenue",
-  other_income: "revenue",
-};
-
-export function accountClass(type: string): string {
-  return CLASS[type] ?? "expense";
-}
-
 /** The owner's decisions doc A3 (2026-11-19), word for word. */
 export const GONE_FROM_XERO =
   "This account is archived in Xero. Please check it in Xero, then map this account to the one you want to use.";
 
-/** The merge's confirm (M1, M4): where the records go, and that it can't be undone. */
+/** The merge's confirm (M1, M4; contacts only): where the records go, and that it can't be undone. */
 export function mergeNote(merged: string, kept: string): string {
   return `${merged}'s records move to ${kept}, and ${merged} leaves every list. Xero isn't changed. This can't be undone.`;
 }

@@ -4,12 +4,13 @@
  * The company's chart of accounts and its contacts, on General under the company's details (owner,
  * 2026-11-12: its own tab first, merged into General the same day). Accounts are added, edited and
  * deleted here only while Xero is off (the user, 2026-11-23); contacts live or not - a contact added
- * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only - Merge stays.
+ * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only. Contacts keep
+ * Merge; accounts are never merged (the user, 2026-11-24).
  * Both lists are read at once; each change is the API's, its sentence shown as a toast, then both
  * are read again. General's view-only line covers it: the same roles change both.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LoadState } from "@/components/ui/SettingsShell";
@@ -23,7 +24,6 @@ import {
   deleteAccount,
   deleteContact,
   editAccount,
-  mergeAccount,
   mergeContact,
   readAccounts,
   readContacts,
@@ -40,7 +40,6 @@ import {
   ContactsCard,
   DeleteDialog,
   MergeDialog,
-  mergeableAccounts,
   mergeableContacts,
   type MergeSide,
   type Outcome,
@@ -60,9 +59,8 @@ type Open =
   | { kind: "contact"; editing: Contact | null }
   | { kind: "delete-account"; row: Account }
   | { kind: "delete-contact"; row: Contact }
-  | { kind: "merge-account"; row: Account; into?: string }
   | { kind: "merge-contact"; row: Contact }
-  | { kind: "merge-confirm"; what: "account" | "contact"; merged: MergeSide; kept: MergeSide }
+  | { kind: "merge-confirm"; merged: MergeSide; kept: MergeSide }
   | null;
 
 function sentence(err: unknown): string {
@@ -81,7 +79,6 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState(false);
-  const askedToMerge = useRef(false);
   // the account form's browser drafts, per person and company (lib/draftScope.ts)
   const draftScope = useDraftScope(entityId);
 
@@ -89,15 +86,7 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
     let live = true;
     Promise.all([readAccounts(entityId), readContacts(entityId)]).then(
       ([accounts, contacts]) => {
-        if (!live) return;
-        setLoad({ kind: "ready", accounts, contacts });
-        // The matching page's "merge instead" (A3's clash, the user's rule): `?merge=<id>&into=<id>`
-        // opens the merge for that account, the other one picked - once, on the first read.
-        if (askedToMerge.current) return;
-        askedToMerge.current = true;
-        const params = new URLSearchParams(window.location.search);
-        const row = accounts.accounts.find((a) => a.id === params.get("merge"));
-        if (row) setOpen({ kind: "merge-account", row, into: params.get("into") ?? undefined });
+        if (live) setLoad({ kind: "ready", accounts, contacts });
       },
       (err: unknown) => live && setLoad({ kind: "error", message: sentence(err) }),
     );
@@ -161,7 +150,6 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
             onAdd={() => setOpen({ kind: "account", editing: null })}
             onEdit={(row) => setOpen({ kind: "account", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-account", row })}
-            onMerge={(row) => setOpen({ kind: "merge-account", row })}
             mapHref={(row) =>
               `${matchingPath(entityId, entityName)}?account=${encodeURIComponent(row.id)}`
             }
@@ -198,11 +186,6 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
               busy={busy}
               onClose={() => setOpen(null)}
               onConfirm={() => void change(() => deleteAccount(entityId, open.row.id))}
-              onMerge={
-                load.accounts.permissions.delete && open.row.own
-                  ? () => setOpen({ kind: "merge-account", row: open.row })
-                  : undefined
-              }
             />
           ) : null}
           {open?.kind === "delete-contact" ? (
@@ -218,29 +201,13 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
               }
             />
           ) : null}
-          {open?.kind === "merge-account" ? (
-            <MergeDialog
-              kind="account"
-              row={open.row}
-              others={mergeableAccounts(load.accounts, open.row)}
-              into={open.into}
-              busy={busy}
-              onClose={() => setOpen(null)}
-              onNext={(merged, kept) =>
-                setOpen({ kind: "merge-confirm", what: "account", merged, kept })
-              }
-            />
-          ) : null}
           {open?.kind === "merge-contact" ? (
             <MergeDialog
-              kind="contact"
               row={open.row}
               others={mergeableContacts(load.contacts, open.row)}
               busy={busy}
               onClose={() => setOpen(null)}
-              onNext={(merged, kept) =>
-                setOpen({ kind: "merge-confirm", what: "contact", merged, kept })
-              }
+              onNext={(merged, kept) => setOpen({ kind: "merge-confirm", merged, kept })}
             />
           ) : null}
           {open?.kind === "merge-confirm" ? (
@@ -252,11 +219,7 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
               confirmLabel="Merge"
               confirmTone="orange"
               onConfirm={() =>
-                void change(() =>
-                  open.what === "account"
-                    ? mergeAccount(entityId, open.merged.id, open.kept.id)
-                    : mergeContact(entityId, open.merged.id, open.kept.id),
-                )
+                void change(() => mergeContact(entityId, open.merged.id, open.kept.id))
               }
               onBack={() => setOpen(null)}
             >
