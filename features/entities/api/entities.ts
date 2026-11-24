@@ -45,7 +45,11 @@ export type EntityRow = {
 };
 
 /** Flask's flash categories, already read the way its own toasts read them. */
-export type EntityNotice = { category: "success" | "error" | "warning" | "info"; message: string };
+/** `dialog`: one to act on, drawn as a modal (NoticeDialog), never a toast. */
+export type EntityNotice = {
+  category: "success" | "error" | "warning" | "info" | "dialog";
+  message: string;
+};
 
 export type EntityListAnswer = {
   entities: EntityRow[];

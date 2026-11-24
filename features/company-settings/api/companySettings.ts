@@ -7,7 +7,11 @@
 
 import { mintyFetch } from "@/lib/apiClient";
 
-export type Notice = { category: "success" | "error" | "warning" | "info"; message: string };
+/** `dialog`: one to act on, drawn as a modal (NoticeDialog), never a toast. */
+export type Notice = {
+  category: "success" | "error" | "warning" | "info" | "dialog";
+  message: string;
+};
 
 export type RoleOption = { value: string; label: string };
 
@@ -76,6 +80,8 @@ export type IntegrationPage = {
   };
   can_edit: boolean;
   can_rename: boolean;
+  /** Connected to Xero, so the currency stays Xero's (the user, 2026-11-24; the API refuses a change). */
+  currency_locked?: boolean;
   /** How Minty keeps the books (step 4): a `minty` company's connect matches its accounts first. */
   setup_mode?: "minty" | "xero" | null;
   /** A `minty` company's own accounts - what the matching page will ask about (SET-1b's count). */

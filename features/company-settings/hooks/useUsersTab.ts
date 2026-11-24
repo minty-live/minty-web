@@ -9,7 +9,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useToast } from "@/components/ui/Toast";
+import { splitNotices } from "@/components/ui/NoticeDialog";
+import { useToast, type ToastType } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
 
 import {
@@ -66,7 +67,8 @@ export function useUsersTab(entityId: string, flash: string | null): UsersTab {
         setPage(answer);
         setCooldowns(Object.fromEntries(answer.invitations.map((i) => [i.id, i.resend_cooldown])));
         setStatus("ready");
-        for (const notice of answer.notices) showToast(notice.message, notice.category);
+        for (const notice of splitNotices(answer.notices).toasts)
+          showToast(notice.message, notice.category as ToastType);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;

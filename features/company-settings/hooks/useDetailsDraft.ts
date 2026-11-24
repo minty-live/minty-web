@@ -78,10 +78,13 @@ export function useDetailsDraft(page: IntegrationPage | null): DetailsDraft {
   }
   const fields = seen === stamp ? draft : saved;
 
+  // Connected to Xero: the currency stays Xero's (the user, 2026-11-24), so it is never sent.
+  const currencyLocked = Boolean(page?.currency_locked);
   const changes: DetailsChanges = {};
   if (page?.can_rename && fields.name.trim() !== saved.name) changes.name = fields.name.trim();
   if (fields.country && fields.country !== saved.country) changes.country_code = fields.country;
-  if (fields.currency && fields.currency !== saved.currency) changes.currency_id = fields.currency;
+  if (!currencyLocked && fields.currency && fields.currency !== saved.currency)
+    changes.currency_id = fields.currency;
   const dirty = Object.keys(changes).length > 0;
 
   const scope = useDraftScope(page?.company.id);
@@ -114,9 +117,9 @@ export function useDetailsDraft(page: IntegrationPage | null): DetailsDraft {
     restoreDraft: () => {
       const kept = auto.restore()?.value;
       if (!kept) return;
-      // a value no longer on its list stays as saved
+      // a value no longer on its list, or a currency now locked to Xero's, stays as saved
       const country = page?.countries.some((c) => c.code === kept.country);
-      const currency = page?.currencies.some((c) => c.id === kept.currency);
+      const currency = !currencyLocked && page?.currencies.some((c) => c.id === kept.currency);
       setDraft({
         name: page?.can_rename && typeof kept.name === "string" ? kept.name : saved.name,
         country: country ? kept.country : saved.country,

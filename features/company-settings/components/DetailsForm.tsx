@@ -5,7 +5,9 @@
  * see for this company - with the country and currency its reports use under it (the frame draws
  * only the name; General = name + country + currency, owner the same day). The name is an admin's
  * to change; the country and currency an accountant's and up. Only what changed is sent; a currency
- * picked explicitly wins, and a country alone brings its own currency (the API's rule). Enter
+ * picked explicitly wins, and a country alone brings its own currency (the API's rule) - except
+ * while the company is connected to Xero, when the currency stays Xero's and the picker says so
+ * (`currency_locked`; the user, 2026-11-24). Enter
  * saves. "Save changes" waits for a change and says so beside it. An emptied name is never sent:
  * the field says so once Save is tried or the field is left, and the message goes as soon as a name
  * is typed.
@@ -41,6 +43,9 @@ export const GENERAL_COPY = {
   saving: "Saving…",
   unchanged: "No changes to save yet",
   renameAdminOnly: "Only an admin can rename the company.",
+  // the API's CURRENCY_LOCKED (accounts-api hub/company.py), word for word
+  currencyLocked:
+    "This company is connected to Xero, so its currency stays the same as Xero's. To change it, disconnect Xero first.",
 } as const;
 
 export function DetailsForm({
@@ -165,8 +170,9 @@ export function DetailsForm({
               id="company-currency"
               className={`${SETTINGS_INPUT} ${SETTINGS_INPUT_OK}`}
               value={currency}
-              disabled={!page.can_edit || busy}
+              disabled={!page.can_edit || busy || page.currency_locked}
               aria-required
+              aria-describedby={page.currency_locked ? "company-currency-locked" : undefined}
               onChange={(e) => draft.setCurrency(e.target.value)}
             >
               {currency ? null : <option value="">Choose a currency</option>}
@@ -176,6 +182,11 @@ export function DetailsForm({
                 </option>
               ))}
             </select>
+            {page.currency_locked ? (
+              <p id="company-currency-locked" className="mt-1.5 text-[12.5px] text-set-mute">
+                {GENERAL_COPY.currencyLocked}
+              </p>
+            ) : null}
           </div>
         </div>
         {error ? (

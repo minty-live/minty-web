@@ -85,7 +85,14 @@ only what changed (`PATCH /api/me/company/integration`; the page model is Integr
 `hooks/useIntegrationTab.ts`). **This is the one place the country and currency change after the
 company is created** (owner, 2026-11-03; Petty Cash's Setup Required gate and the bill form's
 no-currency line link here): a country sent alone brings its own currency, and the currency
-rebuilds the company's notes and coins (`hub/cash_settings.py`). **Save changes** waits for a
+rebuilds the company's notes and coins (`hub/cash_settings.py`). **While the company is connected to
+Xero the currency is locked** (the user, 2026-11-24; `currency_locked` in the read): the picker is
+disabled with "This company is connected to Xero, so its currency stays the same as Xero's. To
+change it, disconnect Xero first." under it, a country goes alone without bringing its currency,
+the currency is never sent (the API answers 409), and a restored browser draft keeps the saved
+currency. Connect and Reconnect are refused at the callback when the organisation's base currency
+isn't the company's, with what to change: the hand-over's `dialog` notice opens `NoticeDialog` ("Xero wasn't connected",
+one Close button) on this tab or, after a first Connect, on the company list - never a 4 s toast. **Save changes** waits for a
 change and says "No changes to save yet" beside it; a refusal stays under the form. An emptied
 name is never sent: "The company name is still empty. Add the company name to continue." shows
 under the field once Save is tried or the field is left, and goes as soon as the user types.

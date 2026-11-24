@@ -9,7 +9,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useToast } from "@/components/ui/Toast";
+import { splitNotices } from "@/components/ui/NoticeDialog";
+import { useToast, type ToastType } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
 
 import {
@@ -37,6 +38,9 @@ export type IntegrationTab = {
   /** Flask's refusal of the move, shown inside the dialog rather than as a toast. */
   moveError: string;
   dismissConflict: () => void;
+  /** A hand-over notice to act on (category `dialog`: a connect refused for another currency), in a modal. */
+  dialogNotice: string | null;
+  dismissDialogNotice: () => void;
   reload: () => void;
   save: (changes: {
     name?: string;
@@ -66,6 +70,7 @@ export function useIntegrationTab(
   const [saveError, setSaveError] = useState("");
   const [conflict, setConflict] = useState<XeroConflict | null>(null);
   const [moveError, setMoveError] = useState("");
+  const [dialogNotice, setDialogNotice] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const flashLeft = useRef(flash);
   // Both hand-overs are spent on the first read, like the flash: a reload, or the reload a
@@ -86,7 +91,9 @@ export function useIntegrationTab(
         conflictLeft.current = null;
         setPage(answer);
         setStatus("ready");
-        for (const notice of answer.notices) showToast(notice.message, notice.category);
+        const { toasts, dialog } = splitNotices(answer.notices);
+        for (const notice of toasts) showToast(notice.message, notice.category as ToastType);
+        if (dialog) setDialogNotice(dialog);
         if (answer.xero_conflict) {
           setConflict(answer.xero_conflict);
           // Take the spent hand-over OUT of the address (the entity list does the same with
@@ -116,6 +123,8 @@ export function useIntegrationTab(
       setConflict(null);
       setMoveError("");
     }, []),
+    dialogNotice,
+    dismissDialogNotice: useCallback(() => setDialogNotice(null), []),
     reload: useCallback(() => setAttempt((n) => n + 1), []),
     save: async (changes) => {
       setBusy("save");

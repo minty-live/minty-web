@@ -22,6 +22,7 @@ import {
   SettingsDialog,
   SettingsShell,
 } from "@/components/ui/SettingsShell";
+import { NoticeDialog } from "@/components/ui/NoticeDialog";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
 import { startChangeMatches } from "@/features/company-settings/api/companySettings";
@@ -121,6 +122,14 @@ export function IntegrationScreen({
             })
           }
           onClose={tab.dismissConflict}
+        />
+      ) : null}
+
+      {tab.dialogNotice ? (
+        <NoticeDialog
+          message={tab.dialogNotice}
+          entityName={shown.name}
+          onClose={tab.dismissDialogNotice}
         />
       ) : null}
 

@@ -30,7 +30,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useToast } from "@/components/ui/Toast";
+import { splitNotices } from "@/components/ui/NoticeDialog";
+import { useToast, type ToastType } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/apiClient";
 import { isEntityScoped } from "@/lib/auth";
 import { redirectToHandoff } from "@/lib/handoff";
@@ -111,6 +112,8 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   const [pendingBusy, setPendingBusy] = useState(false);
   const [pendingError, setPendingError] = useState("");
   const told = useRef(false);
+  // A hand-over notice to act on (category `dialog`), shown in a modal until closed.
+  const [dialogNotice, setDialogNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEntityScoped()) {
@@ -128,6 +131,9 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
       .then((answer) => {
         if (controller.signal.aborted) return;
         setLoaded({ attempt, archived, answer, error: null });
+        // Only the first read carries the hand-over, so this opens once.
+        const dialog = splitNotices(answer.notices).dialog;
+        if (dialog) setDialogNotice(dialog);
         setRefreshing(false);
       })
       .catch((err: unknown) => {
@@ -149,7 +155,8 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   useEffect(() => {
     if (!loaded?.answer || told.current) return;
     told.current = true;
-    for (const notice of loaded.answer.notices) showToast(notice.message, notice.category);
+    for (const notice of splitNotices(loaded.answer.notices).toasts)
+      showToast(notice.message, notice.category as ToastType);
     if (handOver) router.replace(ENTITIES_BASE_PATH);
   }, [loaded, handOver, router, showToast]);
 
@@ -228,6 +235,9 @@ export function useEntityList({ flash = null, fixture = null }: UseEntityListArg
   }, []);
 
   return {
+    /** The hand-over's notice to act on (a Xero connect refused for another currency), in a modal. */
+    dialogNotice,
+    dismissDialogNotice: useCallback(() => setDialogNotice(null), []),
     status,
     error: status === "error" ? (loaded?.error ?? LOAD_FAILED) : null,
     rows,

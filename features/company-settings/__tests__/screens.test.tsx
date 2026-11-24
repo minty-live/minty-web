@@ -527,6 +527,36 @@ describe("GeneralScreen", () => {
     expect(went).toEqual([expect.stringContaining("/settings/integration")]);
   });
 
+  it("connected to Xero: the currency stays Xero's, says why, and a country goes alone", async () => {
+    // the user, 2026-11-24: the currency is locked while the company is connected to Xero
+    flask({
+      "GET /api/me/company/integration": () => json({ ...INTEGRATION, currency_locked: true }),
+      "PATCH /api/me/company/integration": () =>
+        json({ ...INTEGRATION, currency_locked: true, message: "Settings saved!" }),
+    });
+    showGeneral();
+
+    const currency = await screen.findByLabelText(/^Currency\s*\*?$/);
+    expect(currency).toBeDisabled();
+    expect(currency).toHaveAccessibleDescription(
+      "This company is connected to Xero, so its currency stays the same as Xero's. To change it, disconnect Xero first.",
+    );
+    const country = screen.getByLabelText(/^Country\s*\*?$/);
+    expect(country).toBeEnabled();
+    await userEvent.selectOptions(country, "SG");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Settings saved!")).toBeInTheDocument();
+    expect(sent("PATCH /api/me/company/integration")).toEqual([{ country_code: "SG" }]);
+  });
+
+  it("not connected: the currency may be changed, with no Xero line", async () => {
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    showGeneral();
+
+    expect(await screen.findByLabelText(/^Currency\s*\*?$/)).toBeEnabled();
+    expect(screen.queryByText(/its currency stays the same as Xero's/)).toBeNull();
+  });
+
   it("a viewer who may change nothing is never asked", async () => {
     flask({
       "GET /api/me/company/integration": () =>
@@ -674,6 +704,30 @@ describe("IntegrationScreen", () => {
     xero: { ...INTEGRATION.xero, status: "disconnected", connected: false, organisation: null },
   };
 
+  // The user, 2026-11-24: Xero's currency differs, so the connect was refused. The sentence says
+  // what to change and is long, so it is a modal that stays until closed - never a toast.
+  it("a connect refused for another currency opens a modal that says what to change", async () => {
+    const SENTENCE =
+      "Acme Ltd uses USD in Xero, but Olive & Vine uses HKD in Minty, so it wasn't connected. Change the company's currency to USD in Settings, under General, or connect a Xero organisation that uses HKD.";
+    flask({
+      "GET /api/me/company/integration": () =>
+        json({
+          ...REFUSED,
+          notices: [{ category: "dialog", message: SENTENCE }],
+          xero_conflict: null,
+        }),
+    });
+    showIntegration();
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveAccessibleName("Xero wasn't connected");
+    expect(within(dialog).getByText(SENTENCE)).toBeInTheDocument();
+    expect(screen.getAllByText(SENTENCE)).toHaveLength(1); // no toast beside it
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("a refused connect says which company holds the organisation, and moves it on asking", async () => {
     flask({
       "GET /api/me/company/integration": (url) =>
@@ -806,6 +860,29 @@ describe("GeneralScreen - auto-saved draft of the details", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
     expect(screen.queryByText(/unsaved changes/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  });
+
+  it("a currency typed before the company was connected to Xero is not put back", async () => {
+    flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
+    const first = mount();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.selectOptions(await screen.findByLabelText(/^Currency\s*\*?$/), "c-sgd");
+    await user.selectOptions(screen.getByLabelText(/^Country\s*\*?$/), "SG");
+    await wait2s();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? "null").value.currency).toBe("c-sgd");
+    first.unmount();
+
+    flask({
+      "GET /api/me/company/integration": () => json({ ...INTEGRATION, currency_locked: true }),
+      "PATCH /api/me/company/integration": () =>
+        json({ ...INTEGRATION, currency_locked: true, message: "Settings saved!" }),
+    });
+    mount();
+    await waitFor(() => expect(screen.getByLabelText(/^Country\s*\*?$/)).toHaveValue("SG"));
+    expect(screen.getByLabelText(/^Currency\s*\*?$/)).toHaveValue("c-hkd");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Settings saved!")).toBeInTheDocument();
+    expect(sent("PATCH /api/me/company/integration")).toEqual([{ country_code: "SG" }]);
   });
 
   it("a save that went through removes it", async () => {

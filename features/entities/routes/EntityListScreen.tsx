@@ -31,6 +31,7 @@
  */
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { NoticeDialog } from "@/components/ui/NoticeDialog";
 
 import { AiGrantDialog } from "@/features/entities/components/AiGrantDialog";
 import { EntityCard } from "@/features/entities/components/EntityCard";
@@ -179,6 +180,9 @@ export function EntityListScreen(args: UseEntityListArgs) {
             </p>
           ) : null}
         </ConfirmDialog>
+      ) : null}
+      {list.dialogNotice ? (
+        <NoticeDialog message={list.dialogNotice} onClose={list.dismissDialogNotice} />
       ) : null}
     </div>
   );

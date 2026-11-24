@@ -439,6 +439,46 @@ test.describe("the entity list", () => {
     await expect(page).toHaveURL(/\/entities$/);
   });
 
+  // The user, 2026-11-24: a Xero connect refused for another currency says what to change in a
+  // modal that stays until closed - at a phone's width first, then wider.
+  for (const width of [360, 768, 1440]) {
+    test(`a notice to act on is a modal, not a toast, at ${width}px`, async ({
+      page,
+    }, testInfo) => {
+      const sentence =
+        "Acme Ltd uses USD in Xero, but Olive & Vine uses HKD in Minty, so it wasn't connected. Change the company's currency to USD in Settings, under General, or connect a Xero organisation that uses HKD.";
+      await page.setViewportSize({ width, height: width < 768 ? 740 : 900 });
+      await stubFlask(page, { ...LIST, notices: [{ category: "dialog", message: sentence }] });
+      await handoff(page, creds(), "/entities?flash=signed-hand-over");
+
+      const dialog = page.getByRole("dialog", { name: "Xero wasn't connected" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText(sentence)).toBeVisible();
+      await expect(page.getByText(sentence)).toHaveCount(1); // no toast beside it
+      // Minty's picture is drawn, not just its space.
+      await expect
+        .poll(() => dialog.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth))
+        .toBeGreaterThan(0);
+      // Nothing wider than the screen, and Close is a full tap target.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+      const close = dialog.getByRole("button", { name: "Close" });
+      const box = await close.boundingBox();
+      expect(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width).toBeTruthy();
+      await testInfo.attach(`notice-dialog-${width}`, {
+        body: await page.screenshot(),
+        contentType: "image/png",
+      });
+
+      // Still there after the toast's 4 s would have gone.
+      await page.waitForTimeout(4500);
+      await expect(dialog).toBeVisible();
+      await close.click();
+      await expect(dialog).toBeHidden();
+    });
+  }
+
   test("a token minted inside a company is traded for one that is not", async ({ page }) => {
     await stubFlask(page);
     const flaskAsked = await bounceFlaskHandoff(page, creds());

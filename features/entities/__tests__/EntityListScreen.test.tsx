@@ -179,6 +179,21 @@ describe("EntityListScreen", () => {
     ).toHaveLength(1);
   });
 
+  it("a refusal to act on (a Xero connect in another currency) is a modal, not a toast", async () => {
+    const SENTENCE =
+      "Acme Ltd uses USD in Xero, but Olive & Vine uses HKD in Minty, so it wasn't connected. Change the company's currency to USD in Settings, under General, or connect a Xero organisation that uses HKD.";
+    serve({ ...LIST, notices: [{ category: "dialog", message: SENTENCE }] });
+    show("signed-hand-over");
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveAccessibleName("Xero wasn't connected");
+    expect(within(dialog).getByText(SENTENCE)).toBeInTheDocument();
+    expect(screen.getAllByText(SENTENCE)).toHaveLength(1); // no toast beside it
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("a token minted inside a company goes back for one that is not, before reading anything", async () => {
     setAuth(TOKEN, "e1", "Olive Shop");
     show();
