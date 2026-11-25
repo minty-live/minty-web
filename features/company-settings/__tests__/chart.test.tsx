@@ -155,7 +155,9 @@ describe("the two lists", () => {
     const people = card("Contacts");
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
     expect(people.getByRole("button", { name: "Delete Walk-in Customer" })).toBeInTheDocument();
-    expect(people.getByRole("button", { name: "Merge Kee Wah" })).toBeInTheDocument();
+    // contacts merge the Xero way, from the card (the user, 2026-11-25): no Merge on a row
+    expect(people.getByRole("button", { name: /Merge contacts/ })).toBeInTheDocument();
+    expect(people.queryByRole("button", { name: "Merge Kee Wah" })).toBeNull();
     expect(people.getByRole("button", { name: /Add a contact/ })).toBeInTheDocument();
   });
 
@@ -188,7 +190,6 @@ describe("the two lists", () => {
     for (const row of ["Kee Wah", "Walk-in Customer"]) {
       expect(people.getByRole("button", { name: `Edit ${row}` })).toBeInTheDocument();
       expect(people.getByRole("button", { name: `Delete ${row}` })).toBeInTheDocument();
-      expect(people.getByRole("button", { name: `Merge ${row}` })).toBeInTheDocument();
     }
     expect(people.getByRole("button", { name: /Add a contact/ })).toBeInTheDocument();
     expect(people.queryByText(/connected to Xero/)).toBeNull();
@@ -472,7 +473,7 @@ describe("merging contacts and Xero (owner's decisions doc M1-M4, A3, 2026-11-19
     expect(map.getAttribute("href")).toMatch(/\/settings\/integration\/match\?account=a-rent$/);
   });
 
-  it("live on Xero, a contact linked to Xero is changed in Xero only: no Edit or Delete, still Merge; Minty's own keep both (the user, 2026-11-19, 2026-11-23)", async () => {
+  it("live on Xero, a contact linked to Xero is changed in Xero only: no Edit or Delete; Minty's own keep both (the user, 2026-11-19, 2026-11-23)", async () => {
     const linked = {
       id: "c-abc",
       name: "ABC Supplies",
@@ -493,42 +494,167 @@ describe("merging contacts and Xero (owner's decisions doc M1-M4, A3, 2026-11-19
     expect(await people.findByText("ABC Supplies")).toBeInTheDocument();
     expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
     expect(people.queryByRole("button", { name: "Delete ABC Supplies" })).toBeNull();
-    expect(people.getByRole("button", { name: "Merge ABC Supplies" })).toBeInTheDocument();
+    expect(people.getByRole("button", { name: /Merge contacts/ })).toBeInTheDocument();
     expect(
       people.getByText("Contacts linked to Xero are changed in Xero, and Minty follows."),
     ).toBeInTheDocument();
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
   });
 
-  it("merging two contacts asks which one is kept, then confirms, then sends it", async () => {
+  const THREE = () =>
+    contacts({
+      contacts: [
+        ...contacts().contacts,
+        {
+          id: "c-kee2",
+          name: "Kee Wah Bakery",
+          own: true,
+          source: "user",
+          in_xero: false,
+          xero_id: null,
+          used: true,
+        },
+      ],
+    });
+
+  it("contacts merge the Xero way: tick several, keep one of them, confirm, sent at once (the user, 2026-11-25)", async () => {
     api({
       "GET /api/me/company/accounts": () => json(accounts()),
-      "GET /api/me/company/contacts": () => json(contacts()),
-      "POST /api/me/company/contacts/c-walk/merge": () =>
-        json({ message: "Walk-in Customer merged into Kee Wah.", moved: { bill: 2 } }),
+      "GET /api/me/company/contacts": () => json(THREE()),
+      "POST /api/me/company/contacts/merge": () =>
+        json({
+          message: "Walk-in Customer and Kee Wah Bakery merged into Kee Wah. Kee Wah stays.",
+          kept: "c-kee",
+          moved: { bill: 2 },
+        }),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    const people = card("Contacts");
+    await user.click(await people.findByRole("button", { name: /Merge contacts/ }));
+
+    const panel = within(screen.getByRole("region", { name: "Merge contacts" }));
+    const merge = panel.getByRole("button", { name: "Merge" });
+    expect(merge).toBeDisabled();
+    expect(panel.getByText("Tick at least two contacts.")).toBeInTheDocument();
+    // the dropdown offers only the ones ticked: never a new contact
+    for (const name of ["Walk-in Customer", "Kee Wah", "Kee Wah Bakery"]) {
+      await user.click(people.getByRole("checkbox", { name }));
+    }
+    expect(panel.getByText("3 contacts ticked")).toBeInTheDocument();
+    expect(panel.getByText("Choose the one to keep.")).toBeInTheDocument();
+    const keep = panel.getByLabelText("Keep this one");
+    expect(
+      within(keep)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Choose the one to keep", "Kee Wah", "Walk-in Customer", "Kee Wah Bakery"]);
+    await user.selectOptions(keep, "c-kee");
+    expect(
+      panel.getByText(
+        "Walk-in Customer and Kee Wah Bakery merge into Kee Wah. Kee Wah stays; the others leave every list. Xero isn't changed.",
+      ),
+    ).toBeInTheDocument();
+    // unticking the kept one clears the choice
+    await user.click(people.getByRole("checkbox", { name: /^Kee Wah$/ }));
+    expect(panel.getByText("Choose the one to keep.")).toBeInTheDocument();
+    await user.click(people.getByRole("checkbox", { name: /^Kee Wah$/ }));
+    await user.selectOptions(keep, "c-kee");
+    await user.click(merge);
+
+    const confirm = screen.getByRole("dialog", { name: "Merge 2 contacts into Kee Wah?" });
+    expect(confirm).toHaveTextContent(
+      "The records of Walk-in Customer and Kee Wah Bakery move to Kee Wah, and they leave every list. Xero isn't changed. This can't be undone.",
+    );
+    expect(sent).toEqual([]);
+    await user.click(within(confirm).getByRole("button", { name: "Merge" }));
+    expect(
+      await screen.findByText(
+        "Walk-in Customer and Kee Wah Bakery merged into Kee Wah. Kee Wah stays.",
+      ),
+    ).toBeInTheDocument();
+    expect(sent).toEqual([
+      {
+        method: "POST",
+        path: "/api/me/company/contacts/merge",
+        body: { ids: ["c-walk", "c-kee2", "c-kee"], keep: "c-kee" },
+      },
+    ]);
+    expect(screen.queryByRole("region", { name: "Merge contacts" })).toBeNull();
+  });
+
+  const LINKED = {
+    id: "c-abc",
+    name: "ABC Supplies",
+    own: true,
+    source: "xero",
+    in_xero: true,
+    xero_id: "x-abc",
+    used: false,
+  };
+
+  async function tickWithLinked(live: boolean) {
+    api({
+      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/contacts": () =>
+        json(contacts({ xero_live: live, contacts: [...contacts().contacts, LINKED] })),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    const people = card("Contacts");
+    await user.click(await people.findByRole("button", { name: /Merge contacts/ }));
+    await user.click(people.getByRole("checkbox", { name: /^Kee Wah/ }));
+    await user.click(people.getByRole("checkbox", { name: /^ABC Supplies/ }));
+    const panel = within(screen.getByRole("region", { name: "Merge contacts" }));
+    await user.selectOptions(panel.getByLabelText("Keep this one"), "c-kee");
+    return { user, people, panel };
+  }
+
+  it("while Xero is connected, a ticked contact in Xero is merged in Xero first; Cancel leaves (2026-11-25)", async () => {
+    const { user, people, panel } = await tickWithLinked(true);
+    expect(panel.getByRole("button", { name: "Merge" })).toBeDisabled();
+    expect(
+      panel.getByText(
+        "In Xero already: ABC Supplies. Your company is connected to Xero, so merge them in Xero first, and Minty follows at the next sync.",
+      ),
+    ).toBeInTheDocument();
+    // two contacts only in Minty still merge here
+    await user.click(people.getByRole("checkbox", { name: /^ABC Supplies/ }));
+    await user.click(people.getByRole("checkbox", { name: /^Walk-in Customer/ }));
+    expect(panel.getByRole("button", { name: "Merge" })).toBeEnabled();
+
+    await user.click(panel.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("region", { name: "Merge contacts" })).toBeNull();
+    expect(people.queryByRole("checkbox")).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
+  it("while Xero is off, a contact linked to it merges here, and the panel says Xero keeps it apart (2026-11-25)", async () => {
+    const { panel } = await tickWithLinked(false);
+    expect(panel.getByRole("button", { name: "Merge" })).toBeEnabled();
+    expect(panel.getByRole("note")).toHaveTextContent(
+      "ABC Supplies is linked to Xero. Xero keeps it as a separate contact: merge it there too when you reconnect.",
+    );
+  });
+
+  it("a used contact can't be deleted; Merge instead opens the merge with it ticked", async () => {
+    api({
+      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/contacts": () => json(THREE()),
     });
     show();
     await loaded();
     const user = userEvent.setup();
     await user.click(
-      await card("Contacts").findByRole("button", { name: "Merge Walk-in Customer" }),
+      await card("Contacts").findByRole("button", { name: "Delete Kee Wah Bakery" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Merge Walk-in Customer" });
-    expect(within(dialog).getByRole("button", { name: "Merge" })).toBeDisabled();
-    expect(
-      within(dialog).getByText("Choose the contact to merge Walk-in Customer with."),
-    ).toBeInTheDocument();
-    await user.selectOptions(within(dialog).getByLabelText("Merge with"), "c-kee");
-    await user.click(within(dialog).getByRole("radio", { name: "Keep Kee Wah" }));
-    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
-
-    const confirm = screen.getByRole("dialog", { name: /Merge Walk-in Customer into Kee Wah\?/ });
-    expect(sent).toEqual([]);
-    await user.click(within(confirm).getByRole("button", { name: "Merge" }));
-    expect(await screen.findByText("Walk-in Customer merged into Kee Wah.")).toBeInTheDocument();
-    expect(sent).toEqual([
-      { method: "POST", path: "/api/me/company/contacts/c-walk/merge", body: { into: "c-kee" } },
-    ]);
+    const dialog = screen.getByRole("dialog", { name: "Kee Wah Bakery can't be deleted" });
+    await user.click(within(dialog).getByRole("button", { name: "Merge instead" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(card("Contacts").getByRole("checkbox", { name: /^Kee Wah Bakery/ })).toBeChecked();
+    expect(screen.getByText("1 contact ticked")).toBeInTheDocument();
   });
 });
 

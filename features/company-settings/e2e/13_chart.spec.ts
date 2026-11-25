@@ -261,12 +261,18 @@ for (const width of [360, 768, 1440]) {
       .getByRole("dialog", { name: "Rent can't be deleted" })
       .getByRole("button", { name: "Close", exact: true })
       .click();
-    // an account gone from Xero says so (doc A3); accounts are never merged, contacts are (2026-11-24),
-    // and the contact merge dialog fits too
+    // an account gone from Xero says so (doc A3); accounts are never merged (2026-11-24); contacts merge
+    // the Xero way - tick several, keep one of them (2026-11-25) - and the merge mode fits too
     await expect(page.getByRole("link", { name: "Map Old Rent to a Xero account" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Merge 477 - Wages" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Merge Kee Wah" }).click();
-    await expect(page.getByRole("dialog", { name: "Merge Kee Wah" })).toBeVisible();
+    const people = page.getByRole("region", { name: "Contacts" });
+    await people.getByRole("button", { name: /Merge contacts/ }).click();
+    await people.getByRole("checkbox", { name: "Kee Wah" }).check();
+    await people.getByRole("checkbox", { name: /^Walk-in Customer/ }).check();
+    const panel = page.getByRole("region", { name: "Merge contacts" });
+    await panel.getByLabel("Keep this one").selectOption({ label: "Kee Wah" });
+    await expect(panel.getByText(/merges into Kee Wah\. Kee Wah stays/)).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Merge", exact: true })).toBeEnabled();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: `test-results/13_chart_merge_${width}.png`, fullPage: true });
   });
@@ -295,7 +301,7 @@ for (const width of [360, 768, 1440]) {
     await expect(people.getByRole("button", { name: /Add a contact/ })).toBeVisible();
     await expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeVisible();
     await expect(people.getByRole("button", { name: "Delete Kee Wah" })).toBeVisible();
-    await expect(people.getByRole("button", { name: "Merge Kee Wah" })).toBeVisible();
+    await expect(people.getByRole("button", { name: /Merge contacts/ })).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: `test-results/13_chart_live_${width}.png`, fullPage: true });
     expect(sent).toEqual([]);

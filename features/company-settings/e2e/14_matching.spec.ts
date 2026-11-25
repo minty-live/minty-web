@@ -67,6 +67,8 @@ const ROWS = [
 const CONTACT_OPTIONS = [
   { id: "xc-abc", name: "ABC Supplies" },
   { id: "xc-ada", name: "Ada Director" },
+  // another Minty contact has it: shown, never picked for a supplier (the user, 2026-11-25)
+  { id: "xc-held", name: "Held Supplies", held_by: "Held Supplies Ltd" },
   // a long list: the picker shows the first 50 and asks for more typing
   ...Array.from({ length: 80 }, (_, i) => ({ id: `xc-${i}`, name: `Supplier ${i + 1}` })),
 ];
@@ -215,6 +217,8 @@ for (const width of [360, 768, 1440]) {
     await expect(page.getByRole("heading", { name: "Choose your contacts in Xero" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Finish" })).toBeDisabled();
     await page.getByRole("combobox", { name: "Xero contact for Wing Lee Trading Co." }).click();
+    await expect(page.getByText("Held Supplies - matched to Held Supplies Ltd")).toBeVisible();
+    await expect(page.getByRole("option", { name: /Held Supplies/ })).toHaveCount(0);
     await page.getByRole("option", { name: /New in Xero/ }).click();
     const director = page.getByRole("combobox", {
       name: "Xero contact for The person who pays personally",

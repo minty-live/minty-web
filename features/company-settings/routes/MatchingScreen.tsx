@@ -104,6 +104,11 @@ export const MATCH_COPY = {
     "Tell us which Xero contact each one is. We've filled in the ones with the same name.",
   suppliers: "Suppliers",
   dailyClosing: "Petty Cash contacts",
+  // matching and merging are separate (the user, 2026-11-25)
+  heldContact: (name: string, holder: string) => `${name} - matched to ${holder}`,
+  heldNote:
+    "A Xero contact another contact already has can't be picked for a supplier. Merge the two in Settings first.",
+  openContacts: "Open your contacts",
   contactNames: {
     cash_sale: "The customer for cash sales",
     director: "The person who pays personally",
@@ -281,12 +286,17 @@ function ContactPicker({
     }
     const found = options.filter((o) => !q || o.name.toLowerCase().includes(q));
     out.push(
-      ...found.slice(0, CONTACTS_SHOWN).map((o, i) => ({
-        key: o.id,
-        label: o.name,
-        selected: o.id === pick?.xero_contact_id,
-        divided: allowNew && i === 0 && out.length > 0,
-      })),
+      ...found.slice(0, CONTACTS_SHOWN).map((o, i) =>
+        // a supplier never takes one another contact has (a daily-closing slot may): shown, not pickable
+        allowNew && o.held_by && o.id !== pick?.xero_contact_id
+          ? { key: o.id, label: MATCH_COPY.heldContact(o.name, o.held_by), info: true }
+          : {
+              key: o.id,
+              label: o.name,
+              selected: o.id === pick?.xero_contact_id,
+              divided: allowNew && i === 0 && out.length > 0,
+            },
+      ),
     );
     if (!found.length) out.push({ key: "none", label: MATCH_COPY.noContact, info: true });
     if (found.length > CONTACTS_SHOWN)
@@ -576,6 +586,17 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
           >
             {contactsLeft ? MATCH_COPY.contactsBlocking(contactsLeft) : MATCH_COPY.contactsDone}
           </section>
+          {contacts.suppliers.length && contacts.options.some((o) => o.held_by) ? (
+            <p className="text-[13px] text-set-ink-2">
+              {MATCH_COPY.heldNote}{" "}
+              <a
+                href={generalPath(company.id, company.name)}
+                className="font-semibold underline underline-offset-2"
+              >
+                {MATCH_COPY.openContacts}
+              </a>
+            </p>
+          ) : null}
           {[
             {
               key: "suppliers",

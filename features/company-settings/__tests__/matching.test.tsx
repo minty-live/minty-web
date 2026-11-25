@@ -488,6 +488,41 @@ describe("Matching a company's accounts to Xero", () => {
     expect(screen.getByText(MATCH_COPY.nextBlocked)).toBeInTheDocument();
   });
 
+  it("a Xero contact another contact has is shown, never picked for a supplier; a slot may take it (2026-11-25)", async () => {
+    const held = {
+      ...ASKED,
+      options: [
+        ...ASKED.options,
+        { id: "xc-old", name: "Old Supplies", held_by: "Old Supplies Ltd" },
+      ],
+    };
+    api({ "GET /api/me/company/xero/matching": () => json({ ...MATCHED, contacts: held }) });
+    wrap(<MatchingScreen company={COMPANY} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: MATCH_COPY.next }));
+    expect(screen.getByText(MATCH_COPY.heldNote, { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: MATCH_COPY.openContacts })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/settings\/general$/),
+    );
+
+    await user.click(
+      screen.getByRole("combobox", { name: "Xero contact for Wing Lee Trading Co." }),
+    );
+    expect(
+      screen.getByText(MATCH_COPY.heldContact("Old Supplies", "Old Supplies Ltd")),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Old Supplies/ })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.click(
+      screen.getByRole("combobox", {
+        name: `Xero contact for ${MATCH_COPY.contactNames.director}`,
+      }),
+    );
+    expect(screen.getByRole("option", { name: "Old Supplies" })).toBeInTheDocument();
+  });
+
   it("a company the old rules left disconnected gets Try again", async () => {
     let tries = 0;
     api({

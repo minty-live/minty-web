@@ -10,7 +10,9 @@
  * the API's at once. While the company is live on Xero (`xero_live`) the chart has no Add, Edit or
  * Delete at all - Xero's to change, and the API refuses them (the user, 2026-11-23); contacts are still
  * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. Contacts
- * keep Merge; accounts are never merged (the user, 2026-11-24 - each matches its own Xero account).
+ * merge the Xero way (the user, 2026-11-25): **Merge contacts** turns the list into tick boxes and a panel
+ * picks the one kept - always one of those ticked; while Xero is connected a contact in Xero is merged in
+ * Xero first; while it is off, one linked to Xero merges here and the panel says Xero keeps it apart. Accounts are never merged (the user, 2026-11-24 - each matches its own Xero account).
  * An account shows its Minty code and, once linked, its Xero code beside it (Minty Code + Xero Code).
  */
 
@@ -42,6 +44,7 @@ import {
 } from "@/components/ui/settingsFields";
 import { Combo, type ComboRow } from "@/components/ui/Combo";
 import { SettingsCard, SettingsDialog } from "@/components/ui/SettingsShell";
+import { Tick } from "@/components/ui/Tick";
 
 import type {
   Account,
@@ -57,6 +60,9 @@ import {
   contactProblem,
   deleteNote,
   GONE_FROM_XERO,
+  mergeInXeroNote,
+  mergeLinkedNote,
+  mergeSummary,
   usedNote,
   type AccountProblems,
 } from "@/features/company-settings/lib/chartRules";
@@ -113,11 +119,9 @@ function Row({
   note,
   canEdit,
   canDelete,
-  canMerge = false,
   busy,
   onEdit,
   onDelete,
-  onMerge,
 }: {
   title: string;
   detail?: string;
@@ -126,11 +130,9 @@ function Row({
   note?: ReactNode;
   canEdit: boolean;
   canDelete: boolean;
-  canMerge?: boolean;
   busy: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onMerge?: () => void;
 }) {
   return (
     <li className="flex min-h-14 min-w-0 items-center gap-2 border-b border-set-line px-3 py-2 last:border-b-0">
@@ -144,18 +146,6 @@ function Row({
         ) : null}
         {note}
       </div>
-      {canMerge && onMerge ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onMerge}
-          aria-label={`Merge ${title}`}
-          title="Merge"
-          className={`${ROW_BUTTON} enabled:hover:bg-set-pill enabled:hover:text-set-ink`}
-        >
-          <Icon name="call_merge" />
-        </button>
-      ) : null}
       {canEdit ? (
         <button
           type="button"
@@ -761,68 +751,223 @@ export function AccountForm({
 
 // ---- contacts ------------------------------------------------------------------------------------
 
+/** The Xero-style merge (the user, 2026-11-25): the contacts ticked, and the one kept - one of them. */
+export type MergeState = { ticked: string[]; keep: string };
+
+/** Why Merge is off, or null: the reason sits beside the button (the house rule for a gated button). */
+export function mergeBlocked(read: ContactsRead, merge: MergeState): string | null {
+  if (merge.ticked.length < 2) return "Tick at least two contacts.";
+  if (!merge.keep || !merge.ticked.includes(merge.keep)) return "Choose the one to keep.";
+  if (read.xero_live) {
+    // connected: a contact in Xero is merged in Xero first (the user, 2026-11-25)
+    const inXero = read.contacts.filter((c) => merge.ticked.includes(c.id) && c.in_xero);
+    if (inXero.length) return mergeInXeroNote(inXero.map((c) => c.name));
+  }
+  return null;
+}
+
 export function ContactsCard({
   read,
   busy,
   form,
+  merge,
   onAdd,
   onEdit,
   onDelete,
+  onMergeChange,
   onMerge,
 }: {
   read: ContactsRead;
   busy: boolean;
   /** The add / rename form when one is open, drawn above the list. */
   form?: ReactNode;
+  /** Merge mode: the rows are tick boxes and the panel picks the one kept (null: the list as usual). */
+  merge: MergeState | null;
   onAdd: () => void;
   onEdit: (contact: Contact) => void;
   onDelete: (contact: Contact) => void;
-  onMerge: (contact: Contact) => void;
+  onMergeChange: (merge: MergeState | null) => void;
+  /** Merge pressed: the ticked contacts and the one kept, to confirm. */
+  onMerge: (merge: MergeState) => void;
 }) {
   const [query, setQuery] = useState("");
+  const keepId = useId();
   const { permissions: may } = read;
   const q = query.trim().toLowerCase();
   const shown = read.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
+  const mergeable = read.contacts.filter((c) => c.own);
+  const ticked = merge ? read.contacts.filter((c) => merge.ticked.includes(c.id)) : [];
+  const kept = ticked.find((c) => c.id === merge?.keep);
+  const blocked = merge ? mergeBlocked(read, merge) : null;
+  // Xero off: linked ones merge here, and Xero keeps them as separate contacts (the user's pick, 2026-11-25)
+  const linkedOff = read.xero_live ? [] : ticked.filter((c) => c.in_xero).map((c) => c.name);
+  const toggle = (id: string) => {
+    if (!merge) return;
+    const next = merge.ticked.includes(id)
+      ? merge.ticked.filter((t) => t !== id)
+      : [...merge.ticked, id];
+    onMergeChange({ ticked: next, keep: next.includes(merge.keep) ? merge.keep : "" });
+  };
   return (
     <SettingsCard
       title="Contacts"
       lead="The people and businesses on your expenses and payment requests. A contact you add here goes to Xero too when Xero is connected."
       readOnly={!may.add && !may.edit && !may.delete}
       action={
-        may.add && !form ? <AddButton label="Add a contact" busy={busy} onClick={onAdd} /> : null
+        merge || form ? null : (
+          <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+            {may.delete && mergeable.length >= 2 ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onMergeChange({ ticked: [], keep: "" })}
+                className={`${SETTINGS_OUTLINE} w-full sm:w-auto`}
+              >
+                <Icon name="call_merge" />
+                Merge contacts
+              </button>
+            ) : null}
+            {may.add ? <AddButton label="Add a contact" busy={busy} onClick={onAdd} /> : null}
+          </div>
+        )
       }
     >
       {form}
       <Search label="Search contacts" value={query} onChange={setQuery} />
       {read.contacts.some((c) => c.in_xero) ? <FromXeroNote what="Contacts" live={false} /> : null}
-      {shown.length === 0 ? (
-        <p className="text-sm text-set-mute" role="status">
-          {read.contacts.length ? "No contacts match your search." : "No contacts yet."}
+      {merge ? (
+        <p className="text-[13px] text-set-ink-2">
+          Tick the contacts to merge, then choose the one to keep. The others&apos; records move to
+          it.
         </p>
-      ) : (
-        <ul className={LIST} aria-label="Contacts">
-          {shown.map((c) => (
-            <Row
-              key={c.id}
-              title={c.name}
-              badges={
-                <>
-                  {c.in_xero ? <XeroBadge live={read.xero_live} /> : null}
-                  {c.source === "template" ? <Badge>Comes with Minty</Badge> : null}
-                </>
-              }
-              // linked to Xero: changed in Xero only (the user, 2026-11-19)
-              canEdit={c.own && may.edit && !c.in_xero}
-              canDelete={c.own && may.delete && !c.in_xero}
-              canMerge={c.own && may.delete}
-              busy={busy}
-              onEdit={() => onEdit(c)}
-              onDelete={() => onDelete(c)}
-              onMerge={() => onMerge(c)}
-            />
-          ))}
-        </ul>
-      )}
+      ) : null}
+      <div
+        className={
+          merge
+            ? "grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:items-start"
+            : "min-w-0"
+        }
+      >
+        {shown.length === 0 ? (
+          <p className="text-sm text-set-mute" role="status">
+            {read.contacts.length ? "No contacts match your search." : "No contacts yet."}
+          </p>
+        ) : merge ? (
+          <ul className={LIST} aria-label="Contacts to merge">
+            {shown.map((c) => (
+              <li key={c.id} className="border-b border-set-line last:border-b-0">
+                <label
+                  className={`flex min-h-14 min-w-0 items-center gap-3 px-3 py-2 ${c.own ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                >
+                  <Tick
+                    checked={merge.ticked.includes(c.id)}
+                    disabled={busy || !c.own}
+                    onChange={() => toggle(c.id)}
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="min-w-0 text-[14.5px] [overflow-wrap:anywhere] text-set-ink">
+                      {c.name}
+                    </span>
+                    {c.in_xero ? (
+                      <span className="flex flex-wrap gap-1.5">
+                        <XeroBadge live={read.xero_live} />
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className={LIST} aria-label="Contacts">
+            {shown.map((c) => (
+              <Row
+                key={c.id}
+                title={c.name}
+                badges={
+                  <>
+                    {c.in_xero ? <XeroBadge live={read.xero_live} /> : null}
+                    {c.source === "template" ? <Badge>Comes with Minty</Badge> : null}
+                  </>
+                }
+                // linked to Xero: changed in Xero only (the user, 2026-11-19)
+                canEdit={c.own && may.edit && !c.in_xero}
+                canDelete={c.own && may.delete && !c.in_xero}
+                busy={busy}
+                onEdit={() => onEdit(c)}
+                onDelete={() => onDelete(c)}
+              />
+            ))}
+          </ul>
+        )}
+        {merge ? (
+          <section
+            aria-label="Merge contacts"
+            className="flex min-w-0 flex-col gap-4 rounded-[12px] border border-set-line p-4"
+          >
+            <h4 className="text-[14.5px] font-semibold text-set-ink">
+              {ticked.length === 1 ? "1 contact ticked" : `${ticked.length} contacts ticked`}
+            </h4>
+            <label htmlFor={keepId} className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_LABEL}>Keep this one</span>
+              <select
+                id={keepId}
+                value={kept ? kept.id : ""}
+                disabled={busy || ticked.length === 0}
+                onChange={(e) => onMergeChange({ ticked: merge.ticked, keep: e.target.value })}
+                className={`${SETTINGS_INPUT} ${SETTINGS_INPUT_OK} min-h-11`}
+              >
+                <option value="">Choose the one to keep</option>
+                {ticked.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {kept && ticked.length >= 2 ? (
+              <p className="text-[13px] [overflow-wrap:anywhere] text-set-ink-2">
+                {mergeSummary(
+                  ticked.filter((c) => c.id !== kept.id).map((c) => c.name),
+                  kept.name,
+                )}
+              </p>
+            ) : null}
+            {linkedOff.length ? (
+              <p
+                className="text-[13px] [overflow-wrap:anywhere] text-status-warning-ink"
+                role="note"
+              >
+                {mergeLinkedNote(linkedOff)}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className={SETTINGS_OUTLINE}
+                disabled={busy}
+                onClick={() => onMergeChange(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={SETTINGS_PRIMARY}
+                disabled={busy || blocked !== null}
+                aria-describedby={blocked ? `${keepId}-why` : undefined}
+                onClick={() => onMerge(merge)}
+              >
+                Merge
+              </button>
+              {blocked ? (
+                <span id={`${keepId}-why`} className="text-[12.5px] text-set-ink-2">
+                  {blocked}
+                </span>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+      </div>
     </SettingsCard>
   );
 }
@@ -980,115 +1125,4 @@ export function DeleteDialog({
       <p className="[overflow-wrap:anywhere]">{deleteNote(row)}</p>
     </SettingsDialog>
   );
-}
-
-/** One of the two records a merge names. */
-export type MergeSide = { id: string; name: string };
-
-/**
- * Merge two contacts (owner's decisions doc M1-M4): the other one picked, then which of the two is
- * kept. No new record is made and Xero isn't touched; the next step asks once more (`mergeNote`).
- * Accounts are never merged (the user, 2026-11-24).
- */
-export function MergeDialog({
-  row,
-  others,
-  busy,
-  onClose,
-  onNext,
-}: {
-  row: MergeSide;
-  others: (MergeSide & { label: string })[];
-  busy: boolean;
-  onClose: () => void;
-  onNext: (merged: MergeSide, kept: MergeSide) => void;
-}) {
-  const id = useId();
-  const [other, setOther] = useState("");
-  const [keep, setKeep] = useState<"this" | "other">("other");
-  const picked = others.find((o) => o.id === other);
-  const reason = picked ? null : `Choose the contact to merge ${row.name} with.`;
-  return (
-    <SettingsDialog
-      title={`Merge ${row.name}`}
-      busy={busy}
-      onClose={onClose}
-      actions={
-        <>
-          <button type="button" className={SETTINGS_OUTLINE} disabled={busy} onClick={onClose}>
-            Go back
-          </button>
-          <button
-            type="button"
-            className={SETTINGS_PRIMARY}
-            disabled={busy || !picked}
-            aria-describedby={reason ? `${id}-why` : undefined}
-            onClick={() =>
-              picked &&
-              (keep === "other"
-                ? onNext({ id: row.id, name: row.name }, { id: picked.id, name: picked.name })
-                : onNext({ id: picked.id, name: picked.name }, { id: row.id, name: row.name }))
-            }
-          >
-            Merge
-          </button>
-        </>
-      }
-    >
-      <div className="flex min-w-0 flex-col gap-4">
-        <label className="flex min-w-0 flex-col gap-1.5">
-          <span className={SETTINGS_LABEL}>Merge with</span>
-          <select
-            value={other}
-            disabled={busy}
-            onChange={(e) => setOther(e.target.value)}
-            className={`${SETTINGS_INPUT} ${SETTINGS_INPUT_OK} min-h-11`}
-          >
-            <option value="">Choose a contact</option>
-            {others.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {others.length === 0 ? (
-          <p className="text-[13px] text-set-ink-2">
-            There&apos;s no other contact to merge {row.name} with.
-          </p>
-        ) : null}
-        <fieldset className="flex min-w-0 flex-col gap-2" disabled={busy || !picked}>
-          <legend className={`${SETTINGS_LABEL} mb-1.5`}>Which one do you keep?</legend>
-          {(["other", "this"] as const).map((side) => (
-            <label key={side} className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3">
-              <input
-                type="radio"
-                name={`${id}-keep`}
-                checked={keep === side}
-                onChange={() => setKeep(side)}
-                className="size-5 shrink-0 accent-action-tick"
-              />
-              <span className="min-w-0 [overflow-wrap:anywhere]">
-                Keep {side === "this" ? row.name : (picked?.name ?? "the other contact")}
-              </span>
-            </label>
-          ))}
-        </fieldset>
-        {reason ? (
-          <p id={`${id}-why`} className="text-[12.5px] text-set-mute">
-            {reason}
-          </p>
-        ) : null}
-      </div>
-    </SettingsDialog>
-  );
-}
-
-export function mergeableContacts(
-  read: ContactsRead,
-  row: Contact,
-): (MergeSide & { label: string })[] {
-  return read.contacts
-    .filter((c) => c.id !== row.id)
-    .map((c) => ({ id: c.id, name: c.name, label: c.name }));
 }

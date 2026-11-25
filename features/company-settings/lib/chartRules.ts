@@ -90,7 +90,33 @@ export function usedNote(name: string): string {
 export const GONE_FROM_XERO =
   "This account is archived in Xero. Please check it in Xero, then map this account to the one you want to use.";
 
+/** "A", "A and B", "A, B and C". */
+function and(names: string[]): string {
+  return names.length < 2
+    ? (names[0] ?? "")
+    : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/** The merge panel's line: which ones go, and which one stays (the user, 2026-11-25). */
+export function mergeSummary(merged: string[], kept: string): string {
+  return `${and(merged)} ${merged.length === 1 ? "merges" : "merge"} into ${kept}. ${kept} stays; the others leave every list. Xero isn't changed.`;
+}
+
 /** The merge's confirm (M1, M4; contacts only): where the records go, and that it can't be undone. */
-export function mergeNote(merged: string, kept: string): string {
-  return `${merged}'s records move to ${kept}, and ${merged} leaves every list. Xero isn't changed. This can't be undone.`;
+export function mergeNote(merged: string[], kept: string): string {
+  return merged.length === 1
+    ? `${merged[0]}'s records move to ${kept}, and ${merged[0]} leaves every list. Xero isn't changed. This can't be undone.`
+    : `The records of ${and(merged)} move to ${kept}, and they leave every list. Xero isn't changed. This can't be undone.`;
+}
+
+/** While Xero is connected, a contact in Xero is merged in Xero first (the API's own sentence). */
+export function mergeInXeroNote(names: string[]): string {
+  return `In Xero already: ${and(names)}. Your company is connected to Xero, so merge them in Xero first, and Minty follows at the next sync.`;
+}
+
+/** While Xero is off, contacts linked to it merge here, and Xero keeps them apart (the user, 2026-11-25). */
+export function mergeLinkedNote(names: string[]): string {
+  return names.length === 1
+    ? `${names[0]} is linked to Xero. Xero keeps it as a separate contact: merge it there too when you reconnect.`
+    : `${and(names)} are linked to Xero. Xero keeps them as separate contacts: merge them there too when you reconnect.`;
 }

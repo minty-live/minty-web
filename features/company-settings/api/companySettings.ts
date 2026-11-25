@@ -229,7 +229,9 @@ export type PettyCashContact = "cash_sale" | "director" | "discrepancy";
 
 /** A contacts-step answer: a Xero contact, or (a supplier only) new in Xero - its first publish puts it there. */
 export type MatchContactPick = { xero_contact_id: string | null; auto: boolean; new: boolean };
-export type MatchContactOption = { id: string; name: string };
+/** `held_by`: the Minty contact that already has it - a supplier can't pick it (matching never merges,
+ * the user, 2026-11-25); a daily-closing slot can. */
+export type MatchContactOption = { id: string; name: string; held_by?: string | null };
 
 /** The contacts step (the user, 2026-11-24): asked before Finish. `required` is false for a change. */
 export type MatchContacts = {

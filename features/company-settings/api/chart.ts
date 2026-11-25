@@ -113,14 +113,14 @@ export const deleteContact = (entityId: string, id: string) =>
     query: on(entityId),
   });
 
-/** Merge two contacts (owner's decisions doc M1-M4): every record of `id` moves to `into`, `id`
- * leaves every list; no new record, Xero not touched. accounts-api's own route. Accounts are never
- * merged (the user, 2026-11-24). */
-export type MergeAnswer = { message: string; moved: Record<string, number> };
+/** Merge contacts (owner's decisions doc M1-M4; the user, 2026-11-25): every record of the ticked
+ * contacts moves to `keep` - one of them, never a new contact - and the others leave every list; Xero
+ * isn't touched. accounts-api's own route. Accounts are never merged (the user, 2026-11-24). */
+export type MergeAnswer = { message: string; kept: string; moved: Record<string, number> };
 
-export const mergeContact = (entityId: string, id: string, into: string) =>
-  mintyFetch<MergeAnswer>(`/api/me/company/contacts/${encodeURIComponent(id)}/merge`, {
+export const mergeContacts = (entityId: string, ids: string[], keep: string) =>
+  mintyFetch<MergeAnswer>("/api/me/company/contacts/merge", {
     method: "POST",
-    json: { into },
+    json: { ids, keep },
     query: on(entityId),
   });

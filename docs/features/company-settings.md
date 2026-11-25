@@ -215,6 +215,14 @@ off, its reason beside it, until every account is matched). The step asks:
 Each answer is `components/ui/Combo` (the searchable picker, the first 50 matches then "Keep typing to
 find more") and saves at once (`PATCH .../xero/matching/contacts`). "Back to accounts" returns.
 
+**Matching never merges (the user, 2026-11-25):**
+
+- A Xero contact another contact already has (the API's `held_by`) is listed in a supplier's picker as
+  "<name> - matched to <holder>" and can't be picked.
+- A Petty Cash contact may take it.
+- The step says "A Xero contact another contact already has can't be picked for a supplier. Merge the two
+  in Settings first." with **Open your contacts** (General).
+
 **Finish** stays off, its reason beside it, until every account (and every contact) has its answer. It
 asks first: "Finish matching? / Each matched account takes its Xero code and name - its Minty code stays
 
@@ -354,17 +362,30 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
 `features/company-settings/__tests__/` - `chartRules`, `chart` (the lists, the locks, add with the
 next code, a refused Save's field sentence, delete's confirm, a contact's taken name, view-only, a
 failed read, the account form's auto-saved draft: put back at once, Cancel, a save, stale
-dropped; live on Xero: no Add, Edit, Delete or Merge on accounts; both codes; a contact merge);
+dropped; live on Xero: no Add, Edit, Delete or Merge on accounts; both codes; the Xero-style contact merge: several ticked, the kept one, Xero connected, Merge instead);
 e2e `13_chart.spec.ts` (live on Xero at 360 / 768 / 1440 too).
 
 ## Merging, linked accounts and accounts gone from Xero (the owner's decisions doc, 2026-11-19)
 
-- **Merge (M1-M4, D3) - contacts only**: every company-made contact row has **Merge** (`call_merge`). The
-  dialog picks the other contact and which one is kept, then `ConfirmDialog` ("<merged>'s records move to
-  <kept>, and <merged> leaves every list. Xero isn't changed. This can't be undone."), then
-  `POST /api/me/company/contacts/<id>/merge {into}`. A used contact's "<name> can't be deleted" box has
-  **Merge instead**. Accounts are never merged (the user, 2026-11-24): no account Merge, and accounts-api's
-  account route is gone.
+- **Merge (M1-M4, D3) - contacts only, the Xero way (the user, 2026-11-25)**:
+  - **Merge contacts** (the Contacts card's action, `COA_DELETE`, two or more contacts) turns the list into
+    tick boxes. Only the company's own rows can be ticked; search still filters. Merging and matching are
+    separate concepts.
+  - A panel (under the list on a phone, on its right from `lg`) says "N contacts ticked". It has a **Keep
+    this one** dropdown of only the ticked contacts - a merge never makes a new contact - and the line
+    "<A> and <B> merge into <C>. <C> stays; the others leave every list. Xero isn't changed."
+  - **Merge** is off, its reason beside it: "Tick at least two contacts.", "Choose the one to keep.", or,
+    while Xero is connected and a ticked contact is in Xero, "In Xero already: ... merge them in Xero first,
+    and Minty follows at the next sync." Contacts only in Minty still merge here. While Xero is off,
+    contacts linked to it merge here too, and the panel warns: "<name> is linked to Xero. Xero keeps it
+    as a separate contact: merge it there too when you reconnect." (the user's pick, 2026-11-25).
+  - Merge asks with `ConfirmDialog` ("Merge 2 contacts into <C>?", "The records of <A> and <B> move to <C>,
+    and they leave every list. Xero isn't changed. This can't be undone."), then sends
+    `POST /api/me/company/contacts/merge {ids, keep}`. **Cancel** leaves merge mode.
+  - A used contact's "<name> can't be deleted" box has **Merge instead**: merge mode with that contact
+    ticked.
+  - Accounts are never merged (the user, 2026-11-24): no account Merge, and accounts-api's account route
+    is gone.
 - **An account or contact linked to Xero is changed in Xero only** (the user, 2026-11-19): no Edit or
   Delete on it (a contact keeps Merge), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
   and Minty follows." Since 2026-11-23 (the user) a company live on Xero has no Add, Edit or Delete on

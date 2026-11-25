@@ -4,8 +4,8 @@
  * The company's chart of accounts and its contacts, on General under the company's details (owner,
  * 2026-11-12: its own tab first, merged into General the same day). Accounts are added, edited and
  * deleted here only while Xero is off (the user, 2026-11-23); contacts live or not - a contact added
- * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only. Contacts keep
- * Merge; accounts are never merged (the user, 2026-11-24).
+ * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only. Contacts merge
+ * the Xero way on their card (the user, 2026-11-25); accounts are never merged (2026-11-24).
  * Both lists are read at once; each change is the API's, its sentence shown as a toast, then both
  * are read again. General's view-only line covers it: the same roles change both.
  */
@@ -24,7 +24,7 @@ import {
   deleteAccount,
   deleteContact,
   editAccount,
-  mergeContact,
+  mergeContacts,
   readAccounts,
   readContacts,
   renameContact,
@@ -39,9 +39,7 @@ import {
   ContactForm,
   ContactsCard,
   DeleteDialog,
-  MergeDialog,
-  mergeableContacts,
-  type MergeSide,
+  type MergeState,
   type Outcome,
 } from "@/features/company-settings/components/ChartCards";
 import { mergeNote } from "@/features/company-settings/lib/chartRules";
@@ -59,8 +57,7 @@ type Open =
   | { kind: "contact"; editing: Contact | null }
   | { kind: "delete-account"; row: Account }
   | { kind: "delete-contact"; row: Contact }
-  | { kind: "merge-contact"; row: Contact }
-  | { kind: "merge-confirm"; merged: MergeSide; kept: MergeSide }
+  | { kind: "merge-confirm"; merge: MergeState }
   | null;
 
 function sentence(err: unknown): string {
@@ -79,6 +76,8 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState(false);
+  // the Contacts card's merge mode (the user, 2026-11-25): the ticked contacts and the one kept
+  const [merge, setMerge] = useState<MergeState | null>(null);
   // the account form's browser drafts, per person and company (lib/draftScope.ts)
   const draftScope = useDraftScope(entityId);
 
@@ -178,7 +177,9 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
             onAdd={() => setOpen({ kind: "contact", editing: null })}
             onEdit={(row) => setOpen({ kind: "contact", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-contact", row })}
-            onMerge={(row) => setOpen({ kind: "merge-contact", row })}
+            merge={merge}
+            onMergeChange={setMerge}
+            onMerge={(picked) => setOpen({ kind: "merge-confirm", merge: picked })}
           />
           {open?.kind === "delete-account" ? (
             <DeleteDialog
@@ -196,38 +197,48 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
               onConfirm={() => void change(() => deleteContact(entityId, open.row.id))}
               onMerge={
                 load.contacts.permissions.delete && open.row.own
-                  ? () => setOpen({ kind: "merge-contact", row: open.row })
+                  ? () => {
+                      // D3: the merge mode, this contact ticked
+                      setMerge({ ticked: [open.row.id], keep: "" });
+                      setOpen(null);
+                    }
                   : undefined
               }
             />
           ) : null}
-          {open?.kind === "merge-contact" ? (
-            <MergeDialog
-              row={open.row}
-              others={mergeableContacts(load.contacts, open.row)}
-              busy={busy}
-              onClose={() => setOpen(null)}
-              onNext={(merged, kept) => setOpen({ kind: "merge-confirm", merged, kept })}
-            />
-          ) : null}
-          {open?.kind === "merge-confirm" ? (
-            <ConfirmDialog
-              title={`Merge ${open.merged.name} into ${open.kept.name}?`}
-              image="surprised"
-              entityName={entityName}
-              busy={busy}
-              confirmLabel="Merge"
-              confirmTone="orange"
-              onConfirm={() =>
-                void change(() => mergeContact(entityId, open.merged.id, open.kept.id))
-              }
-              onBack={() => setOpen(null)}
-            >
-              <p className="mt-6 text-[15px] leading-snug">
-                {mergeNote(open.merged.name, open.kept.name)}
-              </p>
-            </ConfirmDialog>
-          ) : null}
+          {open?.kind === "merge-confirm"
+            ? (() => {
+                const names = new Map(load.contacts.contacts.map((c) => [c.id, c.name]));
+                const kept = names.get(open.merge.keep) ?? "";
+                const merged = open.merge.ticked
+                  .filter((id) => id !== open.merge.keep)
+                  .map((id) => names.get(id) ?? "");
+                return (
+                  <ConfirmDialog
+                    title={
+                      merged.length === 1
+                        ? `Merge ${merged[0]} into ${kept}?`
+                        : `Merge ${merged.length} contacts into ${kept}?`
+                    }
+                    image="surprised"
+                    entityName={entityName}
+                    busy={busy}
+                    confirmLabel="Merge"
+                    confirmTone="orange"
+                    onConfirm={() =>
+                      void change(() =>
+                        mergeContacts(entityId, open.merge.ticked, open.merge.keep),
+                      ).then((outcome) => {
+                        if (outcome.ok) setMerge(null);
+                      })
+                    }
+                    onBack={() => setOpen(null)}
+                  >
+                    <p className="mt-6 text-[15px] leading-snug">{mergeNote(merged, kept)}</p>
+                  </ConfirmDialog>
+                );
+              })()
+            : null}
         </>
       )}
     </>
