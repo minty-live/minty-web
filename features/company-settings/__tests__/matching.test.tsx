@@ -269,6 +269,64 @@ describe("Matching a company's accounts to Xero", () => {
     expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
   });
 
+  it("Minty's guesses start filled in, marked in orange; choosing an account makes it the person's (2026-11-25)", async () => {
+    const guessedPage = matchingPage({
+      groups: [
+        {
+          key: "running",
+          title: "Running the business",
+          rows: [
+            row("a-rent", "469", "Rent", {
+              pick: { xero_account_id: "x-rent", auto: true, guess: false },
+            }),
+            row("a-wages", "6001", "Salaries - Full Time", {
+              pick: { xero_account_id: "x-wages", auto: true, guess: true },
+            }),
+            row("a-lic", "6999", "Licences", {
+              pick: { xero_account_id: "x-lic", auto: true, guess: true },
+            }),
+          ],
+        },
+      ],
+      options: [
+        ...MATCHED.options,
+        { id: "x-casual", code: "478", name: "Casual Wages", kind: "expense", held_by: null },
+      ],
+      matched: 3,
+      blocking: 0,
+      guessed: 2,
+    });
+    const picks: unknown[] = [];
+    api({
+      "GET /api/me/company/xero/matching": () => json(guessedPage),
+      "PATCH /api/me/company/xero/matching": (_url, init) => {
+        picks.push(JSON.parse(String(init.body)));
+        return json(MATCHED);
+      },
+    });
+    wrap(<MatchingScreen company={COMPANY} />);
+    expect(await screen.findByText("3 of 3 matched")).toBeInTheDocument();
+    expect(screen.getByText(MATCH_COPY.guessed(2))).toBeInTheDocument();
+    expect(screen.getAllByText(MATCH_COPY.guessNote)).toHaveLength(2);
+    // a guess shows no "Matched" tick; the code match does
+    expect(screen.getAllByRole("img", { name: MATCH_COPY.matchedRow })).toHaveLength(1);
+    const wages = screen.getByRole("combobox", {
+      name: /Xero account for 6001 Salaries - Full Time/,
+    });
+    expect(wages).toHaveValue("x-wages");
+    expect(wages.className).toMatch(/border-status-warning-ink/);
+    // guesses never hold Finish
+    expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
+
+    // no button to accept a guess: the note is all (the user, 2026-11-25)
+    expect(screen.queryByRole("button", { name: /Keep/ })).toBeNull();
+    await userEvent.selectOptions(wages, "x-casual");
+    await waitFor(() =>
+      expect(picks).toEqual([{ account_id: "a-wages", xero_account_id: "x-casual" }]),
+    );
+    expect(screen.queryByText(MATCH_COPY.guessed(2))).toBeNull();
+  });
+
   it("a Xero account another account has is shown, never picked (one Minty account each, 2026-11-24)", async () => {
     api({ "GET /api/me/company/xero/matching": () => json(matchingPage()) });
     wrap(<MatchingScreen company={COMPANY} />);

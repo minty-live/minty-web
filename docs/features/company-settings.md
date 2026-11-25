@@ -190,8 +190,14 @@ The page (frame 3, under "Connect to Xero") has two steps (the user, 2026-11-24)
   matched.
 - **Its Xero account** is a native select of the accounts that fit (a bank only a bank, else the same
   class; "Choose a Xero account"). A Xero account another account has is listed but disabled -
-  "<code> · <name> - matched to <account>". A suggestion leads the select in its own "Suggested"
-  group (never one another account has). The select is the frames' compact one with its own chevron
+  "<code> · <name> - matched to <account>". **Every row starts filled** (the user, 2026-11-25): a
+  same code and type, an account's own link, else Minty's closest Xero account by name (the API's
+  `pick.guess`). A guessed row keeps the orange select, shows no tick, and says in orange "Filled in
+  by Minty. Check it's right." (no button to accept it - the user, 2026-11-25); choosing an account
+  makes it the person's. The progress card adds "Minty filled in N accounts by name. Check them before you
+  finish." Guesses count as matched and never hold Next or Finish. A row left empty (nothing in Xero
+  fits, or the person cleared it) shows a suggestion leading the select in its own "Suggested" group
+  (never one another account has). The select is the frames' compact one with its own chevron
   (44px on a phone, 36px for a pointer).
 - **Picks**: each saves at once (`PATCH /api/me/company/xero/matching`), so the page can be finished
   later. Petty cash and the bank can't share a Xero account (refused with its sentence).

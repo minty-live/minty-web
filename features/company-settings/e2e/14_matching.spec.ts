@@ -21,7 +21,7 @@ const STUB_CREDS = {
 const creds = () => ({ ...(credentials() ?? STUB_CREDS), entityId: ID, entityName: NAME });
 
 type Sent = { method: string; path: string; body: unknown };
-type Pick = { xero_account_id: string; auto: boolean } | null;
+type Pick = { xero_account_id: string; auto: boolean; guess?: boolean } | null;
 type Answer = { xero_contact_id: string | null; auto: boolean; new: boolean } | null;
 
 const OPTIONS = [
@@ -73,13 +73,14 @@ const CONTACT_OPTIONS = [
   ...Array.from({ length: 80 }, (_, i) => ({ id: `xc-${i}`, name: `Supplier ${i + 1}` })),
 ];
 
-async function arrive(page: Page): Promise<Sent[]> {
+async function arrive(page: Page, guesses: Record<string, Pick> = {}): Promise<Sent[]> {
   const sent: Sent[] = [];
   const picks: Record<string, Pick> = {
     "a-pc": { xero_account_id: "x-pc", auto: true },
     "a-rent": { xero_account_id: "x-rent", auto: true },
     "a-wages": null,
     "a-lic": null,
+    ...guesses,
   };
   const suppliers: Record<string, Answer> = {
     "c-abc": { xero_contact_id: "xc-abc", auto: true, new: false },
@@ -126,6 +127,7 @@ async function arrive(page: Page): Promise<Sent[]> {
       groups,
       options: OPTIONS.map((o) => ({ ...o, held_by: holder[o.id] ?? null })),
       matched: rows.length - unmatched.length,
+      guessed: rows.filter((r) => r.pick?.guess).length,
       total: rows.length,
       blocking: unmatched.length,
       contacts: {
@@ -251,5 +253,35 @@ for (const width of [360, 768, 1440]) {
       { contact_id: "c-wing", new: true },
       { slot: "director", xero_contact_id: "xc-ada" },
     ]);
+  });
+}
+
+for (const width of [360, 768, 1440]) {
+  test(`matching: Minty's guesses start filled in, marked to check, at ${width}px`, async ({
+    page,
+  }) => {
+    await requireApp();
+    await page.setViewportSize({ width, height: 900 });
+    const sent = await arrive(page, {
+      "a-wages": { xero_account_id: "x-wages", auto: true, guess: true },
+      "a-lic": { xero_account_id: "x-lic", auto: true, guess: true },
+    });
+
+    await expect(
+      page.getByText("Minty filled in 2 accounts by name. Check them before you finish."),
+    ).toBeVisible();
+    await expect(page.getByText("Filled in by Minty. Check it's right.")).toHaveCount(2);
+    await expect(page.getByRole("heading", { name: /^Not matched yet/ })).toHaveCount(0);
+    await expect(
+      page.getByRole("combobox", { name: /Xero account for 6001 Salaries - Full Time/ }),
+    ).toHaveValue("x-wages");
+    await expect(page.getByRole("button", { name: "Next: contacts" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Keep/ })).toHaveCount(0);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `test-results/14_matching_guesses_${width}.png`,
+      fullPage: true,
+    });
+    expect(sent.filter((s) => s.method === "PATCH")).toEqual([]);
   });
 }

@@ -8,9 +8,11 @@
  *
  * Where a company lands after signing in to Xero when its accounts need matching. Two steps:
  * - Accounts: every account is a row with a Xero account to pick (same code and type was picked for
- *   it; on a reconnect the ones already linked come picked). Every account needs its own Xero
- *   account - used or not, and never one another account has - so the ones still to match come
- *   first. Each pick saves at once, so the page can be left and finished later.
+ *   it; on a reconnect the ones already linked come picked; every other row starts on Minty's closest
+ *   match by name - the user, 2026-11-25 - marked in orange for the person to check or change). Every
+ *   account needs its own Xero account - used or not, and never one another account has - so the
+ *   ones still to match come first. Each pick saves at once, so the page can be left and finished
+ *   later.
  * - Contacts (when there are any to ask): each supplier takes its Xero contact (the one of its name
  *   is picked for it) or stays new in Xero, and each daily-closing contact still empty takes a Xero
  *   contact - asked here, before Finish, never after it.
@@ -51,12 +53,15 @@ import { generalPath, integrationPath } from "@/features/company-settings/lib/pa
 
 export const MATCH_COPY = {
   title: "Match your accounts to Xero",
-  lead: "Every Minty account needs its own Xero account. We've filled in the ones whose code and type match.",
+  lead: "Every Minty account needs its own Xero account. We've filled each one in with its closest Xero account. Check them, and change any that's wrong.",
   matched: (n: number, total: number) => `${n} of ${total} matched`,
   toGo: (n: number) => `${n} to go`,
   blocking: (n: number) =>
     `${n} ${n === 1 ? "account still needs" : "accounts still need"} a Xero account before you can go on.`,
   allMatched: "Every account has its Xero account.",
+  guessed: (n: number) =>
+    `Minty filled in ${n} ${n === 1 ? "account" : "accounts"} by name. Check ${n === 1 ? "it" : "them"} before you finish.`,
+  guessNote: "Filled in by Minty. Check it's right.",
   minty: "Minty account",
   xero: "Xero account",
   choose: "Choose a Xero account",
@@ -90,7 +95,7 @@ export const MATCH_COPY = {
     "This company now connects to a different Xero organisation. Tell us where each account should post there.",
   newAccountsTitle: "Match your accounts again",
   newAccountsLead:
-    "Some accounts were added while Xero was disconnected. The accounts already matched are filled in; the ones still to match come first.",
+    "Some accounts were added while Xero was disconnected. The accounts already matched are filled in, and we've filled in the closest Xero account for each new one.",
   confirmChange:
     "Only records published from now on use the new matches. Records already in Xero stay as they are.",
   confirmNewOrg: (org: string | null) =>
@@ -164,6 +169,8 @@ function Row({
     !row.pick && row.suggestion ? fitting.find((o) => o.id === row.suggestion) : undefined;
   const picked = row.pick?.xero_account_id ?? "";
   const needed = !row.pick;
+  // Minty's guess by name: orange like an empty row until the person picks an account
+  const guess = Boolean(row.pick?.guess);
   // Xero's codes can be long (4000_01_01): the code runs with the name instead of a fixed column.
   const code = shownCode(row.code, row.name);
   const label = `${code ? `${code} ` : ""}${row.name}`;
@@ -196,8 +203,13 @@ function Row({
             <span className="block text-[12.5px] text-set-mute">{row.group}</span>
           ) : null}
           {note ? <span className="block text-[12.5px] text-set-ink-2">{note}</span> : null}
+          {guess ? (
+            <span className="block text-[12.5px] text-status-warning-ink">
+              {MATCH_COPY.guessNote}
+            </span>
+          ) : null}
         </span>
-        {row.pick ? (
+        {row.pick && !guess ? (
           <span
             className="material-symbols-outlined shrink-0 text-set-ok-ink"
             aria-label={MATCH_COPY.matchedRow}
@@ -217,7 +229,7 @@ function Row({
           aria-required
           aria-invalid={needed ? true : undefined}
           onChange={(e) => onPick(e.target.value || null)}
-          className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed ? "border-status-warning-ink focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
+          className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed || guess ? "border-status-warning-ink focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
         >
           <option value="">{MATCH_COPY.choose}</option>
           {suggestion ? (
@@ -700,6 +712,9 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
             <p className="text-[13px] text-set-ink-2">
               {page.blocking ? MATCH_COPY.blocking(page.blocking) : MATCH_COPY.allMatched}
             </p>
+            {page.guessed ? (
+              <p className="text-[13px] text-set-ink-2">{MATCH_COPY.guessed(page.guessed)}</p>
+            ) : null}
           </section>
 
           <section className="min-w-0 overflow-hidden rounded-[14px] border border-set-edge bg-white">

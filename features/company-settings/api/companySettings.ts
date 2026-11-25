@@ -210,7 +210,8 @@ export type MatchRow = {
    * needs a match all the same (the user, 2026-11-24). */
   used: boolean;
   system: boolean;
-  pick: { xero_account_id: string; auto: boolean } | null;
+  /** `guess`: Minty filled it in by name (the user, 2026-11-25) - for the person to check. */
+  pick: { xero_account_id: string; auto: boolean; guess?: boolean } | null;
   suggestion: string | null;
   /** Xero has the same code with another type: never picked for the person. */
   conflict: { code: string; name: string } | null;
@@ -251,6 +252,8 @@ export type MatchingPage = {
   groups: { key: string; title: string; rows: MatchRow[] }[];
   options: MatchOption[];
   matched: number;
+  /** Picks Minty filled in by name, still to be checked (they count as matched). */
+  guessed?: number;
   total: number;
   /** Accounts with no match - Finish is refused until it is 0. */
   blocking: number;
