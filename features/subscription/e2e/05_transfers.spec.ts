@@ -154,6 +154,34 @@ test.describe("transfers", () => {
     await page.waitForURL((u) => u.pathname === "/subscription/subscriptions");
   });
 
+  for (const width of [360, 768]) {
+    test(`07-D at ${width}px: the modules and the summary stack, nothing wider than the screen`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.route(`${SUBSCRIPTION_API_URL}/api/me/subscriptions/transfers`, (route) =>
+        route.fulfill(json({ transfers: [INCOMING_REQUEST] })),
+      );
+      await page.route(`${SUBSCRIPTION_API_URL}/api/me/billing/accounts*`, (route) =>
+        route.fulfill(json(RECIPIENT_ACCOUNTS)),
+      );
+      await page.route(`${SUBSCRIPTION_API_URL}/api/entities/*/modules`, (route) =>
+        route.fulfill(json(SUMMARY_FIXTURES.M24)),
+      );
+      await handoff(page, creds(), "/subscription/subscriptions/incoming", { entity_id: "" });
+      const review = body(page).getByRole("region", { name: "Transfer request" });
+      const summary = review.getByRole("region", { name: "Subscription Summary" });
+      await expect(summary).toContainText("Visa 4121");
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+      const box = (await summary.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    });
+  }
+
   test("07-D → 07-E → 07-M: the recipient reviews, changes the billing account, accepts, and lands on the row", async ({
     page,
   }) => {

@@ -36,7 +36,7 @@ import {
 } from "react";
 
 import type { BillingAccount, SavedPaymentMethod } from "@/features/subscription/api/payerPortal";
-import { CardBrand } from "@/features/subscription/components/CardBrand";
+import { CardBrandChip } from "@/features/subscription/components/CardBrand";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { CardCapturePanel } from "@/features/subscription/components/CardCaptureForm";
 import { shortCardName } from "@/features/subscription/components/CardDialogs";
@@ -213,20 +213,6 @@ export function SheetFlag({ text, tone }: { text: string; tone: FlagTone }) {
   );
 }
 
-/** `.pm-brand` - a fixed chip, so the labels beside it line up down the list; empty with no card. */
-function BrandChip({ card }: { card: SavedPaymentMethod | null }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex h-9 w-14 flex-none items-center justify-center rounded-[7px] border border-border-subtle bg-white"
-    >
-      {card && (
-        <CardBrand brand={card.brand} label={card.brand_label} className="h-[30px] w-[46px]" />
-      )}
-    </span>
-  );
-}
-
 /**
  * One choice (`.billing-pm`): the whole row is the label, the radio is DRAWN (a 6px teal ring
  * round a white core - no `accent-color` turns a dot into that), and the chosen row gets an
@@ -339,7 +325,7 @@ export function AccountRow({
       checked={checked}
       disabled={disabled}
       onSelect={onSelect}
-      leading={<BrandChip card={account.card} />}
+      leading={<CardBrandChip card={account.card} />}
       title={account.name}
       meta={accountCardLine(account)}
       detail={companyCount(account.companies.length)}

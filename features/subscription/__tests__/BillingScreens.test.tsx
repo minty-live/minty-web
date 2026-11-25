@@ -539,6 +539,27 @@ describe("the billing page", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
+  it("every saved card wears the network's mark in the Billing Accounts sheet's chip, never its name typed out", async () => {
+    const user = userEvent.setup();
+    render(<BillingPageScreen fixture="J" />);
+    await screen.findByRole("region", { name: "Payment Methods" });
+    await user.click(screen.getByRole("button", { name: "Show more (6)" }));
+
+    const rows = screen.getAllByRole("listitem");
+    expect(
+      rows.map((row) => row.querySelector("[data-brand]")?.getAttribute("data-brand")),
+    ).toEqual(["visa", "mastercard", "visa", "unionpay", "amex", "visa", "visa", "unionpay"]);
+    // Mastercard is its two circles; the others are the network's name drawn in its colour.
+    for (const row of rows)
+      expect(row.querySelector("[data-card-chip] [data-brand]")).not.toBeNull();
+    expect(rows[1].querySelectorAll("[data-brand] circle")).toHaveLength(2);
+    expect(rows[4].querySelector("[data-brand] text")).toHaveTextContent("AMEX");
+    // No brand name typed out beside the card any more ("Mastercard", "UnionPay" in italics).
+    for (const name of ["Visa", "Mastercard", "UnionPay", "Amex"]) {
+      expect(screen.queryByText(name, { exact: true })).toBeNull();
+    }
+  });
+
   it("08-W / 08-X: the menu offers Set as default only on a card that is not the default", async () => {
     const user = userEvent.setup();
     render(<BillingPageScreen fixture="B" />);

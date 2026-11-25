@@ -83,6 +83,30 @@ function cropped(x: number, y: number, w: number, h: number) {
   };
 }
 
+/**
+ * `.pm-brand` - the mark in a fixed white chip: how EVERY saved card is drawn (the user,
+ * 2026-11-25) - the Billing Accounts sheet's rows, the billing page's Payment Methods and the
+ * summaries' payment method (05·A, 07-D). A fixed size, so the labels beside it line up down a
+ * list; empty when there is no card to mark.
+ */
+export function CardBrandChip({
+  card,
+}: {
+  card: { brand: string | null; brand_label: string | null } | null;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-card-chip
+      className="inline-flex h-9 w-14 flex-none items-center justify-center rounded-[7px] border border-border-subtle bg-white"
+    >
+      {card && (
+        <CardBrand brand={card.brand} label={card.brand_label} className="h-[30px] w-[46px]" />
+      )}
+    </span>
+  );
+}
+
 export function CardBrand({
   brand,
   label,

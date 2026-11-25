@@ -13,7 +13,7 @@ import Image from "next/image";
 
 import type { IncomingTransfer, SavedPaymentMethod } from "@/features/subscription/api/payerPortal";
 import { AccountTargetList } from "@/features/subscription/components/BillingAccountDialogs";
-import { CardBrand, SUMMARY_MARK } from "@/features/subscription/components/CardBrand";
+import { CardBrandChip } from "@/features/subscription/components/CardBrand";
 import { SHEET_ADD, SHEET_ERROR, SHEET_PRIMARY, SHEET_SINGLE } from "@/components/ui/sheetClasses";
 import type { ReviewedRequest } from "@/features/subscription/hooks/useSubscriptionRequests";
 import { BILLING_ACCOUNTS, NEW_BILLING_ACCOUNT } from "@/features/subscription/lib/billingAccounts";
@@ -115,7 +115,8 @@ function CardNumber({
   card: SavedPaymentMethod | null;
 }) {
   return (
-    <p className="text-xl font-bold text-text-primary" data-payment-method>
+    // One line: "Visa 4121" never leaves the last four on a line of their own on a phone.
+    <p className="whitespace-nowrap text-xl font-bold text-text-primary" data-payment-method>
       {account === null
         ? NO_BILLING_ACCOUNT_YET
         : card === null
@@ -184,10 +185,15 @@ export function IncomingRequestReview({
         </p>
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr_minmax(360px,1.45fr)] items-start gap-6">
+      {/* Phone first, as the Manage Subscriptions panel lays the same three out: one column,
+          the two modules side by side from `sm`, the summary beside them only from `lg`. */}
+      <div className="grid grid-cols-1 items-start gap-6 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_minmax(360px,1.45fr)]">
         {viewStatus === "ready" && view ? (
           view.modules.map((module) => (
-            <div key={module.code} className="flex flex-col items-center gap-[46px]">
+            <div
+              key={module.code}
+              className="flex min-w-0 flex-col items-center gap-5 lg:gap-[46px]"
+            >
               <SummaryModuleCard
                 module={module}
                 onToggle={
@@ -234,7 +240,7 @@ export function IncomingRequestReview({
 
         <section
           aria-label="Subscription Summary"
-          className="flex w-full flex-col gap-6 rounded-xl bg-white p-8 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.1)]"
+          className="flex w-full min-w-0 flex-col gap-6 rounded-xl bg-white p-6 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.1)] sm:col-span-2 sm:p-8 lg:col-span-1"
         >
           <h3 className="text-xl font-bold text-text-primary">Subscription Summary</h3>
           {/*
@@ -272,14 +278,7 @@ export function IncomingRequestReview({
               ))}
             </div>
             <div className="col-start-2 row-start-2 mt-3 justify-self-end">
-              {card && (
-                <CardBrand
-                  brand={card.brand}
-                  label={card.brand_label}
-                  fit="mark"
-                  className={SUMMARY_MARK}
-                />
-              )}
+              {card && <CardBrandChip card={card} />}
             </div>
 
             {/* The qualifier - "only", "(Free Trial)" - sits at the lower right OF THE NAME,

@@ -106,8 +106,9 @@ describe("SubscriptionSummaryRow", () => {
       mark!.compareDocumentPosition(within(p).getByText("Visa 4121")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // Bare, at the design's size: the card-shaped field is cropped away, flush right.
-    expect(mark!.querySelector("svg")).toHaveAttribute("preserveAspectRatio", "xMaxYMid meet");
+    // In the same white chip as every list of cards - never the bare mark (the user, 2026-11-25).
+    expect(mark!.closest("[data-card-chip]")).not.toBeNull();
+    expect(mark!.querySelector("svg")).toHaveAttribute("viewBox", "0 0 46 30");
     expect(within(p).getByText("HKD 400")).toBeInTheDocument();
     expect(within(p).getByText("/month")).toBeInTheDocument();
     expect(within(p).getByText("No pending changes")).toBeInTheDocument();

@@ -352,6 +352,55 @@ test.describe("billing", () => {
     await expect.poll(() => invoicePages.at(-1)).toBe("1/50");
   });
 
+  test("08-B on a 360px phone: nothing wider than the screen, every card's expiry and state shown", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await stubBilling(page, WALLET_TWO);
+    // A declined invoice too, so its Retry payment is on the phone's card.
+    await page.route(`${SUBSCRIPTION_API_URL}/api/me/invoices?*`, (route) =>
+      route.fulfill(json(invoicePage([FAILED_INVOICES[0], ...INVOICES]))),
+    );
+    await handoff(page, creds(), "/subscription/billing", { entity_id: "" });
+    const cards = body(page).getByRole("region", { name: "Payment Methods" });
+    await expect(cards.locator("li")).toHaveCount(2);
+    const invoices = body(page).getByRole("region", { name: "Invoice History" });
+    await expect(invoices).toContainText("#11241234113");
+
+    // Nothing scrolls sideways - not the page, and not the invoices either.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    expect(
+      await invoices.evaluate((el) =>
+        Array.from(el.querySelectorAll("*")).every((c) => c.scrollWidth <= c.clientWidth + 1),
+      ),
+    ).toBe(true);
+    for (const row of await cards.locator("li").all()) {
+      const box = (await row.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(360);
+    }
+    // Each invoice is a card: its PDF, its breakdown and (declined) Retry payment all on screen.
+    const failed = invoices.getByRole("row").filter({ hasText: "#11248800121" });
+    for (const name of [
+      "Invoice #11248800121 (PDF)",
+      /billing breakdown of invoice #11248800121/,
+      "Retry payment: invoice #11248800121",
+    ]) {
+      const button = failed.getByRole("button", { name });
+      await expect(button).toBeVisible();
+      const box = (await button.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(360);
+      expect(box.height).toBeGreaterThanOrEqual(44); // a phone's tap target
+    }
+    await expect(failed).toContainText("Paid date");
+    // The phone shows what the desktop shows: the expiry and the chip, not only the name.
+    await expect(cards.locator("li").first()).toContainText("Sep 2026");
+    await expect(cards.locator("li").first().locator("[data-chip-label]")).toBeVisible();
+    await expect(cards.locator("li").nth(1).locator("[data-chip-label]")).toBeVisible();
+  });
+
   test("08-B keeps the date and amount beside Bill to, however long the billing email", async ({
     page,
   }) => {

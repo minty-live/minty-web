@@ -17,6 +17,7 @@
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { CardBrandChip } from "@/features/subscription/components/CardBrand";
 import { fromControl } from "@/features/subscription/components/SubscriptionSummaryRow";
 import {
   CHOOSE_ACCOUNT,
@@ -268,20 +269,6 @@ export function ExpiredCardNotice({ text, onAdd }: { text: string; onAdd: () => 
   );
 }
 
-/** The brand tile beside a card row; the name, since a brand mark is Stripe's to draw. */
-function BrandTile({ label }: { label: string }) {
-  return (
-    <span
-      aria-hidden
-      className={`flex h-[62px] w-[92px] shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-center font-black italic text-text-primary shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)] ${
-        label.length > 5 ? "text-[13px]" : "text-xl"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
 /** 08-W / 08-X: what "Update card" opens - the items this row actually has. */
 function CardMenu({
   row,
@@ -373,14 +360,18 @@ function CardRowView({
   onSelect: (item: CardMenuItem) => void;
 }) {
   return (
-    <li className="flex items-center gap-4" data-card={row.card.id} data-chip={row.chip}>
-      <BrandTile label={row.card.brand_label || "Card"} />
-      <div className="flex flex-1 items-center gap-6 rounded-xl border border-border-subtle bg-white px-7 py-4 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)]">
-        <div className="min-w-0 flex-1">
+    <li className="flex items-center gap-3 sm:gap-4" data-card={row.card.id} data-chip={row.chip}>
+      <CardBrandChip card={row.card} />
+      {/* The phone first: the name on its own line, then the expiry, the chip and the menu
+          wrapping under it - the same facts as the desktop's one row, never fewer. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-border-subtle bg-white px-4 py-4 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.06)] sm:flex-nowrap sm:gap-6 sm:px-7">
+        <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
           <p className="text-[13px] text-text-muted">Payment Method</p>
-          <p className="truncate text-[15px] font-bold text-text-primary">{row.title}</p>
+          <p className="text-[15px] font-bold text-text-primary [overflow-wrap:anywhere] sm:truncate">
+            {row.title}
+          </p>
         </div>
-        <div className="hidden min-w-[110px] sm:block">
+        <div className="sm:min-w-[110px]">
           <p className="text-[13px] text-text-muted">Expiry date</p>
           <p
             className={`text-[15px] font-bold ${
@@ -392,7 +383,7 @@ function CardRowView({
         </div>
         <span
           data-chip-label
-          className={`hidden shrink-0 rounded-md px-4 py-1.5 text-[13px] font-semibold sm:inline ${CHIP[row.chip]}`}
+          className={`shrink-0 rounded-md px-4 py-1.5 text-[13px] font-semibold ${CHIP[row.chip]}`}
         >
           {CHIP_LABEL[row.chip]}
         </span>
@@ -502,7 +493,7 @@ export function PaymentMethodsPanel({
           <button
             type="button"
             onClick={onAdd}
-            className="h-[38px] rounded-lg bg-action-primary px-5 text-[13px] font-semibold text-white hover:opacity-90"
+            className="h-[38px] shrink-0 whitespace-nowrap rounded-lg bg-action-primary px-5 text-[13px] font-semibold text-white hover:opacity-90"
           >
             {ADD_PAYMENT_METHOD}
           </button>
@@ -636,11 +627,17 @@ export function InvoiceHistoryTable({
       ) : invoices.length === 0 ? (
         <p className="text-[15px] text-text-muted">{NO_INVOICES}</p>
       ) : (
+        // ONE table, two shapes. On a phone each invoice is a card - its number and amount,
+        // the paid date, then its PDF, its breakdown and (declined) Retry payment as 44px
+        // buttons - since six columns do not fit and a sideways scroll hid Retry payment.
+        // From `sm` it is the design's table. One markup, so the desktop is unchanged and
+        // nothing is drawn twice.
         <table
           aria-busy={paging.loading || undefined}
-          className={`w-full border-collapse text-left ${paging.loading ? "opacity-60" : ""}`}
+          className={`block w-full border-collapse text-left sm:table ${paging.loading ? "opacity-60" : ""}`}
         >
-          <thead>
+          {/* The phone's cards name each value in the card instead. */}
+          <thead className="hidden sm:table-header-group">
             <tr className="text-[13px] font-semibold text-text-primary">
               <th scope="col" className="pb-2">
                 Inv#
@@ -663,16 +660,16 @@ export function InvoiceHistoryTable({
               </th>
             </tr>
           </thead>
-          <tbody className="text-[13px] text-text-primary">
+          <tbody className="block text-[13px] text-text-primary sm:table-row-group">
             {invoices.map((inv) => (
               // A declined charge is red across the row (08-K); the two downloads keep their own
               // colours - they are actions, not what went wrong.
               <tr
                 key={inv.id}
                 data-failed={inv.failed || undefined}
-                className={`border-b border-border-subtle ${inv.failed ? "text-status-danger-ink" : ""}`}
+                className={`flex flex-wrap items-center gap-x-3 gap-y-3 border-b border-border-subtle py-4 sm:table-row sm:py-0 ${inv.failed ? "text-status-danger-ink" : ""}`}
               >
-                <td className="py-3">
+                <td className="min-w-0 flex-1 text-[15px] font-semibold sm:py-3 sm:text-[13px] sm:font-normal">
                   {/* The Inv# opens the preview where there is a PDF to show. It keeps the row's
                       colour (a button inherits it), so a declined invoice's stays red. */}
                   {inv.hasPdf ? (
@@ -681,7 +678,7 @@ export function InvoiceHistoryTable({
                       onClick={() => onPreview(inv.id)}
                       aria-haspopup="dialog"
                       aria-label={`Preview invoice ${inv.reference}`}
-                      className="cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+                      className="inline-flex min-h-11 cursor-pointer items-center underline-offset-2 hover:underline focus-visible:underline sm:min-h-0"
                     >
                       {inv.reference}
                     </button>
@@ -689,9 +686,18 @@ export function InvoiceHistoryTable({
                     inv.reference
                   )}
                 </td>
-                <td className="py-3 tabular-nums">{inv.amount}</td>
-                <td className="py-3">{inv.paid ?? "—"}</td>
-                <td className="py-3 text-center">
+                <td className="text-right text-[15px] font-semibold tabular-nums sm:py-3 sm:text-left sm:text-[13px] sm:font-normal">
+                  {inv.amount}
+                </td>
+                <td className="basis-full sm:py-3">
+                  <span className="mr-2 text-text-muted sm:hidden">Paid date</span>
+                  {inv.paid ?? "—"}
+                </td>
+                {/* No PDF: the desktop's column says so with a dash; the phone's card simply has
+                    no PDF button. */}
+                <td
+                  className={`${inv.hasPdf ? "" : "hidden"} sm:table-cell sm:py-3 sm:text-center`}
+                >
                   {inv.hasPdf ? (
                     <button
                       type="button"
@@ -699,7 +705,7 @@ export function InvoiceHistoryTable({
                       disabled={downloading}
                       aria-busy={pdfBusy === inv.id || undefined}
                       aria-label={`Invoice ${inv.reference} (PDF)`}
-                      className="inline-flex cursor-pointer text-text-primary hover:text-text-link disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-border-default px-3 text-text-primary hover:text-text-link disabled:cursor-not-allowed disabled:opacity-60 sm:h-auto sm:border-0 sm:px-0"
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
                         <path
@@ -710,24 +716,27 @@ export function InvoiceHistoryTable({
                           strokeLinejoin="round"
                         />
                       </svg>
+                      <span className="sm:hidden">PDF</span>
                     </button>
                   ) : (
                     <span className="text-text-disabled">—</span>
                   )}
                 </td>
-                <td className="py-3 text-center">
+                <td className="sm:py-3 sm:text-center">
                   <button
                     type="button"
                     onClick={() => onBreakdown(inv.id)}
                     disabled={downloading}
                     aria-busy={breakdownBusy === inv.id || undefined}
                     aria-label={`${DOWNLOAD_CSV}: the billing breakdown of invoice ${inv.reference}`}
-                    className="text-[13px] text-text-link hover:underline hover:underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-11 items-center rounded-lg border border-border-default px-3 text-[13px] text-text-link hover:underline hover:underline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:inline sm:h-auto sm:border-0 sm:px-0"
                   >
                     {breakdownBusy === inv.id ? PREPARING_CSV : DOWNLOAD_CSV}
                   </button>
                 </td>
-                <td className="py-2 pl-3 text-right">
+                <td
+                  className={`${inv.retryable ? "basis-full" : "hidden"} sm:table-cell sm:py-2 sm:pl-3 sm:text-right`}
+                >
                   {/* Only on the invoice a retry would charge: an abandoned bill stays red, with
                       no button that could only refuse. */}
                   {inv.retryable && (
@@ -737,7 +746,7 @@ export function InvoiceHistoryTable({
                       disabled={retrying !== null}
                       aria-busy={retrying === inv.id || undefined}
                       aria-label={`${RETRY_PAYMENT}: invoice ${inv.reference}`}
-                      className="h-[32px] whitespace-nowrap rounded-lg bg-action-danger px-5 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-11 w-full whitespace-nowrap rounded-lg bg-action-danger px-5 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:h-[32px] sm:w-auto"
                     >
                       {retrying === inv.id ? RETRYING : RETRY_PAYMENT}
                     </button>

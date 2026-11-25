@@ -720,17 +720,11 @@ design's rules live (`buildSummaryView(page, entity, wallet, today, pending)`, `
   preselected; Confirm → `POST /billing/accounts/move` (nothing charged, nothing applied), the
   sheet closes, the row reads its card again - it is the account's - and a toast says where the
   company is billed now (`accountChangeChoice`, `useSubscriptionsList.changePaymentMethod`). The
-  network's mark sits above that line, as the design draws it (2026-09-28, "the brand logo is
-  missing above the card"): `components/CardBrand.tsx` with `fit="mark"` in `SUMMARY_MARK`
-  (74 wide, as tall as the mark, at most 42), keyed on the card's `brand` (`visa`,
-  `mastercard`, …) with the API's `brand_label` as its fallback. `mark` is the list rows'
-  drawing with its card-shaped field cropped away, flush right, so it fills the design's logo
-  slot (78×64, the logo 73×24) instead of sitting small in its middle: measured, VISA renders
-  66×24 with the design's gaps (25 px under the label, 10 px over "Visa 4121"), and Mastercard
-  63×42, as onboarding's 01-C draws its 68×42. No crop is narrower than a four-letter mark's,
-  so a short one ("CB") is not drawn as tall as the circles. The handover summary (07-D) and
-  onboarding's summary (`sub-pay-mark`, the same crops in its copy of the component) draw the
-  same slot the same way. It is our wordmark, not the issuers' licensed artwork (see that
+  network's mark sits above that line (2026-09-28, "the brand logo is missing above the card") in
+  `CardBrandChip`, the same white chip as every list of cards (the user, 2026-11-25: no bare
+  marks anywhere; the handover summary 07-D and onboarding's summary wear it too), keyed on the
+  card's `brand` (`visa`, `mastercard`, …) with the API's `brand_label` as its fallback.
+  `CardBrand`'s cropped `fit="mark"` and `SUMMARY_MARK` are no longer drawn anywhere. It is our wordmark, not the issuers' licensed artwork (see that
   file), and it is hidden from screen readers because the line under it already names the
   card. A 403 (not the payer) or a Stripe failure there simply leaves the column out.
 - **The footer** (`components/RowFooter.tsx`, the same one under a result row): "Minty for
@@ -1345,9 +1339,11 @@ schema change), which 08-C writes.
   editing the file. The gaps are kept to 24px so _Bill to_ has the room (331px with a
   "HKD 1,295.09" amount - "angelika.tardaguela@oliveandvinehk.com" on one line), and a longer
   email breaks after its "@", never mid-word — then
-  its "Payment Methods" and its "Invoice History" (`/api/me/invoices?account=`; an invoice from
+  its "Payment Methods" (each card's network mark in `CardBrandChip`, the Billing Accounts
+  sheet's chip - never the brand's name typed out; 2026-11-25) and its "Invoice History" (`/api/me/invoices?account=`; an invoice from
   before accounts belongs to the oldest, where dunning collects it) - 10 to a page until the
-  payer picks 50 or 100, with the range and the way back and on; the invoices are their own
+  payer picks 50 or 100 (on a phone each invoice is a card - number, amount, paid date, then PDF,
+  csv and Retry payment as 44px buttons; the table from `sm`, one markup), with the range and the way back and on; the invoices are their own
   read, so turning a page never re-reads the accounts. Amber with "Due
   Immediately" and a **Payment Failed** chip when THIS account is in dunning or a company on it
   is past due (**08-K**) - and then the card it charges has a **red-outlined _Update card_**

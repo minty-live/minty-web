@@ -213,6 +213,8 @@ describe("SubscriptionRequestsScreen", () => {
     expect(within(panel).queryByText("Payment method")).toBeNull();
     expect(within(panel).getByText(/Harbour Trading/)).toBeInTheDocument();
     expect(within(panel).getByText("Visa 4121")).toBeInTheDocument();
+    // Its network's mark in the same white chip as every list of cards (the user, 2026-11-25).
+    expect(panel.querySelector('[data-card-chip] [data-brand="visa"]')).not.toBeNull();
     // NO MONEY LINE: accepting takes nothing, so the panel names no figure and no date.
     expect(within(panel).queryByText(/You’ll be charged/)).toBeNull();
     expect(screen.getByText(/charged to your selected billing account/)).toBeInTheDocument();

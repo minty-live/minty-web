@@ -42,7 +42,7 @@ import {
   type SummaryView,
 } from "@/features/subscription/lib/subscriptionSummary";
 
-import { CardBrand, SUMMARY_MARK } from "@/features/subscription/components/CardBrand";
+import { CardBrandChip } from "@/features/subscription/components/CardBrand";
 import { ManagedByNotice } from "@/features/subscription/components/ManagedByNotice";
 import { ModuleCardShell, ModuleStatus } from "@/features/subscription/components/ModuleCard";
 import { RowFooter } from "@/features/subscription/components/RowFooter";
@@ -340,14 +340,16 @@ function SummaryPanel({
             {view.paymentMethod && !readOnly && (
               <div className="flex flex-col items-end text-right">
                 <p className="text-[15px] text-text-secondary">Payment method</p>
-                {/* The network's mark above the card it names, bare and at the design's size
-                    (73 x 24), the same slot as the handover summary's (07-D). */}
-                <CardBrand
-                  brand={view.paymentMethod.network}
-                  label={view.paymentMethod.brand}
-                  fit="mark"
-                  className={`mt-[19px] ${SUMMARY_MARK}`}
-                />
+                {/* The network's mark above the card it names, in the white chip every card
+                    wears (the user, 2026-11-25), as the handover summary's (07-D). */}
+                <span className="mt-[19px] mb-1 flex">
+                  <CardBrandChip
+                    card={{
+                      brand: view.paymentMethod.network,
+                      brand_label: view.paymentMethod.brand,
+                    }}
+                  />
+                </span>
                 <p className="text-xl font-bold text-text-primary" data-payment-method>
                   {view.paymentMethod.label}
                 </p>
