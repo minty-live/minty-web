@@ -150,6 +150,9 @@ function optionLabel(o: MatchOption): string {
   return code ? `${code} · ${o.name}` : o.name;
 }
 
+/** A guessed row's stand-in option (see `Row`). */
+const GUESS = "__guess__";
+
 function Row({
   row,
   options,
@@ -169,8 +172,11 @@ function Row({
     !row.pick && row.suggestion ? fitting.find((o) => o.id === row.suggestion) : undefined;
   const picked = row.pick?.xero_account_id ?? "";
   const needed = !row.pick;
-  // Minty's guess by name: orange like an empty row until the person picks an account
+  // Minty's guess by name: orange like an empty row until the person picks an account - the same
+  // one included (the user, 2026-11-25). A native select fires no change for its current option, so
+  // a guess sits on a hidden stand-in carrying its name, and choosing the real one is a change.
   const guess = Boolean(row.pick?.guess);
+  const guessed = guess ? fitting.find((o) => o.id === picked) : undefined;
   // Xero's codes can be long (4000_01_01): the code runs with the name instead of a fixed column.
   const code = shownCode(row.code, row.name);
   const label = `${code ? `${code} ` : ""}${row.name}`;
@@ -224,14 +230,21 @@ function Row({
           {MATCH_COPY.xero} for {label}
         </span>
         <select
-          value={picked}
+          value={guessed ? GUESS : picked}
           disabled={busy}
           aria-required
           aria-invalid={needed ? true : undefined}
-          onChange={(e) => onPick(e.target.value || null)}
+          onChange={(e) => {
+            if (e.target.value !== GUESS) onPick(e.target.value || null);
+          }}
           className={`block min-h-11 w-full appearance-none rounded-[12px] border bg-white py-2 pr-10 pl-3 text-[13.5px] text-set-ink transition-[border-color,box-shadow] focus:outline-none disabled:cursor-not-allowed disabled:bg-set-pill md:min-h-9 ${needed || guess ? "border-status-warning-ink focus:shadow-[0_0_0_3px_rgba(232,161,58,0.2)]" : SETTINGS_INPUT_OK} ${picked ? "" : "text-set-mute"}`}
         >
           <option value="">{MATCH_COPY.choose}</option>
+          {guessed ? (
+            <option value={GUESS} hidden disabled>
+              {optionLabel(guessed)}
+            </option>
+          ) : null}
           {suggestion ? (
             <optgroup label={MATCH_COPY.suggested}>{option(suggestion)}</optgroup>
           ) : null}

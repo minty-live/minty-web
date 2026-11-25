@@ -193,8 +193,10 @@ The page (frame 3, under "Connect to Xero") has two steps (the user, 2026-11-24)
   "<code> · <name> - matched to <account>". **Every row starts filled** (the user, 2026-11-25): a
   same code and type, an account's own link, else Minty's closest Xero account by name (the API's
   `pick.guess`). A guessed row keeps the orange select, shows no tick, and says in orange "Filled in
-  by Minty. Check it's right." (no button to accept it - the user, 2026-11-25); choosing an account
-  makes it the person's. The progress card adds "Minty filled in N accounts by name. Check them before you
+  by Minty. Check it's right." (no button to accept it - the user, 2026-11-25); choosing an account,
+  the same one included, makes it the person's: green, with the tick (the select sits on a hidden
+  stand-in option carrying the guess's name, because a native select fires no change for its
+  current option). The progress card adds "Minty filled in N accounts by name. Check them before you
   finish." Guesses count as matched and never hold Next or Finish. A row left empty (nothing in Xero
   fits, or the person cleared it) shows a suggestion leading the select in its own "Suggested" group
   (never one another account has). The select is the frames' compact one with its own chevron

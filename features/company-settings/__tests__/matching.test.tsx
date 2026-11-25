@@ -313,16 +313,18 @@ describe("Matching a company's accounts to Xero", () => {
     const wages = screen.getByRole("combobox", {
       name: /Xero account for 6001 Salaries - Full Time/,
     });
-    expect(wages).toHaveValue("x-wages");
+    // the box shows the guess; the list offers the same account as a real choice
+    expect(wages).toHaveDisplayValue("477 · Wages and Salaries");
     expect(wages.className).toMatch(/border-status-warning-ink/);
     // guesses never hold Finish
     expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
 
     // no button to accept a guess: the note is all (the user, 2026-11-25)
     expect(screen.queryByRole("button", { name: /Keep/ })).toBeNull();
-    await userEvent.selectOptions(wages, "x-casual");
+    // choosing the same account Minty filled in makes it the person's
+    await userEvent.selectOptions(wages, "x-wages");
     await waitFor(() =>
-      expect(picks).toEqual([{ account_id: "a-wages", xero_account_id: "x-casual" }]),
+      expect(picks).toEqual([{ account_id: "a-wages", xero_account_id: "x-wages" }]),
     );
     expect(screen.queryByText(MATCH_COPY.guessed(2))).toBeNull();
   });

@@ -272,9 +272,11 @@ for (const width of [360, 768, 1440]) {
     ).toBeVisible();
     await expect(page.getByText("Filled in by Minty. Check it's right.")).toHaveCount(2);
     await expect(page.getByRole("heading", { name: /^Not matched yet/ })).toHaveCount(0);
-    await expect(
-      page.getByRole("combobox", { name: /Xero account for 6001 Salaries - Full Time/ }),
-    ).toHaveValue("x-wages");
+    const wages = page.getByRole("combobox", {
+      name: /Xero account for 6001 Salaries - Full Time/,
+    });
+    await expect(wages).toHaveValue("__guess__");
+    await expect(wages.locator("option:checked")).toHaveText("477 · Wages and Salaries");
     await expect(page.getByRole("button", { name: "Next: contacts" })).toBeEnabled();
     await expect(page.getByRole("button", { name: /^Keep/ })).toHaveCount(0);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
@@ -283,5 +285,20 @@ for (const width of [360, 768, 1440]) {
       fullPage: true,
     });
     expect(sent.filter((s) => s.method === "PATCH")).toEqual([]);
+
+    // choosing the same account Minty filled in: the person's now - no note, a tick
+    await wages.selectOption("x-wages");
+    await expect(
+      page.getByText("Minty filled in 1 account by name. Check it before you finish."),
+    ).toBeVisible();
+    await expect(page.getByText("Filled in by Minty. Check it's right.")).toHaveCount(1);
+    await expect(page.getByRole("img", { name: "Matched" })).toHaveCount(3);
+    expect(sent.filter((s) => s.method === "PATCH").map((s) => s.body)).toEqual([
+      { account_id: "a-wages", xero_account_id: "x-wages" },
+    ]);
+    await page.screenshot({
+      path: `test-results/14_matching_guess_chosen_${width}.png`,
+      fullPage: true,
+    });
   });
 }
