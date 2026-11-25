@@ -550,7 +550,7 @@ test.describe("billing", () => {
     const cards = body(page).getByRole("region", { name: "Payment Methods" });
     const charged = cards.getByRole("button", { name: "Update card · Visa ending in 4121" });
     await expect(charged).toHaveAttribute("data-attention", "true");
-    await expect(charged).toHaveCSS("border-top-color", "rgb(194, 54, 59)");
+    await expect(charged).toHaveCSS("border-top-color", "rgb(220, 90, 90)");
     await expect(
       cards.getByRole("button", { name: "Update card · Mastercard ending in 4651" }),
     ).not.toHaveAttribute("data-attention");
@@ -560,9 +560,9 @@ test.describe("billing", () => {
     const row = invoices.getByRole("row").filter({ hasText: "#11248800121" });
     await expect(row).toHaveAttribute("data-failed", "true");
     await expect(row).toContainText(/Failed \d{2} [A-Z][a-z]{2}/);
-    await expect(row.getByText("#11248800121")).toHaveCSS("color", "rgb(168, 42, 47)");
+    await expect(row.getByText("#11248800121")).toHaveCSS("color", "rgb(180, 35, 24)");
     const retry = row.getByRole("button", { name: "Retry payment: invoice #11248800121" });
-    await expect(retry).toHaveCSS("background-color", "rgb(194, 54, 59)");
+    await expect(retry).toHaveCSS("background-color", "rgb(220, 90, 90)");
 
     await retry.click();
     await expect(invoices.getByRole("status")).toHaveText(
