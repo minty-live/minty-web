@@ -7,8 +7,13 @@
  * (features/auth/api/signIn.ts).
  *
  * - Email: a code is emailed (`requestCode`) and `/login/confirm` takes it. Log-in mode asks
- *   Flask to refuse an address with no account before anything is sent.
- * - Xero: a navigation to Flask's OAuth start; Flask's callback signs the person in.
+ *   accounts-api to refuse an address with no account before anything is sent; that refusal is a
+ *   question here ("You haven't signed up yet"): Continue opens `/signup` with the address,
+ *   Cancel stays (2026-11-26).
+ * - Xero: a navigation to accounts-api's OAuth start; its callback signs the person in. A Xero
+ *   login with no Minty account comes back with `?xero_signup=` and the same question: Continue
+ *   turns this page into the sign-up (Xero's names, its address fixed, the Terms) and Create
+ *   account makes it with no code; Cancel drops the held login (2026-11-26).
  * - Making an account (sign-up, or an invitee new to Minty) needs the Terms agreed first: the
  *   box opens the read-to-agree panel and is ticked only by agreeing at its end. An invitee who
  *   already agreed is not asked again (`inviteOwesTerms`); any doubt keeps the box.
@@ -18,19 +23,26 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { TermsModal } from "@/components/ui/TermsModal";
 import { ApiError } from "@/lib/apiClient";
+import { leaveTo } from "@/lib/handoff";
 import { EMAIL_ASCII_HINT, isEmail, useEmailInput } from "@minty/shared/emailInput";
 import { SessionExpiredDialog } from "@minty/shared/ui";
 import type { LegalDocumentBody } from "@/lib/legal/document";
 import { LEGAL_PATHS } from "@/lib/legal/paths";
 
 import {
+  cancelXeroSignup,
+  createXeroAccount,
+  isNotSignedUp,
   requestCode,
   inviteOwesTerms,
   signUpTerms,
   xeroSignInUrl,
+  xeroSignupDetails,
+  type XeroSignup,
 } from "@/features/auth/api/signIn";
 import {
   AUTH_ERROR,
@@ -60,6 +72,11 @@ export const LOGIN_COPY = {
   noStorage:
     "Your browser is blocking site storage, so I can't take you to the next step. Mind allowing it and trying again?",
   termsUnavailable: "I couldn't load the Terms of Use just now. Mind trying again?",
+  notSignedUpTitle: "You haven't signed up yet",
+  notSignedUpBody: "Click Continue to start sign-up.",
+  xeroLead: "Signing up with your Xero login.",
+  createAccount: "Create account",
+  creating: "Creating your account…",
 } as const;
 
 const noSubscribe = () => () => {};
@@ -85,8 +102,12 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
   // and left a preview set.
   const origin = useSyncExternalStore(noSubscribe, readOrigin, serverNoOrigin);
 
-  const signup = arrival.mode === "signup";
   const invited = arrival.mode === "invite";
+  // A Xero login with no Minty account, once Continue was pressed: this page is its sign-up.
+  const [xero, setXero] = useState<XeroSignup | null>(null);
+  const signup = arrival.mode === "signup" || xero !== null;
+  // "You haven't signed up yet" - for the address typed, or for the held Xero login.
+  const [ask, setAsk] = useState<{ email: string; xero?: XeroSignup } | null>(null);
   const [email, setEmail] = useState(arrival.email);
   const emailInput = useEmailInput(setEmail);
   const [firstName, setFirstName] = useState(arrival.firstName);
@@ -95,7 +116,7 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
   const [error, setError] = useState("");
 
   // The Terms: owed on sign-up always; on an invitation unless Flask says this invitee agreed.
-  const [termsOwed, setTermsOwed] = useState(signup || invited);
+  const [termsOwed, setTermsOwed] = useState(arrival.mode !== "login");
   const [terms, setTerms] = useState<LegalDocumentBody | null>(null);
   const [termsOpen, setTermsOpen] = useState(false);
   const [agreedVersion, setAgreedVersion] = useState("");
@@ -108,7 +129,47 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
       );
   }, [invited, arrival.invite]);
 
-  const emailLocked = invited && Boolean(arrival.email);
+  useEffect(() => {
+    if (!arrival.xeroSignup || arrival.mode !== "login") return;
+    xeroSignupDetails(arrival.xeroSignup)
+      .then((held) => setAsk({ email: held.email, xero: held }))
+      .catch((err) => {
+        console.error("[sign-in] the held Xero login could not be read", err);
+        setError(err instanceof ApiError ? err.message : String(err));
+      });
+  }, [arrival.xeroSignup, arrival.mode]);
+
+  const continueSignup = () => {
+    if (!ask) return;
+    setAsk(null);
+    if (ask.xero) {
+      setXero(ask.xero);
+      setEmail(ask.xero.email);
+      setFirstName(ask.xero.firstName);
+      setLastName(ask.xero.lastName);
+      setTermsOwed(true);
+      setAgreedVersion("");
+      setError("");
+      return;
+    }
+    const query = new URLSearchParams({ email: ask.email });
+    if (arrival.next) query.set("next", arrival.next);
+    router.push(`${AUTH_PATHS.signup}?${query.toString()}`);
+  };
+
+  const cancelSignup = () => {
+    if (ask?.xero) {
+      cancelXeroSignup(ask.xero.key).catch((err) =>
+        console.error(
+          "[sign-in] the held Xero login could not be dropped; it lapses on its own",
+          err,
+        ),
+      );
+    }
+    setAsk(null);
+  };
+
+  const emailLocked = (invited && Boolean(arrival.email)) || xero !== null;
   const namesValid = !signup || (firstName.trim() !== "" && lastName.trim() !== "");
   const termsValid = !termsOwed || Boolean(agreedVersion);
   const canSend = isEmail(email) && namesValid && termsValid && !sending;
@@ -132,12 +193,29 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
     if (!canSend) return;
     setError("");
     setSending(true);
+    if (xero) {
+      try {
+        leaveTo(
+          await createXeroAccount({
+            key: xero.key,
+            firstName,
+            lastName,
+            termsVersion: agreedVersion,
+          }),
+        );
+      } catch (err) {
+        setSending(false);
+        setError(err instanceof ApiError ? err.message : String(err));
+      }
+      return;
+    }
     const login = !signup && !invited;
     try {
       await requestCode({ email, login, invite: arrival.invite });
     } catch (err) {
       setSending(false);
-      setError(err instanceof ApiError ? err.message : String(err));
+      if (login && isNotSignedUp(err)) setAsk({ email });
+      else setError(err instanceof ApiError ? err.message : String(err));
       return;
     }
     const handedOver = saveConfirmContext({
@@ -162,7 +240,7 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
     <AuthShell>
       <AuthHeading
         title={signup ? LOGIN_COPY.signupTitle : LOGIN_COPY.loginTitle}
-        lead={signup ? LOGIN_COPY.signupLead : LOGIN_COPY.loginLead}
+        lead={xero ? LOGIN_COPY.xeroLead : signup ? LOGIN_COPY.signupLead : LOGIN_COPY.loginLead}
       />
 
       {invited && arrival.email ? (
@@ -221,7 +299,13 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
               value={email}
               readOnly={emailLocked}
               aria-readonly={emailLocked}
-              title={emailLocked ? "This invite was sent to this address" : undefined}
+              title={
+                xero
+                  ? "Your Xero login's address"
+                  : emailLocked
+                    ? "This invite was sent to this address"
+                    : undefined
+              }
             />
             <label htmlFor="signin-email" className={AUTH_LABEL}>
               Email
@@ -273,7 +357,15 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
         ) : null}
 
         <button type="submit" className={AUTH_PRIMARY} disabled={!canSend}>
-          {sending ? LOGIN_COPY.sending : signup ? LOGIN_COPY.sendSignup : LOGIN_COPY.sendLogin}
+          {xero
+            ? sending
+              ? LOGIN_COPY.creating
+              : LOGIN_COPY.createAccount
+            : sending
+              ? LOGIN_COPY.sending
+              : signup
+                ? LOGIN_COPY.sendSignup
+                : LOGIN_COPY.sendLogin}
         </button>
         {error ? (
           <p className={AUTH_ERROR} role="alert">
@@ -282,26 +374,30 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
         ) : null}
       </form>
 
-      <div className="flex items-center gap-3 text-[13px] text-muted" role="separator">
-        <span className="h-px flex-1 bg-border-subtle" />
-        or
-        <span className="h-px flex-1 bg-border-subtle" />
-      </div>
+      {xero ? null : (
+        <>
+          <div className="flex items-center gap-3 text-[13px] text-muted" role="separator">
+            <span className="h-px flex-1 bg-border-subtle" />
+            or
+            <span className="h-px flex-1 bg-border-subtle" />
+          </div>
 
-      <a
-        className={AUTH_GHOST}
-        href={xeroSignInUrl({ invite: arrival.invite, next: arrival.next }, origin)}
-      >
-        {LOGIN_COPY.xero}
-        <Image
-          src="/auth/xero-logo.webp"
-          alt=""
-          width={20}
-          height={20}
-          unoptimized
-          className="h-5 w-5 rounded-full object-cover"
-        />
-      </a>
+          <a
+            className={AUTH_GHOST}
+            href={xeroSignInUrl({ invite: arrival.invite, next: arrival.next }, origin)}
+          >
+            {LOGIN_COPY.xero}
+            <Image
+              src="/auth/xero-logo.webp"
+              alt=""
+              width={20}
+              height={20}
+              unoptimized
+              className="h-5 w-5 rounded-full object-cover"
+            />
+          </a>
+        </>
+      )}
 
       <p className="text-center text-sm text-ink-soft">
         {signup ? (
@@ -328,6 +424,20 @@ export function LoginScreen({ arrival }: { arrival: Arrival }) {
           onAccepted={() => setTermsOpen(false)}
           onCancel={() => setTermsOpen(false)}
         />
+      ) : null}
+      {ask ? (
+        <ConfirmDialog
+          title={LOGIN_COPY.notSignedUpTitle}
+          image="surprised"
+          lead={<span className="text-text-link">{ask.email}</span>}
+          busy={false}
+          confirmLabel="Continue"
+          backLabel="Cancel"
+          onConfirm={continueSignup}
+          onBack={cancelSignup}
+        >
+          <p>{LOGIN_COPY.notSignedUpBody}</p>
+        </ConfirmDialog>
       ) : null}
       <SessionExpiredDialog open={expiredOpen} onOk={() => setExpiredOpen(false)} />
     </AuthShell>

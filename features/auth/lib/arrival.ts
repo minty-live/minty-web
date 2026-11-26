@@ -11,9 +11,11 @@
  * - `next` - the Flask page the person was on its way to (sign-in returns there);
  * - `flash` - Flask's messages from the way here, signed (read back from Flask);
  * - `expired=1` - accounts-api's door met a sign-in that had ended (60 minutes without activity,
- *   or signed out): the page opens with "Your session has expired" (2026-11-19).
+ *   or signed out): the page opens with "Your session has expired" (2026-11-19);
+ * - `xero_signup` - the signed key of a Xero login nobody holds (accounts-api's callback made
+ *   nothing): the page asks "You haven't signed up yet", and Continue opens the sign-up (2026-11-26).
  *
- * Read ONCE, then the page clears its address bar: `invite` is a secret (whoever holds it joins
+ * Read ONCE, then the page clears its address bar: `invite` and `xero_signup` are secrets (whoever holds it joins
  * the company) and must not sit in the history.
  */
 
@@ -30,6 +32,8 @@ export type Arrival = {
   flash: string;
   /** The sign-in behind the way here had ended: say so first (`SessionExpiredDialog`). */
   expired: boolean;
+  /** A Xero login with no Minty account, held for its sign-up; "" when none. */
+  xeroSignup: string;
 };
 
 /** A path on the same site: "/x", never "//host" or "/\host" (Flask's safe_internal_path rule). */
@@ -53,5 +57,6 @@ export function readArrival(params: URLSearchParams, opts: { signup?: boolean } 
     next: sitePath(params.get("next")),
     flash: params.get("flash") ?? "",
     expired: params.get("expired") === "1",
+    xeroSignup: (params.get("xero_signup") ?? "").trim(),
   };
 }

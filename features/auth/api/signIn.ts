@@ -57,8 +57,10 @@ const post = (path: string, json: unknown) =>
   call(path, { method: "POST", body: JSON.stringify(json) });
 
 /**
- * Email a six-digit code. `login` asks Flask to refuse an address with no account (404 "Please
- * sign up first") before anything is sent; sign-up and an invitation may name a new address.
+ * Email a six-digit code. `login` asks accounts-api to refuse an address with no account before
+ * anything is sent: 404 with `action: "signup"` (`isNotSignedUp`), which the page turns into a
+ * question - Continue opens the sign-up with the address. Sign-up and an invitation may name a
+ * new address.
  * The invite rides along so Flask refuses an address the invitation was not sent to - before a
  * code goes to an inbox that cannot use it.
  */
@@ -91,6 +93,55 @@ export async function verifyCode(context: ConfirmContext, code: string): Promise
     next: context.next,
   });
   return withReturnOrigin(flaskDestination(answer.redirect_url));
+}
+
+/** The log-in refusal that means "no account yet" - asked about, not shown as an error. */
+export function isNotSignedUp(err: unknown): err is ApiError {
+  return (
+    err instanceof ApiError &&
+    err.status === 404 &&
+    (err.body as FlaskAnswer | undefined)?.action === "signup"
+  );
+}
+
+/**
+ * A Xero login nobody holds (2026-11-26): accounts-api's callback makes nothing and sends the
+ * browser here with `?xero_signup=<signed key>`. The key names the held login (10 minutes); these
+ * read it, make the account from it (no code: Xero proved the address), or drop it.
+ */
+export type XeroSignup = { key: string; email: string; firstName: string; lastName: string };
+
+export async function xeroSignupDetails(key: string): Promise<XeroSignup> {
+  const answer = await post("/auth/xero/signup-details", { key });
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    key,
+    email: text(answer.email),
+    firstName: text(answer.first_name),
+    lastName: text(answer.last_name),
+  };
+}
+
+/** The account for the held Xero login; answers the hand-off that signs the person in. */
+export async function createXeroAccount(args: {
+  key: string;
+  firstName: string;
+  lastName: string;
+  termsVersion: string;
+}): Promise<string> {
+  const answer = await post("/auth/xero/signup", {
+    key: args.key,
+    first_name: args.firstName,
+    last_name: args.lastName,
+    terms_accepted: Boolean(args.termsVersion),
+    terms_version: args.termsVersion,
+  });
+  return withReturnOrigin(flaskDestination(answer.redirect_url));
+}
+
+/** Cancel on the question: the held login is dropped (already gone is fine). */
+export async function cancelXeroSignup(key: string): Promise<void> {
+  await post("/auth/xero/signup-cancel", { key });
 }
 
 export function flaskDestination(redirectUrl: unknown): string {

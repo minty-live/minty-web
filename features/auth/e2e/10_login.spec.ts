@@ -140,6 +140,70 @@ test.describe("sign-in", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your account");
   });
 
+  test("an address with no account is asked about sign-up on a phone; Continue opens it", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.route(`${ACCOUNTS_API_URL}/auth/email/request-code**`, (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "error",
+          message: "You haven't signed up yet. Click Continue to start sign-up.",
+          action: "signup",
+        }),
+      }),
+    );
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("nobody@example.com");
+    await page.getByLabel("Email").press("Enter");
+
+    const dialog = page.getByRole("dialog", { name: "You haven't signed up yet" });
+    await expect(dialog).toContainText("nobody@example.com");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await dialog.getByRole("button", { name: "Continue" }).click();
+
+    // The address rides in the query, which the page then clears from the address bar.
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your account");
+    await expect(page.getByLabel("Email")).toHaveValue("nobody@example.com");
+  });
+
+  test("a Xero login with no account: asked first on a phone, Continue is the sign-up form", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await stubFlask(page);
+    await page.route(`${ACCOUNTS_API_URL}/auth/xero/signup-details**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "success",
+          email: "nia@example.com",
+          first_name: "Nia",
+          last_name: "New",
+        }),
+      }),
+    );
+    await page.goto("/login?xero_signup=signed-key");
+
+    const dialog = page.getByRole("dialog", { name: "You haven't signed up yet" });
+    await expect(dialog).toContainText("nia@example.com");
+    expect(new URL(page.url()).search).toBe(""); // the key left the address bar
+    await dialog.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your account");
+    await expect(page.getByLabel("First name")).toHaveValue("Nia");
+    await expect(page.getByLabel("Email")).toHaveValue("nia@example.com");
+    await expect(page.getByLabel("Email")).toHaveAttribute("readonly", "");
+    await expect(page.getByRole("button", { name: "Create account" })).toBeDisabled();
+  });
+
   for (const width of [360, 768, 1440]) {
     test(`nothing is wider than the screen at ${width}px`, async ({ page }) => {
       await stubFlask(page);

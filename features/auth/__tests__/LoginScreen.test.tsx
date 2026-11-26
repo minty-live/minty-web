@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "@/components/ui/Toast";
 import { env } from "@/lib/env";
+import { _resetHandoffForTests } from "@/lib/handoff";
 
 import { readArrival } from "@/features/auth/lib/arrival";
 import { readConfirmContext } from "@/features/auth/lib/handover";
@@ -99,22 +100,171 @@ describe("LoginScreen", () => {
     });
   });
 
-  it("an address with no account is told so in Flask's words - and ONCE: the alert carries no link", async () => {
-    flask({
-      "/auth/email/request-code": () =>
-        json({ status: "error", message: "Please sign up first" }, 404),
-    });
-    show();
+  const NOT_SIGNED_UP = "You haven't signed up yet. Click Continue to start sign-up.";
+  const notSignedUp = () =>
+    json({ status: "error", message: NOT_SIGNED_UP, action: "signup" }, 404);
+
+  it("an address with no account is asked about sign-up: Continue opens it with the address", async () => {
+    flask({ "/auth/email/request-code": notSignedUp });
+    show("next=%2Fentities");
 
     await userEvent.type(screen.getByLabelText(/^Email\s*\*?$/), "nobody@example.com");
     await userEvent.click(screen.getByRole("button", { name: LOGIN_COPY.sendLogin }));
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Please sign up first");
-    // The page's ONE way to sign up is its own link, below Xero - the alert used to repeat it.
-    expect(alert.querySelector("a")).toBeNull();
-    expect(screen.getByRole("link", { name: "Sign up" })).toHaveAttribute("href", "/signup");
+    const dialog = await screen.findByRole("dialog", { name: LOGIN_COPY.notSignedUpTitle });
+    expect(dialog).toHaveTextContent("nobody@example.com");
+    expect(dialog).toHaveTextContent(LOGIN_COPY.notSignedUpBody);
+    expect(screen.queryByRole("alert")).toBeNull(); // asked, not refused
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(push).toHaveBeenCalledWith("/signup?email=nobody%40example.com&next=%2Fentities");
+  });
+
+  it("Cancel on the sign-up question stays on log in with the address kept", async () => {
+    flask({ "/auth/email/request-code": notSignedUp });
+    show();
+
+    await userEvent.type(screen.getByLabelText(/^Email\s*\*?$/), "nobody@example.com");
+    await userEvent.click(screen.getByRole("button", { name: LOGIN_COPY.sendLogin }));
+    await screen.findByRole("dialog", { name: LOGIN_COPY.notSignedUpTitle });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByLabelText(/^Email\s*\*?$/)).toHaveValue("nobody@example.com");
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("sign-up opened from the question starts with the address filled in", () => {
+    show("email=nobody%40example.com", { signup: true });
+    expect(screen.getByLabelText(/^Email\s*\*?$/)).toHaveValue("nobody@example.com");
+  });
+
+  it("any other refusal is still said in the page's error line", async () => {
+    flask({
+      "/auth/email/request-code": () =>
+        json(
+          { status: "error", message: "Please wait a moment before requesting another code." },
+          400,
+        ),
+    });
+    show();
+    await userEvent.type(screen.getByLabelText(/^Email\s*\*?$/), "jane@example.com{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please wait a moment");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("a Xero login with no Minty account", () => {
+    const DETAILS = {
+      status: "success",
+      email: "nia@example.com",
+      first_name: "Nia",
+      last_name: "New",
+    };
+    const HANDOFF = `${env.ACCOUNTS_API_URL}/auth/email/handoff?h=abc`;
+
+    const agreeToTerms = async () => {
+      await userEvent.click(screen.getByRole("checkbox"));
+      const agreeBox = await screen.findByRole("checkbox", { name: /I have read and agree/ });
+      await waitFor(() => expect(agreeBox).toBeEnabled());
+      await userEvent.click(agreeBox);
+      await userEvent.click(screen.getByRole("button", { name: "Accept & Continue" }));
+      await waitFor(() => expect(screen.getByRole("checkbox")).toBeChecked());
+    };
+
+    it("asks first, then Continue is the sign-up form with Xero's address fixed - no code", async () => {
+      const navigate = vi.fn<(url: string) => void>();
+      _resetHandoffForTests(navigate);
+      flask({
+        "/auth/xero/signup-details": () => json(DETAILS),
+        "/legal/current": () => json(TERMS_LIVE),
+        "/api/legal/terms/beta-1": () => json(TERMS_DOC),
+        "/auth/xero/signup": () =>
+          json({ status: "success", action: "login", redirect_url: HANDOFF }),
+      });
+      show("xero_signup=signed-key");
+
+      const dialog = await screen.findByRole("dialog", { name: LOGIN_COPY.notSignedUpTitle });
+      expect(dialog).toHaveTextContent("nia@example.com");
+      expect(dialog).toHaveTextContent(LOGIN_COPY.notSignedUpBody);
+      expect(calls("/auth/xero/signup-details")).toEqual([{ key: "signed-key" }]);
+      await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+      expect(screen.getByRole("heading", { name: LOGIN_COPY.signupTitle })).toBeInTheDocument();
+      expect(screen.getByLabelText(/^First name\s*\*?$/)).toHaveValue("Nia");
+      expect(screen.getByLabelText(/^Last name\s*\*?$/)).toHaveValue("New");
+      const email = screen.getByLabelText(/^Email\s*\*?$/);
+      expect(email).toHaveValue("nia@example.com");
+      expect(email).toHaveAttribute("readonly");
+      expect(screen.queryByRole("link", { name: /Log in with Xero/ })).toBeNull();
+      const create = screen.getByRole("button", { name: LOGIN_COPY.createAccount });
+      expect(create).toBeDisabled(); // the Terms are owed
+
+      await agreeToTerms();
+      await userEvent.clear(screen.getByLabelText(/^Last name\s*\*?$/));
+      await userEvent.type(screen.getByLabelText(/^Last name\s*\*?$/), "Newer");
+      await userEvent.click(create);
+
+      await waitFor(() => expect(calls("/auth/xero/signup")).toHaveLength(1));
+      expect(calls("/auth/xero/signup")).toEqual([
+        {
+          key: "signed-key",
+          first_name: "Nia",
+          last_name: "Newer",
+          terms_accepted: true,
+          terms_version: "beta-1",
+        },
+      ]);
+      expect(calls("/auth/email/request-code")).toEqual([]); // no code: Xero proved the address
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          `${HANDOFF}&return_origin=${encodeURIComponent(window.location.origin)}`,
+        ),
+      );
+      _resetHandoffForTests();
+    });
+
+    it("Cancel drops the held Xero login and leaves the log-in page as it was", async () => {
+      flask({
+        "/auth/xero/signup-details": () => json(DETAILS),
+        "/auth/xero/signup-cancel": () => json({ status: "success" }),
+      });
+      show("xero_signup=signed-key");
+
+      await screen.findByRole("dialog", { name: LOGIN_COPY.notSignedUpTitle });
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await waitFor(() =>
+        expect(calls("/auth/xero/signup-cancel")).toEqual([{ key: "signed-key" }]),
+      );
+      expect(screen.getByRole("heading", { name: LOGIN_COPY.loginTitle })).toBeInTheDocument();
+      expect(screen.getByLabelText(/^Email\s*\*?$/)).toHaveValue("");
+    });
+
+    it("a held login that timed out says so, with no question", async () => {
+      flask({
+        "/auth/xero/signup-details": () =>
+          json(
+            {
+              status: "error",
+              message: "That Xero sign-in has timed out. Log in with Xero again to continue.",
+            },
+            410,
+          ),
+      });
+      show("xero_signup=old-key");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "That Xero sign-in has timed out.",
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("the key leaves the address bar at once", () => {
+      flask({ "/auth/xero/signup-details": () => json(DETAILS) });
+      window.history.replaceState({}, "", "/login?xero_signup=signed-key");
+      show("xero_signup=signed-key");
+      expect(window.location.search).toBe("");
+    });
   });
 
   it("signs up: names, then the Terms - the box opens the document and only agreeing ticks it", async () => {

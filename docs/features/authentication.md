@@ -18,6 +18,15 @@ a one-shot hand-off URL on Flask's origin - followed only there - that sets Flas
 goes on to `next` (kept from Flask's `login_required` redirect, a path on Flask only) or the
 list. Xero is a navigation to Flask's `/xero_auth`. `/signup` is the same screen, told by its
 address that it is making an account (`readArrival`'s `signup` option) - the one difference.
+**"You haven't signed up yet" (2026-11-26):** an address with no account, in log-in mode, is a
+question, not an error. accounts-api answers 404 with `action: "signup"` (`isNotSignedUp`), and
+the page opens `ConfirmDialog` with the address. Continue goes to `/signup?email=` (+ `next`),
+whose sign-up runs as usual: names, Terms, a new code. Cancel stays on log in. A Xero login with no
+account comes back as `/login?xero_signup=<key>` (a secret, cleared from the address bar like
+`invite`). The page reads it (`xeroSignupDetails`) and asks the same question. Continue turns the
+page into the sign-up: Xero's names, its address fixed, the Terms, then **Create account**
+(`createXeroAccount`, no code), which follows accounts-api's hand-off. Cancel drops it
+(`cancelXeroSignup`). Detail: accounts-api's `docs/features/authentication.md` §2.2.
 Flask's flashes from the way here arrive signed in `?flash=` and are read back from
 `GET /auth/notices`, shown as toasts. Sign-up and a new invitee agree to the Terms on the gate's
 own panel (`components/ui/TermsModal`, `agree` = keep the version shown, which then rides with
