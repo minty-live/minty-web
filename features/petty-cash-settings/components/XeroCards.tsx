@@ -184,7 +184,7 @@ export function XeroMappingCard({
     <PettyCashCard
       // one title: the card is no longer Xero's alone (owner, 2026-11-12)
       title="Account mapping"
-      lead="The accounts and contacts daily closing uses."
+      lead="The accounts and contacts Petty Cash uses."
       readOnly={load.kind === "ready" && !editable}
       testId="xero-mapping"
     >

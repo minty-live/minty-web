@@ -90,7 +90,7 @@ describe("Minty on its own", () => {
       />,
     );
     expect(screen.getByText("Account mapping")).toBeInTheDocument();
-    expect(screen.getByText("The accounts and contacts daily closing uses.")).toBeInTheDocument();
+    expect(screen.getByText("The accounts and contacts Petty Cash uses.")).toBeInTheDocument();
     expect(screen.getByText(/Xero isn.t connected/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Integration" })).toHaveAttribute("href", "/x");
   });
@@ -199,7 +199,7 @@ describe("a Xero company without a live connection (owner, 2026-11-12)", () => {
     );
 
     expect(screen.getByText("Account mapping")).toBeInTheDocument();
-    expect(screen.getByText("The accounts and contacts daily closing uses.")).toBeInTheDocument();
+    expect(screen.getByText("The accounts and contacts Petty Cash uses.")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
       "Petty Cash Account",
       "Deposit Bank Account",
