@@ -255,9 +255,8 @@
   border: 0;
 }
 
-/* ---- The illustration: a portrait 6:7 box over the landscape 4:3 artwork, cropped by
-   object-fit (the surplus is background either side of the cat) and slid down 19% over the
-   empty band under its feet - a transform, so the buttons below stay where they are. ---- */
+/* ---- The illustration: the artwork is already cropped to the 6:7 box (800x933, 2x), so
+   object-fit only guards against a future file of another shape. ---- */
 .illus {
   width: 100%;
   height: auto;
@@ -266,7 +265,6 @@
   aspect-ratio: 6 / 7;
   object-fit: cover;
   object-position: center;
-  transform: translateY(19%);
   pointer-events: none;
 }
 

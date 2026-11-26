@@ -253,7 +253,7 @@ test.describe("the Terms gate", () => {
     await stubFlask(page);
     const { dialog } = await arrive(page);
 
-    await expect(dialog.locator('img[src*="minty_important_update"]')).toBeHidden();
+    await expect(dialog.locator('img[src*="minty-terms"]')).toBeHidden();
     await readToTheEnd(page);
     await dialog.getByRole("checkbox").check();
     const accept = dialog.getByRole("button", { name: "Accept & Continue" });
