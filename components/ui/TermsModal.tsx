@@ -260,7 +260,7 @@ export function TermsModal({
                 the agreement. 400x467 is the RENDERED 6:7 box, reserved before it loads. */}
             <Image
               className={styles.illus}
-              src="/legal/minty-terms.jpg"
+              src="/legal/minty-terms.png"
               alt=""
               width={400}
               height={467}
