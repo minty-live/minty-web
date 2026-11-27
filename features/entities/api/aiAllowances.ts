@@ -19,7 +19,7 @@ export type AiCompanyRow = {
   /** Tokens used / given over the grants that still have room; null when none has a token cap. */
   tokens_used: number | null;
   tokens_given: number | null;
-  /** False: never given anything - the figures are the default grant it gets on its first read. */
+  /** False: never given anything - the figures count any grant due (its AI trial, this billing period's). */
   has_grant: boolean;
   /** Reads a model answered, all time. */
   reads: number;
@@ -35,8 +35,11 @@ export type AiCompanyList = {
 
 export type AiGrant = {
   id: string;
-  /** `default` = given automatically on the first read; `manual` = given by support. */
-  source: "default" | "manual";
+  /**
+   * `trial` = the company's 30-day AI trial; `cycle` = one billing period's grant (the user,
+   * 2026-11-27); `manual` = given by support; `default` = the one-time grant before 27 Nov 2026.
+   */
+  source: "trial" | "cycle" | "manual" | "default";
   tokens_total: number | null;
   tokens_used: number;
   reads_total: number | null;
@@ -71,7 +74,10 @@ export type AiCompany = {
     reads_left: number | null;
     reads_limit: number | null;
   };
+  /** The AI trial's size. */
   default_grant: { tokens: number | null; reads: number | null; days: number | null } | null;
+  /** Each billing period's tokens after the trial; null = none. Absent from an older API. */
+  cycle_tokens?: number | null;
   grants: AiGrant[];
   /** The 20 newest; `reads_more` when older ones are left ("Show more reads"). */
   reads: AiRead[];

@@ -275,6 +275,55 @@ describe("AI allowances on Select Company", () => {
     expect(rowOf("Gold Moon Company").getByText("Archived")).toBeInTheDocument();
   });
 
+  it("names the AI trial and a billing period's grant, and says what a company gets by itself", async () => {
+    // the user, 2026-11-27: AI is its own product - a 30-day trial, then one grant per billing period
+    const open = {
+      ...COMPANY.grants[0],
+      open: true,
+      tokens_used: 1000,
+      expires_at: "2026-12-27T00:00:00Z",
+    };
+    serve(SUPERUSER, undefined, {
+      ...COMPANY,
+      allowance: { ...COMPANY.allowance, percent_left: 99, blocked: false },
+      default_grant: { tokens: 280000, reads: null, days: 30 },
+      cycle_tokens: 280000,
+      grants: [
+        { ...open, id: "g-cycle", source: "cycle", tokens_total: 168000 },
+        { ...open, id: "g-trial", source: "trial", tokens_total: 280000 },
+      ],
+    });
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+
+    const grants = within(await dialog().findByRole("list", { name: "Grants" }));
+    expect(grants.getByText("Billing period")).toBeInTheDocument();
+    expect(grants.getByText("AI trial")).toBeInTheDocument();
+  });
+
+  it("a company with no grant yet is told its trial and its billing periods' grants", async () => {
+    serve(SUPERUSER, undefined, {
+      ...COMPANY,
+      default_grant: { tokens: 280000, reads: null, days: 30 },
+      cycle_tokens: 280000,
+      grants: [],
+    });
+    show();
+    await aiMode();
+    await userEvent.click(
+      rowOf(FIVE.name).getByRole("button", { name: `Manage the AI allowance of ${FIVE.name}` }),
+    );
+
+    expect(
+      await dialog().findByText(
+        "None yet. It gets a 30-day AI trial of 280,000 tokens, then 280,000 tokens each billing period while it pays.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("Manage opens the company: its grants and its last reads", async () => {
     serve(SUPERUSER);
     show();

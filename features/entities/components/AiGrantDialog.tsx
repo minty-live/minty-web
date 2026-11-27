@@ -39,6 +39,7 @@ import {
   type GrantInput,
 } from "@/features/entities/api/aiAllowances";
 import {
+  automaticGrants,
   canEnd,
   count,
   day,
@@ -50,6 +51,7 @@ import {
   endedLine,
   fieldProblems,
   GRANT_ENDED,
+  GRANT_NAME,
   ALL_READS,
   BACK,
   LOAD_OLDER,
@@ -264,7 +266,7 @@ export function AiGrantDialog({
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2 pt-2.5">
             <span className="text-sm font-semibold text-text-primary">
-              {grant.source === "default" ? "Default grant" : "Grant"}
+              {GRANT_NAME[grant.source]}
             </span>
             <span className={`${AI_PILL} ${AI_PILL_TONE[state]}`}>{state}</span>
           </div>
@@ -435,10 +437,7 @@ export function AiGrantDialog({
             </div>
             {company.grants.length === 0 ? (
               <p className="mt-1 text-sm text-text-secondary">
-                None yet.{" "}
-                {company.default_grant?.tokens
-                  ? `It gets ${count(company.default_grant.tokens)} tokens on its first read.`
-                  : "It gets nothing automatically: give it a grant to let it read."}
+                None yet. {automaticGrants(company)}
               </p>
             ) : openGrants.length === 0 ? (
               <p className="mt-1 text-sm text-text-secondary">{NO_OPEN_GRANTS}</p>

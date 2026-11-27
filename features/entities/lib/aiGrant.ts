@@ -5,7 +5,12 @@
  * yet"). Part 11 wording: the issue, then what to do.
  */
 
-import type { AiCompanyRow, AiGrant, GrantInput } from "@/features/entities/api/aiAllowances";
+import type {
+  AiCompany,
+  AiCompanyRow,
+  AiGrant,
+  GrantInput,
+} from "@/features/entities/api/aiAllowances";
 
 export const MAX_TOKENS = 10_000_000;
 export const MAX_READS = 10_000;
@@ -75,10 +80,7 @@ export function rowAllowance(row: AiCompanyRow): string {
 
 /** "1 read · last 18 Nov 2026", or "No reads yet". */
 export function rowReads(row: AiCompanyRow): string {
-  if (!row.reads)
-    return row.has_grant
-      ? "No reads yet"
-      : "No reads yet · gets the default grant on its first read";
+  if (!row.reads) return "No reads yet";
   const plural = row.reads === 1 ? "read" : "reads";
   return `${count(row.reads)} ${plural}${row.last_read_at ? ` · last ${day(row.last_read_at)}` : ""}`;
 }
@@ -132,3 +134,33 @@ export const BACK = "Back";
 export const SHOW_MORE_READS = "Show more reads";
 export const ALL_READS = "All reads";
 export const LOAD_OLDER = "Load older reads";
+
+/** A grant's name on its card (the user, 2026-11-27: the AI trial, then one grant per billing period). */
+export const GRANT_NAME: Record<AiGrant["source"], string> = {
+  trial: "AI trial",
+  cycle: "Billing period",
+  manual: "Grant",
+  default: "Default grant",
+};
+
+/**
+ * What a company gets by itself, under "None yet": its AI trial and each billing period's grant
+ * (`default_grant` and `cycle_tokens`).
+ */
+export function automaticGrants(
+  company: Pick<AiCompany, "default_grant" | "cycle_tokens">,
+): string {
+  const trial = company.default_grant?.tokens ?? null;
+  const days = company.default_grant?.days ?? null;
+  const period = company.cycle_tokens ?? null;
+  const trialText =
+    trial === null
+      ? null
+      : `${days ? `a ${days}-day AI trial` : "an AI trial"} of ${count(trial)} tokens`;
+  const periodText =
+    period === null ? null : `${count(period)} tokens each billing period while it pays`;
+  if (trialText && periodText) return `It gets ${trialText}, then ${periodText}.`;
+  if (trialText) return `It gets ${trialText}.`;
+  if (periodText) return `It gets ${periodText}.`;
+  return "It gets nothing automatically: give it a grant to let it read.";
+}

@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AiCompanyRow, AiGrant } from "@/features/entities/api/aiAllowances";
 import {
+  automaticGrants,
   canEnd,
   EMPTY_GRANT,
   endedLine,
   FIELD_MESSAGE,
   fieldProblems,
+  GRANT_NAME,
   grantStatus,
   grantUse,
   rowAllowance,
@@ -80,8 +82,28 @@ describe("the mode's words", () => {
     expect(rowAllowance(row({ tokens_given: null, tokens_used: null, percent_left: 0 }))).toBe(
       "0% left",
     );
-    expect(rowReads(row({ reads: 0, has_grant: false, last_read_at: null }))).toBe(
-      "No reads yet · gets the default grant on its first read",
+    expect(rowReads(row({ reads: 0, has_grant: false, last_read_at: null }))).toBe("No reads yet");
+  });
+
+  it("names each grant and says what a company gets by itself (the user, 2026-11-27)", () => {
+    expect(GRANT_NAME).toEqual({
+      trial: "AI trial",
+      cycle: "Billing period",
+      manual: "Grant",
+      default: "Default grant",
+    });
+    const trial = { tokens: 280000, reads: null, days: 30 };
+    expect(automaticGrants({ default_grant: trial, cycle_tokens: 280000 })).toBe(
+      "It gets a 30-day AI trial of 280,000 tokens, then 280,000 tokens each billing period while it pays.",
+    );
+    expect(automaticGrants({ default_grant: trial, cycle_tokens: null })).toBe(
+      "It gets a 30-day AI trial of 280,000 tokens.",
+    );
+    expect(automaticGrants({ default_grant: null, cycle_tokens: 280000 })).toBe(
+      "It gets 280,000 tokens each billing period while it pays.",
+    );
+    expect(automaticGrants({ default_grant: null })).toBe(
+      "It gets nothing automatically: give it a grant to let it read.",
     );
   });
 
