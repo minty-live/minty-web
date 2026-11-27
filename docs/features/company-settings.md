@@ -241,9 +241,12 @@ asks first: "Finish matching? / Each matched account takes its Xero code and nam
 
 **Phase 3 (owner, 2026-11-12).** The card's Matching state names why the matching is open (the
 accounts API's `matching.reason`): "Your new Xero organisation needs your accounts matched."
-(`new_org`), "Some accounts were added while Xero was disconnected. Match them to finish reconnecting."
-(`new_accounts` - the page then shows every account, the ones already matched filled in and the new ones
-first: "Match your accounts again"), or **Changing your matches** with **Continue changing** (`change`; publishing goes
+(`new_org`), "Some accounts or contacts were added or changed while Xero was disconnected. Match them to
+finish reconnecting." (`new_accounts` - the page then shows every account, the ones already matched filled
+in and the new ones first: "Match your accounts again"; a row changed while Xero was off says "Changed while
+Xero was off. Once you finish, Xero's name and type are kept." - "Xero's name is kept." on a contact - and
+the lead warns that anything deleted or archived meanwhile is still in Xero, so it comes back; the user,
+2026-11-27), or **Changing your matches** with **Continue changing** (`change`; publishing goes
 on). A connected company's card offers **Change matches** (`XERO_SETTINGS_UPDATE`): it starts the
 change (`POST .../xero/matching/change`) and opens the same page, every account on its current Xero
 account, with **Cancel** beside Finish. The page's heading, lead and Finish confirm follow the reason:
@@ -344,17 +347,26 @@ never from a role. Viewing is cashier and up; changing is accountant and up.
   the form is open; Cancel or Escape closes it.
 - **Deleted, then added again** (the same account code, name and type, or the same contact name):
   the deleted one comes back with "<name> is back.", never a second one. Nothing is restored in Xero.
-- **Delete asks first**: "Delete <name>?" - "This can't be undone." (`deleteNote`'s "It's archived
-  in Xero too." for a linked row is never reached since 2026-11-19: a linked row has no Delete.)
-- **A used account or contact can't be deleted** (owner, 2026-11-18; the read's `used`): its bin
-  opens "<name> can't be deleted" - "<name> is already used in your records or Petty Cash
-  Settings, so it can't be deleted." - with only Close, and sends nothing. The API refuses it too
-  (409, the same sentence, shown as a toast when the list was out of date).
-- **A row linked to Xero while Xero is off** (disconnected, or part-way through matching; the
-  reads' `xero_live` is false, 2026-11-18): its badge reads "Linked to Xero" rather than "In Xero",
-  it has no Edit or Delete (the API refuses both, 409 "This account comes from Xero. Change it in
-  Xero, and Minty follows."), and the card says "Accounts linked to Xero are changed in Xero, and
-  Minty follows." ("Contacts ..." on the contacts card).
+- **Delete asks first**: "Delete <name>?" - "This can't be undone." A row linked to Xero (deleted only
+  with Xero off) adds "Xero still has it, so it comes back when you reconnect. Archive it in Xero to keep it
+  out." (`deleteNote`).
+- **A used account or contact isn't deleted: Archive instead** (the user, 2026-11-27; the read's `used`,
+  `used_note`, `can_archive`): its bin opens `ConfirmDialog` "Archive <name> instead?" with the API's
+  sentence ("<name> is used by 12 expenses and 3 bills. Archive it instead.") and "Archived, it's left out
+  of the lists for new expenses and bills, and stays on the old ones. You can restore it at any time." -
+  **Archive** sends `POST .../<id>/archive`; a used contact also offers "Merge it into another contact
+  instead". One daily closing uses opens "<name> can't be deleted" with "<name> is used in Petty Cash
+  Settings. Choose another account there first." and only Close. A delete the list thought unused but the
+  API refuses with `can_archive` opens the same Archive question with the API's sentence.
+- **Archived rows** (the reads' `archived_accounts` / `archived_contacts`): folded under each list as
+  "Archived accounts (N)" / "Archived contacts (N)", each with **Restore** (`POST .../<id>/restore`; the
+  add right; not while live, nor a linked row while a matching is open).
+- **A row linked to Xero while Xero is off** (disconnected; the reads' `xero_live` false and
+  `matching_open` false; the user, 2026-11-27): its badge reads "Linked to Xero" rather than "In Xero", it
+  has Edit and Delete like Minty's own, and the card says "Xero is disconnected, so you can change accounts
+  (contacts) linked to Xero here. When you reconnect, you match them with Xero again." While a matching is
+  open (`matching_open`) linked rows have no Edit or Delete and the card says "Accounts (Contacts) linked
+  to Xero can't be changed while the Xero matching is open. Finish or close it under Integration."
 - **Minty Code + Xero Code** (the user, 2026-11-24): a row's title is its Minty code and name; once
   linked, "Xero code <code>" sits beside its badges (the read's `xero_code`). Xero never overwrites the
   Minty code (minty-db v0.18). The search finds either code.
@@ -394,10 +406,12 @@ e2e `13_chart.spec.ts` (live on Xero at 360 / 768 / 1440 too).
     ticked.
   - Accounts are never merged (the user, 2026-11-24): no account Merge, and accounts-api's account route
     is gone.
-- **An account or contact linked to Xero is changed in Xero only** (the user, 2026-11-19): no Edit or
-  Delete on it (a contact keeps Merge), and each card says "Accounts / Contacts linked to Xero are changed in Xero,
-  and Minty follows." Since 2026-11-23 (the user) a company live on Xero has no Add, Edit or Delete on
-  any account - see "The rules the page shows".
+- **An account or contact linked to Xero is changed in Xero only while live** (the user, 2026-11-19;
+  with Xero off it is the company's own since 2026-11-27, above): no Edit or Delete on it (a contact keeps
+  Merge), and the contacts card says "Contacts linked to Xero are changed in Xero, and Minty follows."
+  Since 2026-11-23 (the user) a company live on Xero has no Add, Edit or Delete on any account - see "The
+  rules the page shows". A rename that goes through relabels the bills on it (accounts-api's
+  `bill_text`, from the hub's door).
 - **An account gone from Xero (A3)**: badge "Archived in Xero", the doc's sentence and **Map it** - the
   matching page for that one account (`.../settings/integration/match?account=<id>`, `MatchingScreen`'s
   `OneAccount`): the account as a matching row, the Xero accounts of its kind, Save. A Xero account another

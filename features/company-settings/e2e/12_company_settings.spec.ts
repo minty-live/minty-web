@@ -132,13 +132,14 @@ async function stubFlask(page: Page) {
       types: [],
       next_codes: {},
       xero_live: false,
+      matching_open: false,
       permissions: none,
       minty_accounts: [],
     },
   ]);
   await answer("/api/me/company/contacts", () => [
     200,
-    { contacts: [], xero_live: false, permissions: none },
+    { contacts: [], xero_live: false, matching_open: false, permissions: none },
   ]);
   await answer("/api/me/company/invitations", () => [
     201,

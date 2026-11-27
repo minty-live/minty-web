@@ -99,7 +99,9 @@ describe("a contact's name", () => {
 describe("delete's confirm", () => {
   it("says it can't be undone, and that Xero archives it", () => {
     expect(deleteNote({ in_xero: false })).toBe("This can't be undone.");
-    expect(deleteNote({ in_xero: true })).toBe("This can't be undone. It's archived in Xero too.");
+    expect(deleteNote({ in_xero: true })).toBe(
+      "This can't be undone. Xero still has it, so it comes back when you reconnect. Archive it in Xero to keep it out.",
+    );
   });
 
   it("a used row says why it stays (the API's sentence)", () => {

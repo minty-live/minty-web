@@ -194,7 +194,8 @@ export function disconnectXero(entityId: string): Promise<IntegrationPage> {
 // ---- Match your accounts to Xero (Settings Phase 2, 2026-11-11; accounts-api hub/xero_matching.py) ----
 
 /** Why a matching is open (Phase 3, 2026-11-12; `entities.xero_matching`): a first connect, accounts
- * added while disconnected, a new organisation, or changing the matches. */
+ * or contacts added or changed while disconnected (`new_accounts`; the user, 2026-11-27), a new
+ * organisation, or changing the matches. */
 export type MatchReason = "first" | "new_accounts" | "new_org" | "change";
 
 export type MatchRow = {
@@ -215,6 +216,8 @@ export type MatchRow = {
   suggestion: string | null;
   /** Xero has the same code with another type: never picked for the person. */
   conflict: { code: string; name: string } | null;
+  /** Changed in Minty while Xero was off (the user, 2026-11-27): Xero's details win at Finish. */
+  changed_offline?: boolean;
 };
 
 /** `held_by`: the account that has this Xero account - one Minty account each (2026-11-24). */
@@ -237,7 +240,13 @@ export type MatchContactOption = { id: string; name: string; held_by?: string | 
 /** The contacts step (the user, 2026-11-24): asked before Finish. `required` is false for a change. */
 export type MatchContacts = {
   required: boolean;
-  suppliers: { contact_id: string; name: string; pick: MatchContactPick | null }[];
+  suppliers: {
+    contact_id: string;
+    name: string;
+    pick: MatchContactPick | null;
+    /** Changed in Minty while Xero was off (the user, 2026-11-27). */
+    changed_offline?: boolean;
+  }[];
   slots: { slot: PettyCashContact; pick: MatchContactPick | null }[];
   options: MatchContactOption[];
   /** Suppliers and slots with no answer - Finish is refused until it is 0. */

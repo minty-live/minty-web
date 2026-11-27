@@ -123,12 +123,13 @@ async function arrive(page: Page, live = false): Promise<Sent[]> {
             },
           ],
           xero_live: live,
+          matching_open: false,
           permissions: ALL,
         },
       });
     if (req.method() === "GET" && path === "/contacts")
       return route.fulfill({
-        json: { contacts: state.contacts, xero_live: live, permissions: ALL },
+        json: { contacts: state.contacts, xero_live: live, matching_open: false, permissions: ALL },
       });
     sent.push({ method: req.method(), path, body });
     if (req.method() === "POST" && path === "/accounts") {

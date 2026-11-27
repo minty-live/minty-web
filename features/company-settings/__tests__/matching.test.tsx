@@ -627,7 +627,7 @@ describe("Phase 3: a new organisation, new accounts, changing the matches (owner
     ["new_org", "Your new Xero organisation needs your accounts matched."],
     [
       "new_accounts",
-      "Some accounts were added while Xero was disconnected. Match them to finish reconnecting.",
+      "Some accounts or contacts were added or changed while Xero was disconnected. Match them to finish reconnecting.",
     ],
   ] as const)("the card names why a %s matching is open", async (reason, line) => {
     api({
@@ -712,6 +712,39 @@ describe("Phase 3: a new organisation, new accounts, changing the matches (owner
     expect(screen.getByRole("combobox", { name: /Xero account for 469 Rent/ })).toHaveValue(
       "x-rent",
     );
+  });
+
+  it("an account or contact changed while Xero was off says so on its row (the user, 2026-11-27)", async () => {
+    const changed = (r: MatchRow): MatchRow =>
+      r.name === "Rent" ? { ...r, changed_offline: true } : r;
+    api({
+      "GET /api/me/company/xero/matching": () =>
+        json({
+          ...MATCHED,
+          reason: "new_accounts",
+          groups: MATCHED.groups.map((g) => ({ ...g, rows: g.rows.map(changed) })),
+          contacts: {
+            required: true,
+            suppliers: [
+              {
+                contact_id: "c-abc",
+                name: "ABC Supplies Ltd",
+                pick: { xero_contact_id: "xc-abc", auto: true, new: false },
+                changed_offline: true,
+              },
+            ],
+            slots: [],
+            options: [{ id: "xc-abc", name: "ABC Supplies" }],
+            blocking: 0,
+          },
+        }),
+    });
+    wrap(<MatchingScreen company={COMPANY} />);
+    const user = userEvent.setup();
+    expect(await screen.findByText(MATCH_COPY.newAccountsLead)).toBeInTheDocument();
+    expect(screen.getAllByText(MATCH_COPY.changedOffline)).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: MATCH_COPY.next }));
+    expect(screen.getByText(MATCH_COPY.contactChangedOffline)).toBeInTheDocument();
   });
 
   it("the page for a new organisation says older records stay with the old one", async () => {

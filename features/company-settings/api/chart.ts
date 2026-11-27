@@ -26,6 +26,10 @@ export type Account = {
   source: string;
   in_xero: boolean;
   used: boolean;
+  /** A used row's sentence - what uses it (the user, 2026-11-27); null when nothing does. */
+  used_note?: string | null;
+  /** Used, and may be archived instead (not one daily closing uses). */
+  can_archive?: boolean;
   /** Linked to a Xero account Xero archived or removed (owner's decisions doc A3): map it again. */
   gone_from_xero?: boolean;
 };
@@ -44,9 +48,13 @@ export type MintyAccount = {
 
 export type AccountsRead = {
   accounts: Account[];
+  /** The accounts the company archived (the user, 2026-11-27): off the pickers, restorable. */
+  archived_accounts: Account[];
   types: AccountType[];
   next_codes: Record<string, string>;
   xero_live: boolean;
+  /** Xero off with a matching open: rows linked to Xero wait for it (the user, 2026-11-27). */
+  matching_open: boolean;
   permissions: Rights;
   minty_accounts: MintyAccount[];
 };
@@ -59,9 +67,19 @@ export type Contact = {
   in_xero: boolean;
   xero_id: string | null;
   used: boolean;
+  /** A used row's sentence - what uses it (the user, 2026-11-27); null when nothing does. */
+  used_note?: string | null;
+  /** Used, and may be archived instead (not one daily closing uses). */
+  can_archive?: boolean;
 };
 
-export type ContactsRead = { contacts: Contact[]; xero_live: boolean; permissions: Rights };
+export type ContactsRead = {
+  contacts: Contact[];
+  archived_contacts: Contact[];
+  xero_live: boolean;
+  matching_open: boolean;
+  permissions: Rights;
+};
 
 export type AccountInput = { code: string; name: string; type: string; description: string };
 /** One of Minty's accounts, added as it is (owner, 2026-11-12). */
@@ -93,6 +111,22 @@ export const deleteAccount = (entityId: string, id: string) =>
     method: "DELETE",
     query: on(entityId),
   });
+
+/** Archive and restore (the user, 2026-11-27): an archived row is out of every picker and stays on
+ * old records; restore brings it back. */
+const rowAction =
+  (kind: "accounts" | "contacts", action: "archive" | "restore") =>
+  (entityId: string, id: string) =>
+    mintyFetch<{ message: string }>(`/api/me/company/${kind}/${encodeURIComponent(id)}/${action}`, {
+      method: "POST",
+      json: {},
+      query: on(entityId),
+    });
+
+export const archiveAccount = rowAction("accounts", "archive");
+export const restoreAccount = rowAction("accounts", "restore");
+export const archiveContact = rowAction("contacts", "archive");
+export const restoreContact = rowAction("contacts", "restore");
 
 export const addContact = (entityId: string, name: string) =>
   mintyFetch<{ contact: Contact; message: string }>("/api/me/company/contacts", {

@@ -60,7 +60,7 @@ export const XERO_COPY = {
   matchingLine: "Your accounts stay in Minty until you finish matching them to Xero.",
   newOrgLine: "Your new Xero organisation needs your accounts matched.",
   newAccountsLine:
-    "Some accounts were added while Xero was disconnected. Match them to finish reconnecting.",
+    "Some accounts or contacts were added or changed while Xero was disconnected. Match them to finish reconnecting.",
   changeTitle: "Changing your matches",
   changeLine: "Publishing goes on meanwhile; the new matches apply once you finish.",
   continueMatching: "Continue matching",

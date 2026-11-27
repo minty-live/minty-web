@@ -4,7 +4,9 @@
  * The company's chart of accounts and its contacts, on General under the company's details (owner,
  * 2026-11-12: its own tab first, merged into General the same day). Accounts are added, edited and
  * deleted here only while Xero is off (the user, 2026-11-23); contacts live or not - a contact added
- * while live is made in Xero too (C5). A row linked to Xero is changed in Xero only. Contacts merge
+ * while live is made in Xero too (C5). With Xero off a row linked to Xero is the company's to change
+ * (the user, 2026-11-27). A used row isn't deleted: the bin asks to archive it instead, and archived
+ * rows are listed apart with Restore (the user, 2026-11-27). Contacts merge
  * the Xero way on their card (the user, 2026-11-25); accounts are never merged (2026-11-24).
  * Both lists are read at once; each change is the API's, its sentence shown as a toast, then both
  * are read again. General's view-only line covers it: the same roles change both.
@@ -21,6 +23,8 @@ import { useDraftScope } from "@/lib/draftScope";
 import {
   addAccount,
   addContact,
+  archiveAccount,
+  archiveContact,
   deleteAccount,
   deleteContact,
   editAccount,
@@ -28,6 +32,8 @@ import {
   readAccounts,
   readContacts,
   renameContact,
+  restoreAccount,
+  restoreContact,
   type Account,
   type AccountsRead,
   type Contact,
@@ -94,6 +100,40 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
     };
   }, [entityId, attempt]);
 
+  /** Delete; a row the list thought unused but the API refuses as used, with Archive on offer, asks
+   * to archive it instead with the API's sentence (the user, 2026-11-27). */
+  const remove = useCallback(
+    async (
+      kind: "account" | "contact",
+      row: Account | Contact,
+      send: () => Promise<{ message: string }>,
+    ) => {
+      setBusy(true);
+      try {
+        const { message } = await send();
+        showToast(message, "success");
+        setOpen(null);
+        setAttempt((n) => n + 1);
+      } catch (err) {
+        const body =
+          err instanceof ApiError ? (err.body as { can_archive?: unknown } | null) : null;
+        if (body?.can_archive === true) {
+          const used = { ...row, used: true, used_note: sentence(err), can_archive: true };
+          setOpen(
+            kind === "account"
+              ? { kind: "delete-account", row: used as Account }
+              : { kind: "delete-contact", row: used as Contact },
+          );
+        } else {
+          showToast(sentence(err), "error");
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [showToast],
+  );
+
   /** One change: busy while it runs, its sentence as a toast, the lists read again after. */
   const change = useCallback(
     async (send: () => Promise<{ message: string }>): Promise<Outcome> => {
@@ -149,6 +189,7 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
             onAdd={() => setOpen({ kind: "account", editing: null })}
             onEdit={(row) => setOpen({ kind: "account", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-account", row })}
+            onRestore={(row) => void change(() => restoreAccount(entityId, row.id))}
             mapHref={(row) =>
               `${matchingPath(entityId, entityName)}?account=${encodeURIComponent(row.id)}`
             }
@@ -177,6 +218,7 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
             onAdd={() => setOpen({ kind: "contact", editing: null })}
             onEdit={(row) => setOpen({ kind: "contact", editing: row })}
             onDelete={(row) => setOpen({ kind: "delete-contact", row })}
+            onRestore={(row) => void change(() => restoreContact(entityId, row.id))}
             merge={merge}
             onMergeChange={setMerge}
             onMerge={(picked) => setOpen({ kind: "merge-confirm", merge: picked })}
@@ -185,16 +227,24 @@ export function ChartSection({ entityId, entityName }: { entityId: string; entit
             <DeleteDialog
               row={open.row}
               busy={busy}
+              entityName={entityName}
               onClose={() => setOpen(null)}
-              onConfirm={() => void change(() => deleteAccount(entityId, open.row.id))}
+              onConfirm={() =>
+                void remove("account", open.row, () => deleteAccount(entityId, open.row.id))
+              }
+              onArchive={() => void change(() => archiveAccount(entityId, open.row.id))}
             />
           ) : null}
           {open?.kind === "delete-contact" ? (
             <DeleteDialog
               row={open.row}
               busy={busy}
+              entityName={entityName}
               onClose={() => setOpen(null)}
-              onConfirm={() => void change(() => deleteContact(entityId, open.row.id))}
+              onConfirm={() =>
+                void remove("contact", open.row, () => deleteContact(entityId, open.row.id))
+              }
+              onArchive={() => void change(() => archiveContact(entityId, open.row.id))}
               onMerge={
                 load.contacts.permissions.delete && open.row.own
                   ? () => {

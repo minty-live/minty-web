@@ -73,10 +73,15 @@ export function contactProblem(name: string, others: Contact[], submitted: boole
     : null;
 }
 
-/** The sentence a delete's confirm adds: archived in Xero too. */
+/** The sentence a delete's confirm adds. A row linked to Xero is deleted only with Xero off (the
+ * user, 2026-11-27): Xero keeps it, so the sync brings it back at reconnect - Minty never changes the
+ * customer's Xero. */
 export function deleteNote(row: { in_xero: boolean }): string {
   const parts = ["This can't be undone."];
-  if (row.in_xero) parts.push("It's archived in Xero too.");
+  if (row.in_xero)
+    parts.push(
+      "Xero still has it, so it comes back when you reconnect. Archive it in Xero to keep it out.",
+    );
   return parts.join(" ");
 }
 

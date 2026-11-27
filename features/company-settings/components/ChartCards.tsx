@@ -9,7 +9,9 @@
  * (`lib/rules.ts`); Delete asks first, saying what happens to records and to Xero. Every change is
  * the API's at once. While the company is live on Xero (`xero_live`) the chart has no Add, Edit or
  * Delete at all - Xero's to change, and the API refuses them (the user, 2026-11-23); contacts are still
- * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. Contacts
+ * added here (in Xero too while live), and a contact linked to Xero is changed in Xero only. With Xero
+ * off the company is Minty-only (the user, 2026-11-27): rows linked to Xero have Edit and Delete too,
+ * matched with Xero again at reconnect - except while a matching is open (`matching_open`). Contacts
  * merge the Xero way (the user, 2026-11-25): **Merge contacts** turns the list into tick boxes and a panel
  * picks the one kept - always one of those ticked; while Xero is connected a contact in Xero is merged in
  * Xero first; while it is off, one linked to Xero merges here and the panel says Xero keeps it apart. Accounts are never merged (the user, 2026-11-24 - each matches its own Xero account).
@@ -43,6 +45,7 @@ import {
   SETTINGS_LABEL,
 } from "@/components/ui/settingsFields";
 import { Combo, type ComboRow } from "@/components/ui/Combo";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SettingsCard, SettingsDialog } from "@/components/ui/SettingsShell";
 import { Tick } from "@/components/ui/Tick";
 
@@ -87,15 +90,29 @@ function XeroBadge({ live }: { live: boolean }) {
   return <Badge>{live ? "In Xero" : "Linked to Xero"}</Badge>;
 }
 
+/** Where Xero stands for the rows linked to it: `live` (changed in Xero), `matching` (they wait
+ * for the matching) or `off` (Minty-only: changed here, matched again at reconnect). */
+export type XeroSide = "live" | "matching" | "off";
+
+function xeroSide(read: { xero_live: boolean; matching_open: boolean }): XeroSide {
+  return read.xero_live ? "live" : read.matching_open ? "matching" : "off";
+}
+
 /** Under the search. While Xero is connected no account is added, changed or deleted here (the user,
- * 2026-11-23; accounts only); otherwise a row linked to Xero is changed in Xero (the user, 2026-11-19 -
- * accounts, with the owner's decisions doc A1; then contacts the same day). */
-function FromXeroNote({ what, live }: { what: "Accounts" | "Contacts"; live: boolean }) {
+ * 2026-11-23; accounts only) and a contact linked to Xero is changed in Xero (2026-11-19). With Xero
+ * off the rows linked to it are the company's to change (the user, 2026-11-27), and wait while a
+ * matching is open. */
+function FromXeroNote({ what, side }: { what: "Accounts" | "Contacts"; side: XeroSide }) {
+  const rows = what.toLowerCase();
   return (
     <p className="text-[13px] text-set-ink-2">
-      {live
-        ? `Your company is connected to Xero, so ${what.toLowerCase()} are added and changed in Xero, and Minty follows.`
-        : `${what} linked to Xero are changed in Xero, and Minty follows.`}
+      {side === "live"
+        ? what === "Accounts"
+          ? "Your company is connected to Xero, so accounts are added and changed in Xero, and Minty follows."
+          : "Contacts linked to Xero are changed in Xero, and Minty follows."
+        : side === "matching"
+          ? `${what} linked to Xero can't be changed while the Xero matching is open. Finish or close it under Integration.`
+          : `Xero is disconnected, so you can change ${rows} linked to Xero here. When you reconnect, you match them with Xero again.`}
     </p>
   );
 }
@@ -215,6 +232,66 @@ function InlineForm({
   );
 }
 
+/** The rows the company archived (the user, 2026-11-27), folded under the list: each with Restore. */
+function ArchivedList<T extends { id: string }>({
+  label,
+  rows,
+  title,
+  canRestore,
+  busy,
+  onRestore,
+}: {
+  label: string;
+  rows: T[];
+  title: (row: T) => string;
+  canRestore: (row: T) => boolean;
+  busy: boolean;
+  onRestore?: (row: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  if (!rows.length) return null;
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex min-h-11 items-center gap-1 self-start rounded-[12px] text-[13.5px] font-semibold text-text-link"
+      >
+        <Icon name={open ? "expand_less" : "expand_more"} />
+        {`${label} (${rows.length})`}
+      </button>
+      {open ? (
+        <ul id={listId} className={LIST} aria-label={label}>
+          {rows.map((row) => (
+            <li
+              key={row.id}
+              className="flex min-h-14 min-w-0 flex-wrap items-center gap-2 border-b border-set-line px-3 py-2 last:border-b-0"
+            >
+              <span className="min-w-0 flex-1 text-[14.5px] [overflow-wrap:anywhere] text-set-mute">
+                {title(row)}
+              </span>
+              {onRestore && canRestore(row) ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRestore(row)}
+                  aria-label={`Restore ${title(row)}`}
+                  className={SETTINGS_OUTLINE}
+                >
+                  Restore
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /** A long list scrolls in its own box (owner, 2026-11-12), the page around it with the document. */
 const LIST =
   "m-0 max-h-[min(28rem,60vh)] list-none overflow-y-auto overscroll-contain rounded-[12px] border border-set-line p-0 [scrollbar-gutter:stable]";
@@ -277,6 +354,7 @@ export function AccountsCard({
   onAdd,
   onEdit,
   onDelete,
+  onRestore,
   mapHref,
 }: {
   read: AccountsRead;
@@ -286,6 +364,8 @@ export function AccountsCard({
   onAdd: () => void;
   onEdit: (account: Account) => void;
   onDelete: (account: Account) => void;
+  /** Restore an account the company archived (the user, 2026-11-27). */
+  onRestore?: (account: Account) => void;
   /** The matching page for one account (A3): where an account gone from Xero is mapped again. */
   mapHref: (account: Account) => string;
 }) {
@@ -293,6 +373,9 @@ export function AccountsCard({
   const { permissions: may } = read;
   // live on Xero: added, changed and deleted in Xero only (the user, 2026-11-23); never merged (2026-11-24)
   const here = !read.xero_live;
+  const side = xeroSide(read);
+  // a row linked to Xero is Minty's with Xero off, and waits while a matching is open (the user, 2026-11-27)
+  const mayChange = (a: Account) => a.own && here && (side === "off" || !a.in_xero);
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const shown = read.accounts.filter(
@@ -320,7 +403,7 @@ export function AccountsCard({
       {form}
       <Search label="Search accounts by name or code" value={query} onChange={setQuery} />
       {read.xero_live || read.accounts.some((a) => a.in_xero) ? (
-        <FromXeroNote what="Accounts" live={read.xero_live} />
+        <FromXeroNote what="Accounts" side={side} />
       ) : null}
       {groups.length === 0 ? (
         <p className="text-sm text-set-mute" role="status">
@@ -366,8 +449,8 @@ export function AccountsCard({
                       ) : undefined
                     }
                     // linked to Xero: changed in Xero only (the user, 2026-11-19)
-                    canEdit={a.own && may.edit && here && !a.in_xero}
-                    canDelete={a.own && may.delete && here && !a.in_xero}
+                    canEdit={may.edit && mayChange(a)}
+                    canDelete={may.delete && mayChange(a)}
                     busy={busy}
                     onEdit={() => onEdit(a)}
                     onDelete={() => onDelete(a)}
@@ -378,6 +461,14 @@ export function AccountsCard({
           ))}
         </div>
       )}
+      <ArchivedList
+        label="Archived accounts"
+        rows={read.archived_accounts ?? []}
+        title={(a) => (a.code ? `${a.code} - ${a.name}` : a.name)}
+        canRestore={(a) => may.add && mayChange(a)}
+        busy={busy}
+        onRestore={onRestore}
+      />
     </SettingsCard>
   );
 }
@@ -774,6 +865,7 @@ export function ContactsCard({
   onAdd,
   onEdit,
   onDelete,
+  onRestore,
   onMergeChange,
   onMerge,
 }: {
@@ -786,6 +878,8 @@ export function ContactsCard({
   onAdd: () => void;
   onEdit: (contact: Contact) => void;
   onDelete: (contact: Contact) => void;
+  /** Restore a contact the company archived (the user, 2026-11-27). */
+  onRestore?: (contact: Contact) => void;
   onMergeChange: (merge: MergeState | null) => void;
   /** Merge pressed: the ticked contacts and the one kept, to confirm. */
   onMerge: (merge: MergeState) => void;
@@ -796,6 +890,8 @@ export function ContactsCard({
   const q = query.trim().toLowerCase();
   const shown = read.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
   const mergeable = read.contacts.filter((c) => c.own);
+  // a contact linked to Xero is changed in Xero while live (2026-11-19), here with Xero off (2026-11-27)
+  const mayChangeContact = (c: Contact) => c.own && (xeroSide(read) === "off" || !c.in_xero);
   const ticked = merge ? read.contacts.filter((c) => merge.ticked.includes(c.id)) : [];
   const kept = ticked.find((c) => c.id === merge?.keep);
   const blocked = merge ? mergeBlocked(read, merge) : null;
@@ -834,7 +930,9 @@ export function ContactsCard({
     >
       {form}
       <Search label="Search contacts" value={query} onChange={setQuery} />
-      {read.contacts.some((c) => c.in_xero) ? <FromXeroNote what="Contacts" live={false} /> : null}
+      {read.contacts.some((c) => c.in_xero) ? (
+        <FromXeroNote what="Contacts" side={xeroSide(read)} />
+      ) : null}
       {merge ? (
         <p className="text-[13px] text-set-ink-2">
           Tick the contacts to merge, then choose the one to keep. The others&apos; records move to
@@ -891,8 +989,8 @@ export function ContactsCard({
                   </>
                 }
                 // linked to Xero: changed in Xero only (the user, 2026-11-19)
-                canEdit={c.own && may.edit && !c.in_xero}
-                canDelete={c.own && may.delete && !c.in_xero}
+                canEdit={may.edit && mayChangeContact(c)}
+                canDelete={may.delete && mayChangeContact(c)}
                 busy={busy}
                 onEdit={() => onEdit(c)}
                 onDelete={() => onDelete(c)}
@@ -968,6 +1066,16 @@ export function ContactsCard({
           </section>
         ) : null}
       </div>
+      {merge ? null : (
+        <ArchivedList
+          label="Archived contacts"
+          rows={read.archived_contacts ?? []}
+          title={(c) => c.name}
+          canRestore={(c) => may.add && mayChangeContact(c)}
+          busy={busy}
+          onRestore={onRestore}
+        />
+      )}
     </SettingsCard>
   );
 }
@@ -1062,22 +1170,64 @@ export function ContactForm({
   );
 }
 
-/** Delete asks first, saying what happens to the records and to Xero. */
+/** What an archive does, beside the sentence of what uses the row (the user, 2026-11-27). */
+export const ARCHIVE_NOTE =
+  "Archived, it's left out of the lists for new expenses and bills, and stays on the old ones. You can restore it at any time.";
+
+/** Delete asks first, saying what happens to the records and to Xero. A used row isn't deleted:
+ * the bin asks to archive it instead, saying what uses it (the user, 2026-11-27) - unless daily
+ * closing uses it, which only says so. */
 export function DeleteDialog({
   row,
   busy,
+  entityName,
   onClose,
   onConfirm,
+  onArchive,
   onMerge,
 }: {
-  row: { name: string; used: boolean; in_xero: boolean };
+  row: {
+    name: string;
+    used: boolean;
+    in_xero: boolean;
+    used_note?: string | null;
+    can_archive?: boolean;
+  };
   busy: boolean;
+  entityName?: string;
   onClose: () => void;
   onConfirm: () => void;
+  onArchive?: () => void;
   /** D3 (owner's decisions doc, 2026-11-19): a used contact can't be deleted, but can be merged.
    * Accounts are never merged (the user, 2026-11-24). */
   onMerge?: () => void;
 }) {
+  if (row.used && row.can_archive && onArchive) {
+    return (
+      <ConfirmDialog
+        title={`Archive ${row.name} instead?`}
+        image="surprised"
+        entityName={entityName}
+        busy={busy}
+        confirmLabel="Archive"
+        onConfirm={onArchive}
+        onBack={onClose}
+      >
+        <p className="mt-6 text-[15px] leading-snug [overflow-wrap:anywhere]">{row.used_note}</p>
+        <p className="mt-3 text-[15px] leading-snug">{ARCHIVE_NOTE}</p>
+        {onMerge ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onMerge}
+            className="mt-3 inline-flex min-h-11 items-center text-[15px] font-semibold text-text-link underline underline-offset-2"
+          >
+            Merge it into another contact instead
+          </button>
+        ) : null}
+      </ConfirmDialog>
+    );
+  }
   if (row.used) {
     return (
       <SettingsDialog
@@ -1097,7 +1247,7 @@ export function DeleteDialog({
           </>
         }
       >
-        <p className="[overflow-wrap:anywhere]">{usedNote(row.name)}</p>
+        <p className="[overflow-wrap:anywhere]">{row.used_note ?? usedNote(row.name)}</p>
       </SettingsDialog>
     );
   }

@@ -95,7 +95,10 @@ export const MATCH_COPY = {
     "This company now connects to a different Xero organisation. Tell us where each account should post there.",
   newAccountsTitle: "Match your accounts again",
   newAccountsLead:
-    "Some accounts were added while Xero was disconnected. The accounts already matched are filled in, and we've filled in the closest Xero account for each new one.",
+    "Some accounts or contacts were added or changed while Xero was disconnected. The ones already matched are filled in, and we've filled in the closest Xero account for each new one. Anything you deleted or archived meanwhile is still in Xero, so it comes back. Archive it in Xero to keep it out.",
+  // the user, 2026-11-27: a disconnected company is Minty-only; its changes are matched at reconnect
+  changedOffline: "Changed while Xero was off. Once you finish, Xero's name and type are kept.",
+  contactChangedOffline: "Changed while Xero was off. Once you finish, Xero's name is kept.",
   confirmChange:
     "Only records published from now on use the new matches. Records already in Xero stay as they are.",
   confirmNewOrg: (org: string | null) =>
@@ -209,6 +212,9 @@ function Row({
             <span className="block text-[12.5px] text-set-mute">{row.group}</span>
           ) : null}
           {note ? <span className="block text-[12.5px] text-set-ink-2">{note}</span> : null}
+          {row.changed_offline ? (
+            <span className="block text-[12.5px] text-set-ink-2">{MATCH_COPY.changedOffline}</span>
+          ) : null}
           {guess ? (
             <span className="block text-[12.5px] text-status-warning-ink">
               {MATCH_COPY.guessNote}
@@ -355,6 +361,7 @@ function ContactRow({
   pick,
   options,
   allowNew,
+  changedOffline = false,
   busy,
   onPick,
 }: {
@@ -363,6 +370,7 @@ function ContactRow({
   pick: MatchContactPick | null;
   options: MatchContactOption[];
   allowNew: boolean;
+  changedOffline?: boolean;
   busy: boolean;
   onPick: (answer: ContactAnswer) => void;
 }) {
@@ -373,6 +381,11 @@ function ContactRow({
           {name}
           <RequiredMark />
           <span className="sr-only"> (required)</span>
+          {changedOffline ? (
+            <span className="block text-[12.5px] text-set-ink-2">
+              {MATCH_COPY.contactChangedOffline}
+            </span>
+          ) : null}
           {pick?.new ? (
             <span className="block text-[12.5px] text-set-mute">{MATCH_COPY.newHint}</span>
           ) : null}
@@ -631,6 +644,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                 name: s.name,
                 pick: s.pick,
                 allowNew: true,
+                changedOffline: Boolean(s.changed_offline),
                 target: { contact_id: s.contact_id },
               })),
             },
@@ -642,6 +656,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                 name: MATCH_COPY.contactNames[s.slot],
                 pick: s.pick,
                 allowNew: false,
+                changedOffline: false,
                 target: { slot: s.slot },
               })),
             },
@@ -664,6 +679,7 @@ function FullMatching({ company }: { company: { id: string; name: string } }) {
                       pick={r.pick}
                       options={contacts.options}
                       allowNew={r.allowNew}
+                      changedOffline={r.changedOffline}
                       busy={busy !== null}
                       onPick={(answer) =>
                         void run("pick", () =>

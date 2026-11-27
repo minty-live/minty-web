@@ -61,7 +61,9 @@ function accounts(over: Partial<AccountsRead> = {}): AccountsRead {
       },
     ],
     xero_live: false,
+    matching_open: false,
     permissions: ALL,
+    archived_accounts: [],
     ...over,
   };
 }
@@ -89,7 +91,9 @@ function contacts(over: Partial<ContactsRead> = {}): ContactsRead {
       },
     ],
     xero_live: false,
+    matching_open: false,
     permissions: ALL,
+    archived_contacts: [],
     ...over,
   };
 }
@@ -200,7 +204,7 @@ describe("the two lists", () => {
     expect(screen.queryByText(/only an Accountant or an Admin/)).toBeNull();
   });
 
-  it("while Xero is off, a row linked to Xero is marked so and offers no Edit or Delete (the API refuses them)", async () => {
+  it("while Xero is off, a row linked to Xero is marked so and is the company's to change (the user, 2026-11-27)", async () => {
     const linked = {
       id: "c-abc",
       name: "ABC Supplies",
@@ -222,21 +226,57 @@ describe("the two lists", () => {
     expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
     expect(chart.getByText("Linked to Xero")).toBeInTheDocument();
     expect(chart.queryByText("In Xero")).toBeNull();
-    expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
-    expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
+    expect(chart.getByRole("button", { name: "Edit 469 - Rent" })).toBeInTheDocument();
+    expect(chart.getByRole("button", { name: "Delete 469 - Rent" })).toBeInTheDocument();
     expect(
-      chart.getByText("Accounts linked to Xero are changed in Xero, and Minty follows."),
+      chart.getByText(
+        "Xero is disconnected, so you can change accounts linked to Xero here. When you reconnect, you match them with Xero again.",
+      ),
     ).toBeInTheDocument();
-    // the company's own rows that aren't in Xero keep both
     expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
 
     const people = card("Contacts");
     expect(people.getByText("Linked to Xero")).toBeInTheDocument();
-    expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
-    expect(people.queryByRole("button", { name: "Delete ABC Supplies" })).toBeNull();
+    expect(people.getByRole("button", { name: "Edit ABC Supplies" })).toBeInTheDocument();
+    expect(people.getByRole("button", { name: "Delete ABC Supplies" })).toBeInTheDocument();
     expect(
-      people.getByText("Contacts linked to Xero are changed in Xero, and Minty follows."),
+      people.getByText(
+        "Xero is disconnected, so you can change contacts linked to Xero here. When you reconnect, you match them with Xero again.",
+      ),
     ).toBeInTheDocument();
+  });
+
+  it("while a Xero matching is open, a row linked to Xero waits for it; Minty's own still change", async () => {
+    const linked = {
+      id: "c-abc",
+      name: "ABC Supplies",
+      own: true,
+      source: "xero",
+      in_xero: true,
+      xero_id: "x-abc",
+      used: false,
+    };
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ matching_open: true })),
+      "GET /api/me/company/contacts": () =>
+        json(contacts({ matching_open: true, contacts: [...contacts().contacts, linked] })),
+    });
+    show();
+    await loaded();
+
+    const chart = card("Chart of accounts");
+    expect(await chart.findByText("469 - Rent")).toBeInTheDocument();
+    expect(chart.queryByRole("button", { name: "Edit 469 - Rent" })).toBeNull();
+    expect(chart.queryByRole("button", { name: "Delete 469 - Rent" })).toBeNull();
+    expect(
+      chart.getByText(
+        "Accounts linked to Xero can't be changed while the Xero matching is open. Finish or close it under Integration.",
+      ),
+    ).toBeInTheDocument();
+    expect(chart.getByRole("button", { name: "Edit 477 - Wages" })).toBeInTheDocument();
+
+    const people = card("Contacts");
+    expect(people.queryByRole("button", { name: "Edit ABC Supplies" })).toBeNull();
     expect(people.getByRole("button", { name: "Edit Kee Wah" })).toBeInTheDocument();
   });
 
@@ -382,8 +422,11 @@ describe("an account", () => {
     expect(screen.getByRole("group", { name: "Edit Wages" })).toBeInTheDocument();
   });
 
-  it("a used account can't be deleted: the bin says why and sends nothing - no merge for accounts (owner, 2026-11-18; 2026-11-24)", async () => {
-    const own = accounts().accounts.map((a) => ({ ...a, in_xero: false }));
+  it("an account daily closing uses can't be deleted or archived: the bin says why and sends nothing - no merge for accounts (owner, 2026-11-18; 2026-11-24)", async () => {
+    const said = "Rent is used in Petty Cash Settings. Choose another account there first.";
+    const own = accounts().accounts.map((a) =>
+      a.id === "a-rent" ? { ...a, in_xero: false, used_note: said, can_archive: false } : a,
+    );
     api({
       "GET /api/me/company/accounts": () => json(accounts({ accounts: own })),
       "GET /api/me/company/contacts": () => json(contacts()),
@@ -395,15 +438,94 @@ describe("an account", () => {
       await card("Chart of accounts").findByRole("button", { name: "Delete 469 - Rent" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Rent can't be deleted" });
-    expect(dialog).toHaveTextContent(
-      "Rent is already used in your records or Petty Cash Settings, so it can't be deleted.",
-    );
+    expect(dialog).toHaveTextContent(said);
     expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Archive" })).toBeNull();
     // accounts are never merged (the user, 2026-11-24): no "Merge instead" for an account
     expect(within(dialog).queryByRole("button", { name: "Merge instead" })).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(sent).toEqual([]);
+  });
+
+  it("a used account's bin asks to archive it instead, saying what uses it (the user, 2026-11-27)", async () => {
+    const said = "Rent is used by 12 expenses and 3 bills. Archive it instead.";
+    const own = accounts().accounts.map((a) =>
+      a.id === "a-rent" ? { ...a, in_xero: false, used_note: said, can_archive: true } : a,
+    );
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ accounts: own })),
+      "GET /api/me/company/contacts": () => json(contacts()),
+      "POST /api/me/company/accounts/a-rent/archive": () => json({ message: "Rent archived." }),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Delete 469 - Rent" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Archive Rent instead?" });
+    expect(dialog).toHaveTextContent(said);
+    expect(dialog).toHaveTextContent(
+      "Archived, it's left out of the lists for new expenses and bills, and stays on the old ones. You can restore it at any time.",
+    );
+    expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Archive" }));
+    expect(await screen.findByText("Rent archived.")).toBeInTheDocument();
+    expect(sent).toEqual([
+      { method: "POST", path: "/api/me/company/accounts/a-rent/archive", body: {} },
+    ]);
+  });
+
+  it("a delete the list thought unused, refused as used, asks to archive it with the API's sentence", async () => {
+    const said = "Wages is used by 1 expense. Archive it instead.";
+    api({
+      "GET /api/me/company/accounts": () => json(accounts()),
+      "GET /api/me/company/contacts": () => json(contacts()),
+      "DELETE /api/me/company/accounts/a-wages": () =>
+        json({ error: said, can_archive: true }, 409),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(
+      await card("Chart of accounts").findByRole("button", { name: "Delete 477 - Wages" }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Delete Wages?" })).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Archive Wages instead?" });
+    expect(dialog).toHaveTextContent(said);
+  });
+
+  it("archived accounts and contacts are listed apart, each with Restore", async () => {
+    const fuel = { ...accounts().accounts[1], id: "a-fuel", code: "470", name: "Fuel" };
+    const sam = { ...contacts().contacts[0], id: "c-sam", name: "Sam's Fish" };
+    api({
+      "GET /api/me/company/accounts": () => json(accounts({ archived_accounts: [fuel] })),
+      "GET /api/me/company/contacts": () => json(contacts({ archived_contacts: [sam] })),
+      "POST /api/me/company/accounts/a-fuel/restore": () => json({ message: "Fuel is back." }),
+      "POST /api/me/company/contacts/c-sam/restore": () => json({ message: "Sam's Fish is back." }),
+    });
+    show();
+    await loaded();
+    const user = userEvent.setup();
+    const chart = card("Chart of accounts");
+    expect(chart.queryByText("470 - Fuel")).toBeNull();
+    await user.click(chart.getByRole("button", { name: "Archived accounts (1)" }));
+    await user.click(chart.getByRole("button", { name: "Restore 470 - Fuel" }));
+    expect(await screen.findByText("Fuel is back.")).toBeInTheDocument();
+
+    const people = card("Contacts");
+    await user.click(people.getByRole("button", { name: "Archived contacts (1)" }));
+    await user.click(people.getByRole("button", { name: "Restore Sam's Fish" }));
+    expect(await screen.findByText("Sam's Fish is back.")).toBeInTheDocument();
+    expect(sent.map((r) => r.path)).toEqual([
+      "/api/me/company/accounts/a-fuel/restore",
+      "/api/me/company/contacts/c-sam/restore",
+    ]);
   });
 
   it("an unused one asks first, then is deleted", async () => {
