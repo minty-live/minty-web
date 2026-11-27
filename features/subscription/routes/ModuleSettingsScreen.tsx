@@ -110,7 +110,13 @@ export function ModuleSettingsScreen(args: ModuleSettingsScreenProps) {
           )
         ) : (
           <>
-            <h3 className="text-lg font-bold text-set-ink">Modules</h3>
+            <h3
+              id="section-modules"
+              data-settings-section="Modules"
+              className="scroll-mt-[var(--settings-offset,0px)] text-lg font-bold text-set-ink focus:outline-none"
+            >
+              Modules
+            </h3>
             <p className="mt-2 text-sm text-set-ink-2">
               View the modules available to this entity, start free trials and manage active
               subscriptions.

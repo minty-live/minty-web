@@ -13,7 +13,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { BackLink } from "@minty/shared/backLink";
+import { HeaderBack, HeaderCompany } from "@minty/shared/ui";
 
 import { NavMenu, type NavMenuProps } from "@/components/ui/NavMenu";
 import { ViewerBadge } from "@/components/ui/ViewerBadge";
@@ -85,33 +85,14 @@ export function AppHeader({
         >
           <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 sm:gap-3">
             {lead}
-            {!lead && back && back.direct ? (
-              <a
+            {/* The way back, the same in every app (@minty/shared's HeaderBack, 2026-11-27). */}
+            {!lead && back ? (
+              <HeaderBack
                 href={back.href}
-                className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-link hover:underline sm:text-base"
-              >
-                <span
-                  className="material-symbols-outlined text-[22px] leading-none sm:text-[24px]"
-                  aria-hidden
-                >
-                  chevron_left
-                </span>
-                {back.label}
-              </a>
-            ) : !lead && back ? (
-              <BackLink
-                href={back.href}
-                {...HUB_BACK}
-                className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-link hover:underline sm:text-base"
-              >
-                <span
-                  className="material-symbols-outlined text-[22px] leading-none sm:text-[24px]"
-                  aria-hidden
-                >
-                  chevron_left
-                </span>
-                {back.label}
-              </BackLink>
+                label={back.label}
+                direct={back.direct}
+                {...(back.direct ? {} : HUB_BACK)}
+              />
             ) : null}
             {!lead && showLogo ? (
               <Image
@@ -139,22 +120,7 @@ export function AppHeader({
         <div
           className={`flex min-w-0 items-center justify-end gap-1.5 sm:gap-3 ${lead ? "shrink-0" : ""}`}
         >
-          {companyName ? (
-            <>
-              <span
-                className="material-symbols-outlined text-[22px] leading-none text-text-secondary sm:text-[26px]"
-                aria-hidden
-              >
-                corporate_fare
-              </span>
-              {/* A plain 6.5rem, not min(100%,6.5rem): a percentage cap counts as no cap while
-                  the shrink-0 block around it is sized, so on a phone a long name made it cover
-                  the way back (fixed in minty-payment-request-web's Header and Flask's port too). */}
-              <span className="min-w-0 max-w-[6.5rem] truncate text-sm font-medium text-text-secondary sm:max-w-[9rem] sm:text-base md:max-w-[14rem] lg:max-w-md">
-                {companyName}
-              </span>
-            </>
-          ) : null}
+          {companyName ? <HeaderCompany name={companyName} /> : null}
           <div className="flex shrink-0 items-center gap-1.5 pl-0.5 sm:gap-2 sm:pl-2">
             <ViewerBadge viewer={viewer} />
             <NavMenu {...nav} viewer={viewer} />

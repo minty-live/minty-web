@@ -1,19 +1,20 @@
 /**
  * The teal banner at the top of the payer portal's pages (Figma 04: "Manage Subscriptions"),
- * with the design's "Back to the previous page" line - drawn in the header bar, above the
- * banner's left edge (`PortalBack`).
+ * with the way back - "‹ Back", every app's header back (`@minty/shared`'s `HeaderBack`, the user
+ * 2026-11-27), named "Back to the previous page" - drawn in the header bar, above the banner's
+ * left edge (`PortalBack`).
  */
 
-import { BACK_LINE_CLASS, PortalBack } from "@/features/subscription/components/PortalBack";
+import { HeaderBack } from "@minty/shared/ui";
+
+import { PortalBack } from "@/features/subscription/components/PortalBack";
 
 export function PortalHero({ title, onBack }: { title: string; onBack?: () => void }) {
   return (
     <>
       {onBack && (
         <PortalBack>
-          <button type="button" onClick={onBack} className={BACK_LINE_CLASS}>
-            Back to the previous page
-          </button>
+          <HeaderBack onClick={onBack} ariaLabel="Back to the previous page" />
         </PortalBack>
       )}
       <div className="rounded-[32px] bg-action-primary px-6 py-7 sm:px-[54px] sm:py-10">

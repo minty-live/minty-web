@@ -365,7 +365,7 @@ describe("the settings chrome", () => {
     flask({ "GET /api/me/company/integration": () => json(INTEGRATION) });
     showGeneral();
 
-    expect(await screen.findByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(nav.querySelectorAll("a, span[aria-current]").length).toBe(6);
     expect([...nav.querySelectorAll("a, span[aria-current]")].map((t) => t.textContent)).toEqual([

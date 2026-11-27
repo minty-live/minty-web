@@ -162,7 +162,7 @@ describe("the settings chrome", () => {
     serve();
     show();
 
-    expect(await screen.findByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     const nav = within(screen.getByRole("navigation", { name: "Settings sections" }));
     expect(nav.getByText("Payment Settings")).toHaveAttribute("aria-current", "page");
     expect(nav.getByRole("link", { name: "General" })).toHaveAttribute(
@@ -353,7 +353,8 @@ describe("with Xero connected", () => {
     show();
     await codes();
 
-    const fold = screen.getByRole("button", { name: "Payment Account Code" });
+    // the card's own fold (the settings rail has a "Payment Account Code" button too)
+    const fold = screen.getByRole("button", { name: "Payment Account Code", expanded: true });
     expect(fold).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(fold);
     expect(fold).toHaveAttribute("aria-expanded", "false");

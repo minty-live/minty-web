@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { setAuth } from "@/lib/auth";
 import { pettyCashWebUrl } from "@/lib/mintyEntry";
-import { settingsBackLink, settingsTabs } from "@/lib/settingsTabs";
+import { sectionId, settingsBackLink, settingsTabs } from "@/lib/settingsTabs";
 
 const COMPANY = { id: "360812e1-9f94-46a3-aa31-347e21afde8e", name: "Olive & Vine" };
 const ALL = { pettyCash: true, billing: true };
@@ -32,7 +32,17 @@ describe("settingsTabs", () => {
       `${BASE}/petty-cash`,
       `${BASE}/payment`,
     ]);
-    expect(tabs[5]).toEqual({ label: "Module & Subscription", current: true });
+    expect(tabs[5]).toEqual({
+      label: "Module & Subscription",
+      current: true,
+      sections: [{ title: "Modules", href: `${BASE}/modules#section-modules` }],
+    });
+    // each tab names its cards, each with its address on that tab's page
+    expect(tabs[1].sections).toEqual([
+      { title: "Entity name", href: `${BASE}/general#section-entity-name` },
+      { title: "Chart of accounts", href: `${BASE}/general#section-chart-of-accounts` },
+      { title: "Contacts", href: `${BASE}/general#section-contacts` },
+    ]);
   });
 
   it("marks whichever tab is open", () => {
@@ -44,7 +54,8 @@ describe("settingsTabs", () => {
       ["payment", "Payment Settings"],
     ] as const) {
       const current = settingsTabs(COMPANY, ALL, page).filter((t) => t.current);
-      expect(current).toEqual([{ label, current: true }]);
+      expect(current).toEqual([expect.objectContaining({ label, current: true })]);
+      expect(current[0].href).toBeUndefined();
     }
   });
 
@@ -97,5 +108,13 @@ describe("settingsBackLink", () => {
       href: pettyCashWebUrl(COMPANY.id),
       label: "Back",
     });
+  });
+});
+
+describe("sectionId", () => {
+  it("makes a card's address from its title", () => {
+    expect(sectionId("Chart of accounts")).toBe("section-chart-of-accounts");
+    expect(sectionId("Module & Subscription")).toBe("section-module-and-subscription");
+    expect(sectionId("Petty Cash Account Code")).toBe("section-petty-cash-account-code");
   });
 });

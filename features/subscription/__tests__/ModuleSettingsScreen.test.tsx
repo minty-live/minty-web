@@ -49,6 +49,9 @@ async function show(page: ModulePage) {
 }
 
 const card = (name: string) => within(screen.getByRole("article", { name }));
+/** The tab's own content: the page less its chrome (the header and the settings rail). */
+const pageContent = () =>
+  within(document.querySelector<HTMLElement>("[data-settings-content]") as HTMLElement);
 /** A card's list item: the card and what is drawn under it. */
 const under = (name: string) => within(screen.getByRole("article", { name }).closest("li")!);
 
@@ -162,7 +165,8 @@ describe("ModuleSettingsScreen", () => {
     expect(
       under("Payment Request").getByRole("button", { name: "Start Free Trial" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Subscription|Trial/ })).toHaveLength(2);
+    // the cards' CTAs, not the settings rail's "Hide Module & Subscription topics"
+    expect(pageContent().getAllByRole("button", { name: /Subscription|Trial/ })).toHaveLength(2);
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -388,7 +392,11 @@ describe("ModuleSettingsScreen", () => {
       // The settings chrome is still there - the person is inside Settings, and the tabs are
       // their way out.
       expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-      expect(screen.getByText("Module & Subscription")).toHaveAttribute("aria-current", "page");
+      expect(
+        within(screen.getByRole("navigation", { name: "Settings sections" })).getByText(
+          "Module & Subscription",
+        ),
+      ).toHaveAttribute("aria-current", "page");
 
       await userEvent.click(screen.getByRole("button", { name: "Back to Company" }));
       // The COMPANY's own page, not the payer's portal: that is where this journey began.
@@ -461,9 +469,10 @@ describe("ModuleSettingsScreen", () => {
 
   it("someone who may not manage sees the cards, no buttons, and who does", async () => {
     await show(NON_MANAGER);
-    const main = within(screen.getByRole("main"));
+    const main = pageContent();
     expect(main.getByRole("article", { name: "Petty Cash" })).toBeInTheDocument();
-    expect(main.queryByRole("button")).toBeNull(); // the header's hamburger is not the page's
+    // the header's hamburger and the settings rail are not the page's
+    expect(main.queryByRole("button")).toBeNull();
     expect(
       screen.getByText(/Billing for this company is managed by Priya Chan/),
     ).toBeInTheDocument();
@@ -475,14 +484,14 @@ describe("ModuleSettingsScreen", () => {
 
   it("a non-admin on a company with no payer is told only admins can change modules", async () => {
     await show(NOT_ADMIN);
-    expect(within(screen.getByRole("main")).queryByRole("button")).toBeNull();
+    expect(pageContent().queryByRole("button")).toBeNull();
     expect(screen.getByText("Only admins can change modules.")).toBeInTheDocument();
   });
 
   // Owner, 2026-11-13: only the company's subscriber changes it; with none assigned, nobody may.
   it("a company with no subscriber assigned says so and offers no button", async () => {
     await show({ ...NOT_ADMIN, subscriber_set: false });
-    expect(within(screen.getByRole("main")).queryByRole("button")).toBeNull();
+    expect(pageContent().queryByRole("button")).toBeNull();
     expect(screen.getByText(UNASSIGNED)).toBeInTheDocument();
   });
 

@@ -9,9 +9,11 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   ACCOUNTS_API_URL,
   SUBSCRIPTION_API_URL,
+  closeSettingsMenu,
   credentials,
   handoff,
   requireApp,
+  settingsNav,
 } from "../../../e2e/helpers";
 
 const ID = "360812e1-9f94-46a3-aa31-347e21afde8e";
@@ -222,9 +224,16 @@ test.describe("company settings", () => {
     await page.setViewportSize({ width: 360, height: 780 });
     const asked = await stubFlask(page);
     await handoff(page, creds(), `${BASE}/users`);
-    const tabs = page.getByRole("navigation", { name: "Settings sections" });
 
-    await expect(tabs.getByText("Users")).toHaveAttribute("aria-current", "page");
+    // a phone: the settings rail is a menu behind the bar under the header
+    await expect(
+      page.getByRole("button", { name: "Settings menu", exact: true }),
+    ).toHaveAccessibleDescription(/^Users\s*· Members$/);
+    await expect((await settingsNav(page)).getByText("Users")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await closeSettingsMenu(page);
     // the browser tab names the company (lib/companyTitle.ts)
     await expect(page).toHaveTitle(`Users - ${NAME}`);
     await expect(page.getByText("Subscriber")).toBeVisible();
@@ -244,11 +253,41 @@ test.describe("company settings", () => {
       last_name: "Person",
     });
 
-    // General sits off the edge of a 360px row: the row scrolls inside itself to reach it
-    await tabs.getByRole("link", { name: "General" }).click();
+    await (await settingsNav(page)).getByRole("link", { name: "General" }).click();
     await expect(page).toHaveURL(new RegExp(`${BASE}/general$`));
-    await expect(tabs.getByText("General")).toHaveAttribute("aria-current", "page");
     await expect(page).toHaveTitle(`General - ${NAME}`);
+    const nav = await settingsNav(page);
+    await expect(nav.getByText("General")).toHaveAttribute("aria-current", "page");
+
+    // a card from the menu: the menu closes, the card comes to the top under the bar and has focus
+    await nav.getByRole("button", { name: "Contacts" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings menu" })).toBeHidden();
+    const contacts = page.getByRole("region", { name: "Contacts" });
+    await expect(contacts).toBeFocused();
+    await expect(contacts).toBeInViewport();
+    await expect(
+      page.getByRole("button", { name: "Settings menu", exact: true }),
+    ).toHaveAccessibleDescription(/^General\s*· Contacts$/);
+  });
+
+  test("the rail opens another tab's topics and goes straight to the card", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await stubFlask(page);
+    await handoff(page, creds(), `${BASE}/users`);
+    const nav = await settingsNav(page);
+    await expect(nav.getByRole("list", { name: "On General" })).toHaveCount(0);
+    await nav.getByRole("button", { name: "Show General topics" }).click();
+    await nav
+      .getByRole("list", { name: "On General" })
+      .getByRole("link", { name: "Contacts" })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`${BASE}/general#section-contacts$`));
+    const contacts = page.getByRole("region", { name: "Contacts" });
+    await expect(contacts).toBeFocused();
+    await expect(contacts).toBeInViewport();
+    await expect(
+      (await settingsNav(page)).getByRole("button", { name: "Contacts" }),
+    ).toHaveAttribute("aria-current", "location");
   });
 
   test("General: a save sends only what changed", async ({ page }) => {
@@ -445,22 +484,21 @@ test.describe("company settings", () => {
       await stubFlask(page);
       for (const tab of ["users", "integration", "general"]) {
         await handoff(page, creds(), `${BASE}/${tab}`);
-        await expect(page.getByRole("navigation", { name: "Settings sections" })).toBeVisible();
-        await expect(page.getByRole("heading", { level: 2, name: "Settings" })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+        // the settings rail, opened as a menu below 1024px
+        await expect(await settingsNav(page)).toBeVisible();
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth - window.innerWidth,
         );
         expect(overflow, tab).toBeLessThanOrEqual(0);
+        await closeSettingsMenu(page);
       }
 
       // The leave dialog at this width too: at 360 it crosses ConfirmDialog's stacked branch,
       // where the two answers sit one above the other.
       await page.getByLabel("Country").selectOption("SG");
-      await page
-        .getByRole("navigation", { name: "Settings sections" })
-        .getByRole("link", { name: "Users" })
-        .click();
-      const dialog = page.getByRole("dialog");
+      await (await settingsNav(page)).getByRole("link", { name: "Users" }).click();
+      const dialog = page.getByRole("dialog", { name: /Leave/ });
       await expect(dialog.getByRole("button", { name: "Discard changes" })).toBeVisible();
       await expect(dialog.getByRole("button", { name: "Go Back" })).toBeVisible();
       const asked = await page.evaluate(

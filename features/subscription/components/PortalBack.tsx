@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * The portal's way back - "Back" (08-A), "Back to the previous page"
- * (04-A, 08-B) - lives in the header bar (the user, 2026-09-29: no more "‹ Entity List"), lined
- * up with the teal banner's left edge. The header belongs to the layout and the line to the
+ * The portal's way back - "‹ Back", every app's header back (`HeaderBack`, 2026-11-27); named
+ * "Back to the previous page" on 04-A and 08-B - lives in the header bar (the user, 2026-09-29: no more "‹ Entity List"), at its left edge as
+ * in every app (2026-11-27). The header belongs to the layout and the line to the
  * page, so the layout owns an empty slot in the header and each page portals its line into it.
  * A page with no line of its own leaves the slot empty: every such page has its own way out in
  * its body (Go Back, Cancel, Back to Manage Subscriptions).
@@ -24,22 +24,13 @@ export function PortalBackProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * The header's slot. The row it sits in is a size container (`AppHeader`'s `lead`), so `cqw` is
- * that row's content box: the padding puts the line where `SubscriptionLayout`'s column
- * (`max-w-[1346px]`, px-4 / sm:px-6 - the same as the header row's) starts the banner, i.e.
- * half of what the row has beyond the column's content width. Keep the two in step.
+ * The header's slot, at the header row's left edge like every app's "‹ Back" (the user,
+ * 2026-11-27; it used to be padded in `cqw` to line up with the teal banner).
  */
 export function PortalBackSlot() {
   const slot = useContext(SlotContext);
-  return (
-    <div
-      ref={slot?.setEl}
-      className="flex min-w-0 items-center pl-[max(0px,calc(50cqw-657px))] sm:pl-[max(0px,calc(50cqw-649px))]"
-    />
-  );
+  return <div ref={slot?.setEl} className="flex min-w-0 items-center" />;
 }
-
-export const BACK_LINE_CLASS = "min-w-0 truncate text-base text-[var(--ink-soft)] hover:underline";
 
 export function PortalBack({ children }: { children: ReactNode }) {
   const slot = useContext(SlotContext);

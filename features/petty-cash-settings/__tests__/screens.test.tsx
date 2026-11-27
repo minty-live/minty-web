@@ -350,19 +350,42 @@ describe("PettyCashSettingsScreen", () => {
     expect(rows.map((li) => li.querySelector("img"))).toEqual([null, null, null]);
     const visa = within(rows[0]);
     expect(visa.getByRole("button", { name: "Remove Visa from my list" })).toBeInTheDocument();
+    // full-width rows (the user, 2026-11-27: as onboarding's): the grip, the name, the bin
+    expect(list).toHaveClass("flex-col");
     const handle = visa.getByRole("button", { name: "Move Visa" });
-    expect(handle).toHaveAttribute("draggable", "true");
+    expect(handle).toHaveClass("touch-none");
+    // each row 50px tall, as the drag measures them when it starts
+    const place = () =>
+      within(list)
+        .getAllByRole("listitem")
+        .forEach((row, i) => {
+          row.getBoundingClientRect = () => ({ top: i * 50, bottom: (i + 1) * 50 }) as DOMRect;
+        });
+    place();
 
-    // Visa dropped on Octopus: drawn in its new place, nothing sent yet
-    fireEvent.dragStart(handle);
-    fireEvent.dragOver(rows[2]);
-    fireEvent.drop(rows[2]);
+    // Visa dragged by its grip (a finger, a mouse or a pen) onto Octopus: drawn in its new place,
+    // nothing sent yet
+    fireEvent.pointerDown(handle, { button: 0, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientY: 130, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientY: 130, pointerId: 1 });
     expect(names("Electronic")).toEqual(["AlipayHK", "Octopus", "Visa"]);
     expect(salesCard().getByText("1 change not saved yet")).toBeInTheDocument();
-    // dropped on itself: nothing changes
-    const first = within(list).getAllByRole("listitem")[0];
-    fireEvent.dragStart(within(first).getByRole("button", { name: /^Move / }));
-    fireEvent.drop(first);
+    // let go on itself: nothing changes
+    place();
+    const first = within(within(list).getAllByRole("listitem")[0]).getByRole("button", {
+      name: /^Move /,
+    });
+    fireEvent.pointerDown(first, { button: 0, clientY: 20, pointerId: 2 });
+    fireEvent.pointerUp(first, { clientY: 30, pointerId: 2 });
+    // Escape drops a drag where it began
+    fireEvent.pointerDown(first, { button: 0, clientY: 20, pointerId: 3 });
+    fireEvent.pointerMove(first, { clientY: 130, pointerId: 3 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(first, { clientY: 130, pointerId: 3 });
+    // a right-click is not a drag
+    fireEvent.pointerDown(first, { button: 2, clientY: 20, pointerId: 4 });
+    fireEvent.pointerUp(first, { clientY: 130, pointerId: 4 });
+    expect(names("Electronic")).toEqual(["AlipayHK", "Octopus", "Visa"]);
     expect(salesCard().getByText("1 change not saved yet")).toBeInTheDocument();
     expect(writes()).toEqual([]);
 
@@ -539,7 +562,7 @@ describe("PettyCashSettingsScreen", () => {
     expect(salesCard().getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
-  it("an add by name is checked as typed, then held as a chip until Save changes", async () => {
+  it("a typed name is checked as typed and added at once with + Add, Enter or its row; held until Save changes", async () => {
     let state = settings({ sales_parts: PARTS_ON });
     api({
       "GET /settings": () => json(state),
@@ -553,37 +576,47 @@ describe("PettyCashSettingsScreen", () => {
     await drawn();
     const user = userEvent.setup();
 
-    // a name typed into the picker is offered as a new method, then lands in the Name box
+    // the user, 2026-11-27 (as onboarding's): a typed name and + Add, or a row picked, adds at
+    // once - no second Name box
     const picker = card("Delivery").getByRole("combobox", { name: "Method" });
+    const add = card("Delivery").getByRole("button", { name: "Add" });
+    // + Add with nothing typed: the name is still empty
+    await user.click(add);
+    expect(
+      card("Delivery").getByText("The method's name is still empty. Type a name to add it."),
+    ).toBeInTheDocument();
+    // checked as typed: too long, already on the list
+    await user.type(picker, "x".repeat(75));
+    expect(
+      card("Delivery").getByText("That name is too long. Keep it to 74 characters or fewer."),
+    ).toBeInTheDocument();
+    expect(picker).toHaveAttribute("aria-invalid", "true");
+    await user.clear(picker);
+    await user.type(picker, "foodpanda");
+    expect(card("Delivery").getByText("foodpanda is already on the list.")).toBeInTheDocument();
+    await user.click(add);
+    expect(names("Delivery")).toEqual(["Foodpanda"]);
+    // "+ Add 'Lalamove' as a new method" adds it at once; the field empties and keeps the focus
+    await user.clear(picker);
     await user.type(picker, "Lalamove");
     expect(card("Delivery").queryByText("Type a method name to add a new method")).toBeNull();
     await user.click(
       card("Delivery").getByRole("option", { name: "+ Add 'Lalamove' as a new method" }),
     );
-    const name = card("Delivery").getByRole("textbox", { name: "Name" });
-    await waitFor(() => expect(name).toHaveFocus());
-    expect(name).toHaveValue("Lalamove");
-    await user.clear(name);
-    expect(card("Delivery").queryByText(/still empty/)).toBeNull();
-    await user.click(card("Delivery").getByRole("button", { name: "Add" }));
-    expect(
-      card("Delivery").getByText("The method's name is still empty. Type a name to add it."),
-    ).toBeInTheDocument();
-    await user.type(name, "x".repeat(75));
-    expect(
-      card("Delivery").getByText("That name is too long. Keep it to 74 characters or fewer."),
-    ).toBeInTheDocument();
-    expect(name).toHaveAttribute("aria-invalid", "true");
-    await user.clear(name);
-    await user.type(name, "foodpanda{Enter}");
-    expect(card("Delivery").getByText("foodpanda is already on the list.")).toBeInTheDocument();
-    expect(names("Delivery")).toEqual(["Foodpanda"]);
-    await user.clear(name);
-    await user.type(name, "Deliveroo{Enter}");
-    expect(names("Delivery")).toEqual(["Foodpanda", "Deliveroo"]);
+    expect(names("Delivery")).toEqual(["Foodpanda", "Lalamove"]);
+    expect(picker).toHaveValue("");
     expect(card("Delivery").queryByRole("textbox", { name: "Name" })).toBeNull();
-    // a method typed here is the company's own: it has a pencil
+    // a name typed and + Add (or Enter): a new one...
+    await user.type(picker, "Deliveroo");
+    await user.click(add);
+    expect(names("Delivery")).toEqual(["Foodpanda", "Lalamove", "Deliveroo"]);
+    expect(picker).toHaveValue("");
+    // ...or Minty's method of that name, when the catalogue has one
+    await user.type(picker, "keeta{Enter}");
+    expect(names("Delivery")).toEqual(["Foodpanda", "Lalamove", "Deliveroo", "Keeta"]);
+    // a method typed here is the company's own: it has a pencil; Minty's has none
     expect(card("Delivery").getByRole("button", { name: "Edit Deliveroo" })).toBeInTheDocument();
+    expect(card("Delivery").queryByRole("button", { name: "Edit Keeta" })).toBeNull();
 
     await user.click(salesCard().getByRole("button", { name: "Save changes" }));
     expect(
@@ -594,7 +627,12 @@ describe("PettyCashSettingsScreen", () => {
         accounts: PARTS_ON,
         methods: {
           electronic: [{ id: "v1" }, { id: "v2" }],
-          delivery: [{ id: "d1" }, { name: "Deliveroo" }],
+          delivery: [
+            { id: "d1" },
+            { name: "Lalamove" },
+            { name: "Deliveroo" },
+            { sale_info_id: "k1" },
+          ],
         },
       },
     ]);

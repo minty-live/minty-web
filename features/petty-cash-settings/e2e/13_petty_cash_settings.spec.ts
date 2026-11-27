@@ -512,21 +512,18 @@ test.describe("petty cash settings", () => {
     });
   }
 
-  test("adding by name on a phone: Other, the name checked as it is typed, held, then sent", async ({
+  test("adding by name on a phone: typed and + Add, or its row - added at once, checked as it is typed, held, then sent", async ({
     page,
   }) => {
+    // the user, 2026-11-27 (as onboarding's): no second Name box; + Add adds what is typed
     await page.setViewportSize({ width: 360, height: 780 });
     const sent = await open(page, HELD());
     const delivery = card(page, "Delivery");
-    await delivery.getByRole("combobox", { name: "Method" }).fill("Lalamove");
-    await delivery.getByRole("option", { name: "+ Add 'Lalamove' as a new method" }).click();
-    const name = delivery.getByRole("textbox", { name: "Name" });
-    await expect(name).toBeFocused();
-    await expect(name).toHaveValue("Lalamove");
-    await name.fill("");
+    const name = delivery.getByRole("combobox", { name: "Method" });
+    const add = delivery.getByRole("button", { name: "Add", exact: true });
     // empty: nothing said until Add is refused for it
     await expect(delivery.getByText(/still empty/)).toHaveCount(0);
-    await delivery.getByRole("button", { name: "Add", exact: true }).click();
+    await add.click();
     await expect(
       delivery.getByText("The method's name is still empty. Type a name to add it."),
     ).toBeVisible();
@@ -541,12 +538,16 @@ test.describe("petty cash settings", () => {
     await expectNoHorizontalScroll(page);
     await name.fill("foodpanda");
     await expect(delivery.getByText("foodpanda is already on the list.")).toBeVisible();
-    await name.press("Enter");
+    await add.click();
     await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/]);
+    // typed, then + Add: added at once, the field empty and still focused
     await name.fill("Deliveroo Plus");
     await expect(name).not.toHaveAttribute("aria-invalid", "true");
-    await name.press("Enter");
+    await add.click();
     await expect(rows(page, "Delivery")).toHaveText([/Foodpanda/, /Deliveroo Plus/]);
+    await expect(name).toHaveValue("");
+    await expect(name).toBeFocused();
+    await expect(delivery.getByRole("textbox", { name: "Name" })).toHaveCount(0);
     expect(sent).toEqual([]);
     await saveSales(page).click();
     await expect(toast(page, "Your sales accounts and methods are saved.")).toBeVisible();
@@ -1258,4 +1259,53 @@ test.describe("petty cash settings", () => {
       expect(sent).toEqual([]);
     });
   }
+});
+
+// Rows, not chips (the user, 2026-11-27: as onboarding's): a finger drags a method by its grip.
+test.describe("the sales methods on a touch phone", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 360, height: 800 } });
+
+  test("each method is a full-width row; the grip and the bin are 44px; a finger reorders", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== "chromium", "touch is driven through Chrome's DevTools protocol");
+    await requireApp();
+    const sent = await open(
+      page,
+      initialState({ parts: { cash: true, electronic: true, delivery: true } }),
+    );
+    const list = rows(page, "Electronic");
+    await expect(list).toHaveText([/Visa/, /AlipayHK/]);
+    const [first, second] = [list.nth(0), list.nth(1)];
+    // a touch lands where the screen shows: bring the list to the middle of it first
+    await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const a = (await first.boundingBox())!;
+    const b = (await second.boundingBox())!;
+    expect(b.y, "one method per line").toBeGreaterThanOrEqual(a.y + a.height - 1);
+    for (const el of [handle(page, "Electronic", "Visa"), bin(page, "Electronic", "Visa")]) {
+      const box = (await el.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+
+    // Visa, by its grip, to below AlipayHK
+    const from = (await handle(page, "Electronic", "Visa").boundingBox())!;
+    const x = from.x + from.width / 2;
+    const y0 = from.y + from.height / 2;
+    const y1 = b.y + b.height * 0.75;
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", y?: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: y === undefined ? [] : [{ x, y }],
+      });
+    await touch("touchStart", y0);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", y0 + ((y1 - y0) * i) / 8);
+    await touch("touchEnd");
+
+    await expect(list).toHaveText([/AlipayHK/, /Visa/]);
+    expect(sent).toEqual([]); // held until Save changes
+    await expectNoHorizontalScroll(page);
+  });
 });

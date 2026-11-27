@@ -19,7 +19,35 @@ export type SettingsTab = {
   /** Absent on the current page's tab. */
   href?: string;
   current?: boolean;
+  /**
+   * The tab's cards, for the side rail to open and jump to from another tab (the user,
+   * 2026-11-27): `href` is the tab's page with the card's `#section-…`. The open tab's own list
+   * comes from the page itself (`SettingsRail`), so a card that comes and goes is right there.
+   */
+  sections: { title: string; href: string }[];
 };
+
+/**
+ * The cards on each tab, in the page's order - by their titles, which are what the rail shows and
+ * what `sectionId` makes the address from. Change a card's title and this together.
+ */
+export const SETTINGS_TAB_SECTIONS: Record<CompanySettingsTab, string[]> = {
+  users: ["Members", "Invitations"],
+  general: ["Entity name", "Chart of accounts", "Contacts"],
+  integration: ["Xero"],
+  "petty-cash": ["Account mapping", "Petty Cash Account Code", "Sales accounts and methods"],
+  payment: ["Payment Account Code"],
+  modules: ["Modules"],
+};
+
+/** A card's id and address fragment from its title: "Chart of accounts" -> `section-chart-of-accounts`. */
+export function sectionId(title: string): string {
+  return `section-${title
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+}
 
 export type SettingsCompany = { id: string; name: string };
 
@@ -81,12 +109,14 @@ export function settingsTabs(
     (page !== "users" || users) &&
     (page !== "petty-cash" || access.pettyCash) &&
     (page !== "payment" || access.billing);
-  return ORDER.filter(shown).map((page) =>
-    page === current
-      ? { label: SETTINGS_TAB_LABELS[page], current: true }
-      : {
-          label: SETTINGS_TAB_LABELS[page],
-          href: companySettingsPath(company.id, company.name, page),
-        },
-  );
+  return ORDER.filter(shown).map((page) => {
+    const href = companySettingsPath(company.id, company.name, page);
+    const sections = SETTINGS_TAB_SECTIONS[page].map((title) => ({
+      title,
+      href: `${href}#${sectionId(title)}`,
+    }));
+    return page === current
+      ? { label: SETTINGS_TAB_LABELS[page], current: true, sections }
+      : { label: SETTINGS_TAB_LABELS[page], href, sections };
+  });
 }

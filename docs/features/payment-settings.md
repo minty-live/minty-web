@@ -9,7 +9,7 @@ the look changed. The tab shows only when Payment Request is on (`billing` in th
 
 ## Getting here
 
-- The tab row, from any settings tab.
+- The side rail, from any settings tab (`components/ui/SettingsRail.tsx`; a menu below 1024px).
 - accounts-api's `/entity/<co>/settings/payment-request` hands over here (`hub/redirects.py`
   `settings_payment_request`, `_to_hub_tab(..., "payment")`) - what the payments app's sidebar
   Settings, its old address `/entity/<shortid>/<name>/settings/payment-request` (now a redirect)
@@ -59,7 +59,7 @@ Payment." - the old copy, kept), in a `SettingsCard`, folding under a 44px chevr
   Accountant or Admin" one; the ticks and Save are off. (`lib/role.ts`, which read the token's
   `role` / `is_view_only`, is gone.)
 - **Leaving with ticks not saved asks first** (`@minty/shared/leaveGuard`,
-  `components/ui/LeaveDialog.tsx`): the tab row, the header's Back, the sidebar, Logout and the
+  `components/ui/LeaveDialog.tsx`): the side rail, the header's Back, the sidebar, Logout and the
   browser's Back (its history sentinel); Discard changes puts the saved ticks back and goes.
 - **Auto-saved draft** (the owner's decisions doc L1, 2026-11-20; `@minty/shared/drafts`): the
   ticks are kept in this browser 2 s after the last change (`settings.payment-codes`, record `-`,
@@ -84,5 +84,5 @@ connected and Minty-only companies alike) were rewritten on 2026-11-11.
 `__tests__/screens.test.tsx` (load, ticking and Select all, save and its refusals, the Xero-status
 and read-only states, the leave guard, the auto-saved draft), `__tests__/role.test.ts`, `__tests__/reexports.test.ts`;
 `e2e/13_payment_settings.spec.ts` (stubbed: the picker, Save's two off states, a 409 with ON sent
-before OFF, the guard on the tab row, Back and the browser's Back, no sideways scroll at 360 /
+before OFF, the guard on the side rail, Back and the browser's Back, no sideways scroll at 360 /
 768 / 1440).

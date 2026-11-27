@@ -91,7 +91,7 @@ components/     the module page's pieces: PaymentFailedBanner,
                 AccountPickerDialog / MoveCompanyDialog / NewAccountDialog), BillingDetailsForm (08-C). Since
                 phase 2 the shared pieces live in the shell, for the other features too:
                 `components/ui/{ModalFrame, ConfirmDialog (the modal shell, with its ModalImage and
-                ConfirmTone), sheetClasses, SettingsTabs, CompanyFromAddress}`, `lib/settingsTabs.ts`
+                ConfirmTone), sheetClasses, SettingsRail, CompanyFromAddress}`, `lib/settingsTabs.ts`
                 (the settings chrome's tabs and Back) and `lib/companyFromAddress.ts`
 routes/         SubscriptionLayout (PortalChrome = minty-payment-request-web's header; no tab row), ManageSubscriptions (+ Screen),
                 ModuleSettingsPage (+ Screen), TransferSubscription (+ Screen), SubscriptionRequests (+ Screen),
@@ -350,7 +350,7 @@ docs/features/company-settings.md). What is on it:
   "‹ Back" to the page the person came from - `@minty/shared/backLink`'s `BackLink` (v0.20), for a new tab the Petty
   Cash dashboard; "Settings"; the viewer's initials - `viewer` on the page model - and the side
   menu, Figma 02 on every page, `entities.md`), then the 880px column: the company's name (the page
-  model's), "Settings", and the tab row (`components/ui/SettingsTabs.tsx`, spelled by
+  model's), "Settings", and the side rail (`components/ui/SettingsRail.tsx`, spelled by
   `lib/settingsTabs.ts`). A module's settings tab (and its drawer section) shows only when that
   module is on - from the page model's `has_access` once it is here, from the token's
   `petty_cash_enabled` / `billing_enabled` claims until then (`lib/moduleClaims.ts`; both default
@@ -606,7 +606,7 @@ re-homed and redrawn to Figma section "04 · Manage Subscriptions — the payer 
 - **Where the rest goes** — _Request transfer_ → `PORTAL.subscriber?entity=` and _Review and
   accept_ → `PORTAL.incoming?transfer=`, both built (§14); the seams still to be built from
   their own Figma frames: _Subscribe_ → `moduleRoutes(id).activate(code)`; the payment-failed
-  "here" → `PORTAL.billing`, the billing page (§15); "Back to the previous page" →
+  "here" → `PORTAL.billing`, the billing page (§15); "‹ Back" (named "Back to the previous page") →
   `goBack` to where the person came from, past Transfer and Incoming (`PORTAL_BACK`, 2026-11-13);
   the overview in a fresh tab.
 - **The module page's _Manage Subscription_** lands here with `?entity=<id>`: that company's row
@@ -619,15 +619,17 @@ re-homed and redrawn to Figma section "04 · Manage Subscriptions — the payer 
 - **Chrome**: minty-payment-request-web's header (`routes/PortalChrome.tsx` over `components/ui/AppHeader`)
   over the design's 1298px column. **The header's left is the page's own back line** (2026-09-29,
   the user: no more chevron header): "‹ Entity List" and the "Subscriptions" title are gone, and
-  _Back_ (08-A; "Back to the entity dashboard" until 2026-11-13) / _Back to the previous page_ (04-A, 08-B; each returns to where the person came from, past
+  _‹ Back_ - every app's header back since 2026-11-27 (`@minty/shared`'s `HeaderBack`: grey, the
+  arrow and the word teal on hover, only the word underlined; before it a plain underlined line) -
+  on 08-A ("Back to the entity dashboard" until 2026-11-13) and on 04-A, 08-B (named "Back to the
+  previous page"; each returns to where the person came from, past
   its own sub-pages - `PORTAL_BACK`, 2026-11-13) moved out of
-  the page into the bar, starting exactly where the teal banner does. The layout owns an empty
+  the page into the bar, at the header row's left edge as in every app (the user, 2026-11-27; until
+  then it was padded in `cqw` to start where the teal banner does). The layout owns an empty
   slot in the header (`PortalBackSlot`, `AppHeader`'s `lead`) and the page portals its line into
-  it (`components/PortalBack.tsx`); the slot pads itself with `cqw` against the header row, so it
-  must stay in step with `SubscriptionLayout`'s `max-w-[1346px]` and px-4 / sm:px-6. A page with
+  it (`components/PortalBack.tsx`). A page with
   no line of its own (details, add/edit card, transfers, requests, a result page) leaves the bar
-  empty - each has its way out in its body. Measured in Chromium at 1920 / 1440 / 1100 / 390px:
-  the line's left edge equals the banner's. **Every `AppHeader` is sticky** (`top-0 z-40`, the
+  empty - each has its way out in its body. **Every `AppHeader` is sticky** (`top-0 z-40`, the
   user, 2026-09-29): the portal scrolls the document, so without it the header left with the
   page; the entity list and the module page scroll their own `main` under it anyway. Its row has
   a fixed height (`h-16` / `sm:h-18`) so a bar sticking under it can use `--app-header-h`

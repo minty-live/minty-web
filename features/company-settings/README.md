@@ -4,7 +4,7 @@ Three of the six settings tabs (Figma 353:999, 2026-11-10), at
 `/entity/<shortid>/<name>/settings/{users,general,integration}`; Petty Cash Settings and Payment
 Settings are `features/petty-cash-settings` and `features/payment-settings`, the Module tab the
 subscription feature's. The page, the card, the dialog, the buttons and fields are shared chrome in
-`components/ui/` (`SettingsPage`, `SettingsShell`, `SettingsTabs`, `settingsButtons`,
+`components/ui/` (`SettingsPage`, `SettingsShell`, `SettingsRail`, `settingsButtons`,
 `settingsFields`). accounts-api is the backend (`/api/me/company/*`, `hub/company.py`) and keeps the
 old addresses as hand-overs here.
 
@@ -31,7 +31,7 @@ itself, `@/lib/**` and `@/components/ui/**`; only `app/entity/[ref]/[slug]/setti
 import it, and only its index; those three files are one-line re-exports.
 
 Shared pieces: `components/ui/{SettingsPage, SettingsShell (SettingsCard, ReadOnlyNotice,
-LoadState, SettingsDialog), SettingsTabs, settingsButtons, settingsFields, LeaveDialog,
+LoadState, SettingsDialog), SettingsRail, settingsButtons, settingsFields, LeaveDialog,
 CompanyFromAddress, Toast}`, `lib/{settingsTabs, emailInput, mintyEntry, moduleClaims}` and
 `@minty/shared/leaveGuard`, which asks before General is left with changes not saved;
 `docs/features/company-settings.md` has which exits it holds.

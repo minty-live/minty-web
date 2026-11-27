@@ -11,7 +11,7 @@
 // as it does Flask's. (minty-payment-request-web/e2e/helpers.ts, the same reasoning.)
 import { createHmac } from "node:crypto";
 
-import { test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const b64url = (input: Buffer | string) =>
   Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -202,6 +202,34 @@ export async function bounceFlaskHandoff(page: Page, creds: Credentials): Promis
     });
   });
   return asked;
+}
+
+/**
+ * The settings rail's tabs and sections (`components/ui/SettingsRail.tsx`). From 1024px it is a
+ * column beside the cards; below that it sits in a menu behind the "Settings menu" bar, which this
+ * opens first.
+ */
+export async function settingsNav(page: Page) {
+  const bar = page.getByRole("button", { name: "Settings menu", exact: true });
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  // Whichever this width draws, once the page is there: the bar (below 1024px) or the rail.
+  await expect(bar.or(nav).first()).toBeVisible();
+  if (await bar.isVisible()) {
+    // A click before the page has hydrated does nothing: press until the menu says it is open.
+    await expect(async () => {
+      if ((await bar.getAttribute("aria-expanded")) !== "true") await bar.click();
+      await expect(bar).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+    }).toPass();
+  }
+  return nav;
+}
+
+/** Close the settings menu if it is open (a phone or tablet), so the page under it is reachable. */
+export async function closeSettingsMenu(page: Page): Promise<void> {
+  const bar = page.getByRole("button", { name: "Settings menu", exact: true });
+  if ((await bar.isVisible()) && (await bar.getAttribute("aria-expanded")) === "true") {
+    await page.keyboard.press("Escape");
+  }
 }
 
 /** What the stored token names: the `minty_entity_id` cookie and the token's own claim. */

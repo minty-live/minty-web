@@ -15,6 +15,7 @@ import {
   credentials,
   handoff,
   requireApp,
+  settingsNav,
 } from "../../../e2e/helpers";
 
 const PAYMENT_REQUEST_API_URL = process.env.E2E_PAYMENT_REQUEST_API_URL || "http://localhost:8020";
@@ -440,9 +441,9 @@ for (const width of [360, 768, 1440]) {
       page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(await overflow()).toBeLessThanOrEqual(0);
 
-    // the leave dialog at this width too
+    // the leave dialog at this width too (below 1024px the tabs are in the settings menu)
     await tick(page, "310").check();
-    await tabs(page).getByRole("link", { name: "Users" }).click();
+    await (await settingsNav(page)).getByRole("link", { name: "Users" }).click();
     await expect(leaveDialog(page)).toBeVisible();
     expect(await overflow()).toBeLessThanOrEqual(0);
   });

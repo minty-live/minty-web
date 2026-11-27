@@ -146,7 +146,9 @@ export function XeroCard({
 
   return (
     <section
-      className={`flex min-w-0 flex-col gap-4 rounded-[14px] border border-set-edge p-5 sm:p-6 ${page.can_edit ? "bg-white" : "bg-set-pill"}`}
+      id="section-xero"
+      data-settings-section="Xero"
+      className={`flex min-w-0 scroll-mt-[var(--settings-offset,0px)] flex-col gap-4 rounded-[14px] border border-set-edge p-5 focus:outline-none sm:p-6 ${page.can_edit ? "bg-white" : "bg-set-pill"}`}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2">
         {/* eslint-disable-next-line @next/next/no-img-element -- a 40px static mark, as drawn */}

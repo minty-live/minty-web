@@ -307,7 +307,8 @@ test.describe("module settings page", () => {
     await handoff(page, c, MODULES(c.entityId));
 
     await expect(body(page).getByRole("article", { name: "Petty Cash" })).toBeVisible();
-    await expect(body(page).getByRole("button")).toHaveCount(0);
+    // the tab's own content: the settings rail's buttons are not the page's
+    await expect(page.locator("[data-settings-content]").getByRole("button")).toHaveCount(0);
     await expect(body(page).getByText(/managed by Priya Chan/)).toBeVisible();
   });
 });

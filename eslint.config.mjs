@@ -29,7 +29,7 @@
 // Still local, and still this element: lib/{auth,env,apiClient,handoff,hubPaths,moduleClaims,
 // logout,mintyEntry,settingsTabs,terms,companyFromAddress,companyTitle,
 // legal} and the rest of components/ui (Toast, Icon, MintySelect, ConfirmDialog, ModalFrame,
-// AppHeader, Header, TermsGate/TermsModal, Wordmark, Pagination, RequiredMark, SettingsTabs,
+// AppHeader, Header, TermsGate/TermsModal, Wordmark, Pagination, RequiredMark, SettingsRail,
 // sheetClasses). No rule changed for any of this: a package is a package, which the rules already
 // allow a feature to import.
 import { defineConfig, globalIgnores } from "eslint/config";

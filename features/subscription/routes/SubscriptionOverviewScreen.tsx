@@ -18,7 +18,7 @@
 
 import { useSyncExternalStore } from "react";
 
-import { BackLink } from "@minty/shared/backLink";
+import { HeaderBack } from "@minty/shared/ui";
 
 import { getAuth } from "@/lib/auth";
 import { mintyModulesUrl } from "@/lib/mintyEntry";
@@ -31,7 +31,7 @@ import {
   BillingAccountCard,
   SubscriptionOverviewCard,
 } from "@/features/subscription/components/BillingOverviewPanels";
-import { BACK_LINE_CLASS, PortalBack } from "@/features/subscription/components/PortalBack";
+import { PortalBack } from "@/features/subscription/components/PortalBack";
 import { TransferOutcomeDialog } from "@/features/subscription/components/TransferOutcomeDialog";
 import {
   useBillingOverview,
@@ -52,13 +52,11 @@ export function SubscriptionOverviewScreen(args: UseBillingOverviewArgs) {
   return (
     <div className="flex flex-col gap-6 pb-16">
       <PortalBack>
-        <BackLink
+        <HeaderBack
           href={mintyModulesUrl(entityId)}
-          className={BACK_LINE_CLASS}
+          label={OVERVIEW_BACK}
           {...PORTAL_BACK.overview}
-        >
-          {OVERVIEW_BACK}
-        </BackLink>
+        />
       </PortalBack>
       <div className="rounded-[32px] bg-action-primary px-[54px] py-10">
         <h1 className="text-[40px] font-bold leading-none text-white">{OVERVIEW_TITLE}</h1>

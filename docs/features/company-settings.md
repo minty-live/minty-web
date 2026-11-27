@@ -21,7 +21,7 @@ addresses now only redirect. accounts-api is the backend for this feature (`/api
 
 ## Getting here
 
-- The tab row, from any tab (`lib/settingsTabs.ts`; a module's tab hides when the module is off -
+- The side rail, from any tab (`lib/settingsTabs.ts`; a module's tab hides when the module is off -
   the page's own module list once loaded, the token's claims until then). **Users hides below shop
   manager** (owner, 2026-11-12; `seesCompanyUsers`, from the token's `role`): accounts-api refuses
   a cashier the list. A token naming no role keeps it, Minty staff visiting see it, and its own page
@@ -37,17 +37,38 @@ integration|petty-cash|payment-request|modules` hand over here with a token scop
 - The company comes from the address (`components/ui/CompanyFromAddress`); every accounts-api call
   names it with `?entity=`, and accounts-api checks it is one of the person's.
 
-## The page (`components/ui/SettingsPage.tsx`, `SettingsShell.tsx`, `SettingsTabs.tsx`)
+## The page (`components/ui/SettingsPage.tsx`, `SettingsShell.tsx`, `SettingsRail.tsx`)
 
-The app's bar (Back, "Settings", the initials, the menu), then an 880px column: the company's name
-(13px, muted), "Settings" (28px bold, an h2 under the bar's h1), the tab row - plain tabs on a
-hairline, the open one underlined in teal and bold (`aria-current="page"`) - and the tab's cards.
-On a phone the tab row scrolls sideways inside itself (never the page) and starts scrolled so the
-open tab is in view. Every tab is a plain link to this app's page, so the leave guard sees it.
-**Scrolling (owner, 2026-11-12):** the page scrolls with the document under the sticky bar - the
-frame no longer locks the window and scrolls inside `<main>` (that drew a second page scroll bar).
-A long account-code list (Petty Cash Settings' codes, Payment Settings' codes) scrolls in its own
-box, at most `min(24rem, 50vh)`, with Select all pinned on top; search still narrows it.
+The app's bar - "‹ Back" and "Settings" (the h1) on the left; the company (building + name) before
+the initials and the menu on the right, as in every app's header (`@minty/shared`'s `HeaderBack`
+and `HeaderCompany`, the user 2026-11-27) - then the side rail and the tab's cards. The page draws
+no company name or "Settings" heading of its own (removed 2026-11-27: the bar says both).
+
+**The side rail (the user, 2026-11-27; onboarding's sub-step menu's look).** The tabs down the side
+(plain links, so the leave guard sees each; the open one bold with a teal bar,
+`aria-current="page"`), and under the open tab its cards: every element marked
+`data-settings-section` inside the content (`SettingsCard` marks itself by its title, or
+`railTitle` when the title is more than words; `XeroCard` and the Modules heading mark
+themselves), so a card that comes and goes comes and goes in the rail. A card is a button: it
+scrolls to the top under the header (`--settings-offset`, the cards' scroll margin) and takes
+focus; the address never changes. The card the person is in is marked (`aria-current="location"`,
+teal): the last one whose top has reached the line under the header, the last one on screen once
+the page cannot scroll on, the one just picked until the jump's scroll settles.
+
+- **Every tab opens and closes** (its chevron, `aria-expanded`; the open tab starts open), so a topic on
+  another tab is one click away: another tab's topics are links to its page with the card's
+  address, `…/general#section-contacts` (`SETTINGS_TAB_SECTIONS` and `sectionId` in
+  `lib/settingsTabs.ts` - a card's id is `sectionId` of its title, so change a title and the list
+  together), and the page goes to that card when it arrives.
+- From `lg` (1024) the rail is a 220px column that stays in view beside the cards (the column
+  caps at 1200).
+- Below `lg` a bar under the header names where the person is ("General · Contacts") and opens the
+  same rail as a sheet (the scrim, Escape and × close it, Tab stays inside, a pick closes it).
+  Phones get every tab and card the desktop has (mobile-first).
+  **Scrolling (owner, 2026-11-12):** the page scrolls with the document under the sticky bar - the
+  frame no longer locks the window and scrolls inside `<main>` (that drew a second page scroll bar).
+  A long account-code list (Petty Cash Settings' codes, Payment Settings' codes) scrolls in its own
+  box, at most `min(24rem, 50vh)`, with Select all pinned on top; search still narrows it.
 
 The pieces every tab is built from (`components/ui/SettingsShell.tsx`): `SettingsCard` (white,
 radius 14, the frames' edge; a region named by its title), `ReadOnlyNotice`, `LoadState` and
@@ -105,7 +126,7 @@ guard, `@minty/shared/leaveGuard`: every way out asks "Leave without saving?" fi
 (`components/ui/LeaveDialog.tsx`, Figma A-11) - _Discard changes_ puts the saved values back and
 goes on, _Go Back_, Escape and the backdrop stay.
 
-What it holds: the tab row, the header's Back and the sidebar's
+What it holds: the side rail, the header's Back and the sidebar's
 links - all anchors, caught on `window` in the capture phase, so before their own handlers run -
 and Back / Forward, which are soft navigations (the guard keeps a history sentinel for them). A
 reload, a typed address and a closed tab leave WITHOUT asking: the only prompt a browser allows
@@ -290,8 +311,9 @@ save, stale dropped; Integration: SET-1, SET-2 and
 SET-2b, the disconnected and reconnect-needed states, read-only, the refused connect and its
 move), `__tests__/reexports.test.ts`, `lib/__tests__/settingsTabs.test.ts`,
 `e2e/12_company_settings.spec.ts` (what only a real browser shows: the browser's own Back held by
-the sentinel, the header's Back link, Disconnect from Xero, the tab row, and nothing wider than the
-screen at 360 / 768 / 1440). The guard itself: `@minty/shared`'s `leaveGuard` tests. accounts-api's
+the sentinel, the header's Back link, Disconnect from Xero, the side rail and its phone menu (a card
+jumped to from the menu), and nothing wider than the screen at 360 / 768 / 1440;
+`components/ui/__tests__/SettingsRail.test.tsx` holds the rail itself). The guard itself: `@minty/shared`'s `leaveGuard` tests. accounts-api's
 side: `hub/tests/test_redirects.py` (the hand-overs), `hub/tests/` for `/api/me/company/*`.
 
 ## General: the chart of accounts and contacts (`components/ChartSection.tsx`, `ChartCards.tsx`)

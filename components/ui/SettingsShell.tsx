@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { SettingsPage } from "@/components/ui/SettingsPage";
 import type { CompanySettingsTab } from "@/lib/hubPaths";
 import { getModuleClaims, type ModuleClaims } from "@/lib/moduleClaims";
+import { sectionId } from "@/lib/settingsTabs";
 
 export function SettingsShell({
   company,
@@ -45,10 +46,13 @@ export function SettingsShell({
 
 /**
  * The frames' card: white, a hairline edge, radius 14, its title and line, then its body. A card
- * with a title is a region named by it, so a screen reader can list and jump between the cards.
+ * with a title is a region named by it, so a screen reader can list and jump between the cards,
+ * and it is a section of the side rail (`SettingsRail`) under its title - or `railTitle` when the
+ * title is more than words (Entity name's red *).
  */
 export function SettingsCard({
   title,
+  railTitle,
   titleId,
   lead,
   readOnly = false,
@@ -56,6 +60,8 @@ export function SettingsCard({
   children,
 }: {
   title?: ReactNode;
+  /** The card's name in the side rail when `title` is not plain text. */
+  railTitle?: string;
   /** Set when the card's title names a control inside it (SET-G's name field). */
   titleId?: string;
   lead?: ReactNode;
@@ -66,10 +72,13 @@ export function SettingsCard({
 }) {
   const ownId = useId();
   const headingId = titleId ?? ownId;
+  const inRail = railTitle ?? (typeof title === "string" ? title : undefined);
   return (
     <section
       aria-labelledby={title ? headingId : undefined}
-      className={`flex min-w-0 flex-col gap-4 rounded-[14px] border border-set-edge p-5 sm:p-6 ${readOnly ? "bg-set-pill" : "bg-white"}`}
+      id={inRail ? sectionId(inRail) : undefined}
+      data-settings-section={inRail}
+      className={`flex min-w-0 scroll-mt-[var(--settings-offset,0px)] flex-col gap-4 rounded-[14px] border border-set-edge p-5 focus:outline-none sm:p-6 ${readOnly ? "bg-set-pill" : "bg-white"}`}
     >
       {title || lead || action ? (
         <div className="flex flex-wrap items-start justify-between gap-3">

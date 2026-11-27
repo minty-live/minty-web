@@ -104,6 +104,7 @@ export function DetailsForm({
             <RequiredMark />
           </>
         }
+        railTitle={GENERAL_COPY.title}
         titleId="company-name-title"
         readOnly={!page.can_edit}
       >
